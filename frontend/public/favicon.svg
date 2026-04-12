@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Controla">
+  <defs>
+    <linearGradient id="coin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ade80"/>
+      <stop offset="100%" style="stop-color:#16a34a"/>
+    </linearGradient>
+  </defs>
+  <!-- Moeda verde -->
+  <circle cx="46" cy="22" r="14" fill="url(#coin)" stroke="#14532d" stroke-width="1.5"/>
+  <circle cx="46" cy="22" r="10" fill="none" stroke="#bbf7d0" stroke-width="1" opacity="0.9"/>
+  <text x="46" y="27" text-anchor="middle" font-size="16" font-weight="800" fill="#14532d" font-family="system-ui,sans-serif">$</text>
+  <!-- Corpo porquinho -->
+  <ellipse cx="28" cy="38" rx="20" ry="16" fill="#fda4af" stroke="#be123c" stroke-width="1.2"/>
+  <!-- Focinho -->
+  <ellipse cx="12" cy="38" rx="7" ry="6" fill="#fecdd3" stroke="#be123c" stroke-width="1"/>
+  <circle cx="9.5" cy="37" r="1.8" fill="#1c1917"/>
+  <circle cx="14.5" cy="37" r="1.8" fill="#1c1917"/>
+  <ellipse cx="12" cy="40" rx="2.5" ry="1.5" fill="#be123c" opacity="0.35"/>
+  <!-- Orelhas -->
+  <path d="M22 24 L26 14 L32 22 Z" fill="#fda4af" stroke="#be123c" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M34 24 L40 12 L44 24 Z" fill="#fda4af" stroke="#be123c" stroke-width="1" stroke-linejoin="round"/>
+  <!-- Olho -->
+  <circle cx="30" cy="34" r="2.2" fill="#1c1917"/>
+  <circle cx="30.6" cy="33.3" r="0.7" fill="#fff"/>
+  <!-- Rabo -->
+  <path d="M46 42 Q54 38 52 48 Q50 52 46 48" fill="none" stroke="#be123c" stroke-width="2" stroke-linecap="round"/>
+</svg>

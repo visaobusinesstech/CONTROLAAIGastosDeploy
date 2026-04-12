@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build
+frontend/dist/
+backend/dist/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Drizzle
+backend/.drizzle/
+
+# Test / coverage
+coverage/
+*.tsbuildinfo

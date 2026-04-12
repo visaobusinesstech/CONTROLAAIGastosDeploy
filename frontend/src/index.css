@@ -1,0 +1,156 @@
+/* Helvetica Neue system font stack */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Marca */
+    --green-50: 123 38% 91%;
+    --green-100: 122 38% 80%;
+    --green-200: 123 37% 74%;
+    --green-400: 123 38% 57%;
+    --green-500: 122 39% 49%;
+    --green-700: 129 40% 38%;
+    --green-900: 133 54% 24%;
+
+    /* Neutros */
+    --gray-50: 240 5% 96%;
+    --gray-100: 240 5% 94%;
+    --gray-200: 240 6% 90%;
+    --gray-400: 240 3% 68%;
+    --gray-600: 240 3% 39%;
+    --gray-800: 240 3% 23%;
+    --gray-900: 240 6% 11%;
+
+    /* Semânticos */
+    --red-light: 0 100% 96%;
+    --red-main: 1 84% 63%;
+    --red-dark: 0 67% 47%;
+    --amber-light: 46 100% 94%;
+    --amber-main: 40 100% 50%;
+    --amber-dark: 24 100% 45%;
+
+    /* Superfícies */
+    --surface-page: 240 5% 96%;
+    --surface-card: 0 0% 100%;
+    --surface-inset: 240 5% 96%;
+    --surface-dark: 240 6% 11%;
+
+    /* Mapeamento para shadcn */
+    --background: 240 5% 96%;
+    --foreground: 240 6% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 6% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 6% 11%;
+    --primary: 122 39% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 123 38% 91%;
+    --secondary-foreground: 129 40% 38%;
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 3% 39%;
+    --accent: 123 38% 91%;
+    --accent-foreground: 129 40% 38%;
+    --destructive: 1 84% 63%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 122 39% 49%;
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 240 6% 11%;
+    --sidebar-primary: 122 39% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 123 38% 91%;
+    --sidebar-accent-foreground: 129 40% 38%;
+    --sidebar-border: 240 6% 90%;
+    --sidebar-ring: 122 39% 49%;
+  }
+
+  .dark {
+    --background: 240 6% 9%;
+    --foreground: 240 5% 96%;
+    --card: 240 4% 14%;
+    --card-foreground: 240 5% 96%;
+    --popover: 240 4% 14%;
+    --popover-foreground: 240 5% 96%;
+    --primary: 122 39% 49%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4% 18%;
+    --secondary-foreground: 240 5% 96%;
+    --muted: 240 4% 18%;
+    --muted-foreground: 240 3% 62%;
+    --accent: 240 4% 18%;
+    --accent-foreground: 240 5% 96%;
+    --destructive: 0 67% 47%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 4% 22%;
+    --input: 240 4% 22%;
+    --ring: 122 39% 49%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Helvetica Neue', 'Helvetica', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  input, textarea, select {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  ::selection {
+    background: #C8E6C9;
+    color: #1B5E20;
+  }
+
+  .dark ::selection {
+    background: #1b5e20;
+    color: #e8f5e9;
+  }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #D1D1D6; border-radius: 3px; }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #48484a;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer base {
+  .font-semibold {
+    font-weight: 500;
+  }
+  .font-bold {
+    font-weight: 500;
+  }
+  .font-medium {
+    font-weight: 450;
+  }
+}
