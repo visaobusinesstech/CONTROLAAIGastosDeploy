@@ -48,6 +48,18 @@ export const summaryData = {
   dailyAvgChange: -8.3,
   financialConsistency: 82,
   financialScore: 76,
+  /** Cartões secundários / exemplos quando não há transações na API */
+  mockAvgTicket: 412.5,
+  mockExpenseCount: 12,
+  mockTopCategoryName: "Alimentação",
+  mockTopCategoryShare: 28,
+  mockActiveDays: 9,
+  mockPlannedIncome: 8500,
+  mockLiquidityPct: 62,
+  mockProjectionSimple: 2150,
+  mockNetWorth: 42800,
+  mockNetWorthChangePct: 8.2,
+  mockMonthEndBalance: 3680,
 };
 
 /* Transações recentes */
@@ -63,6 +75,105 @@ export const recentTransactions: Transaction[] = [
   { id: "9", description: "Gasolina", amount: 250, type: "expense", category: "Transporte", categoryIcon: "car", date: "2026-04-08", source: "web" },
   { id: "10", description: "Curso online", amount: 197, type: "expense", category: "Educação", categoryIcon: "book-open", date: "2026-04-09", source: "web" },
 ];
+
+/** Despesas mock ordenadas por data — base para gráficos de fallback no dashboard */
+const mockExpenseRowsSorted = [...recentTransactions]
+  .filter((t) => t.type === "expense")
+  .sort((a, b) => a.date.localeCompare(b.date));
+
+function dmLabel(isoDate: string) {
+  const [y, m, d] = isoDate.split("-");
+  return `${d}/${m}`;
+}
+
+/** Acumulado de despesas (exemplo) — usado quando não há transações na API */
+export const mockDashboardCumulativeExpense = (() => {
+  let acc = 0;
+  return mockExpenseRowsSorted.map((t, idx) => {
+    acc += t.amount;
+    return {
+      ord: idx + 1,
+      label: dmLabel(t.date),
+      acumulado: Math.round(acc * 100) / 100,
+    };
+  });
+})();
+
+/** Dispersão dia × valor — fallback dashboard */
+export const mockDashboardScatterDespesas = mockExpenseRowsSorted.map((t) => ({
+  diaMes: Number.parseInt(t.date.slice(8, 10), 10),
+  valor: t.amount,
+  nome: t.description.slice(0, 28),
+}));
+
+/** Gastos por dia da semana — fallback (a partir das despesas mock) */
+export const mockDashboardGastosDiaSemana = (() => {
+  const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const sums = [0, 0, 0, 0, 0, 0, 0];
+  for (const t of mockExpenseRowsSorted) {
+    const wd = new Date(`${t.date}T12:00:00`).getDay();
+    sums[wd] += t.amount;
+  }
+  /* Garante visual com várias barras > 0 */
+  const base = labels.map((dia, i) => ({ dia, total: Math.round(sums[i] * 100) / 100 }));
+  if (base.every((b) => b.total === 0)) {
+    return [
+      { dia: "Dom", total: 120 },
+      { dia: "Seg", total: 340 },
+      { dia: "Ter", total: 280 },
+      { dia: "Qua", total: 410 },
+      { dia: "Qui", total: 360 },
+      { dia: "Sex", total: 520 },
+      { dia: "Sáb", total: 480 },
+    ];
+  }
+  return base;
+})();
+
+/** Despesas por canal — fallback */
+export const mockDashboardDespesasOrigem = (() => {
+  const label: Record<string, string> = {
+    whatsapp: "WhatsApp",
+    web: "Web",
+    recurring: "Recorrente",
+    manual: "Manual",
+  };
+  const m = new Map<string, number>();
+  for (const t of mockExpenseRowsSorted) {
+    const k = label[t.source] ?? t.source;
+    m.set(k, (m.get(k) ?? 0) + t.amount);
+  }
+  const rows = [...m.entries()].map(([name, value]) => ({
+    name,
+    value: Math.round(value * 100) / 100,
+  }));
+  if (rows.length === 0) {
+    return [
+      { name: "WhatsApp", value: 890 },
+      { name: "Web", value: 650 },
+      { name: "Recorrente", value: 2110 },
+      { name: "Manual", value: 420 },
+    ];
+  }
+  return rows;
+})();
+
+/** Cards do relatório quando não há transações filtradas */
+export const mockReportLargestExpense = {
+  id: "mock-largest",
+  amount: 1800,
+  type: "expense" as const,
+  description: "Aluguel",
+  occurredAt: "2026-04-01T08:00:00.000Z",
+  source: "recurring" as const,
+  categoryId: null as string | null,
+  categoryName: "Moradia",
+  categoryIcon: "home",
+  categoryColor: "#42A5F5",
+  createdAt: "2026-04-01T08:00:00.000Z",
+};
+
+export const mockReportPriciestDay = { day: "2026-04-01", total: 2320.3, count: 2 };
 
 /* Gastos por categoria */
 export const categoryData = [
@@ -86,32 +197,47 @@ export const monthlyEvolution = [
   { month: 'Abr', income: 8500, expense: 5252, balance: 3248 },
 ];
 
-/* Fluxo de caixa diário */
+/* Fluxo de caixa diário (valores fixos para gráficos estáveis) */
 export const cashflowData = Array.from({ length: 30 }, (_, i) => {
   const day = i + 1;
   const income = day === 1 ? 6500 : day === 5 ? 2000 : 0;
-  const expense = Math.round((100 + Math.random() * 200) * 100) / 100;
+  const expense = day <= 11 ? Math.round((120 + (i % 7) * 18 + (i % 3) * 25) * 100) / 100 : 0;
   return {
     day: `${day}`,
     income,
-    expense: day <= 11 ? expense : 0,
+    expense,
     accumulated: 0,
   };
 });
 
 /* Calcula saldo acumulado */
-let acc = 0;
-cashflowData.forEach(d => {
-  acc += d.income - d.expense;
-  d.accumulated = Math.round(acc * 100) / 100;
+let accCf = 0;
+cashflowData.forEach((d) => {
+  accCf += d.income - d.expense;
+  d.accumulated = Math.round(accCf * 100) / 100;
 });
+
+const heatmapAmounts = [180, 95, 310, 0, 220, 145, 88, 400, 175, 260, 90, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+const heatmapCats = [
+  ["Alimentação"],
+  ["Transporte"],
+  ["Alimentação", "Lazer"],
+  [],
+  ["Moradia"],
+  ["Saúde"],
+  ["Alimentação"],
+  ["Lazer", "Transporte"],
+  ["Educação"],
+  ["Alimentação"],
+  ["Serviços"],
+];
 
 /* Heatmap de gastos por dia (abril) */
 export const heatmapData = Array.from({ length: 30 }, (_, i) => ({
   day: i + 1,
   weekday: new Date(2026, 3, i + 1).getDay(),
-  amount: i < 11 ? Math.round((50 + Math.random() * 350) * 100) / 100 : 0,
-  categories: ['Alimentação', 'Transporte', 'Lazer'].slice(0, 1 + Math.floor(Math.random() * 3)),
+  amount: heatmapAmounts[i] ?? 0,
+  categories: heatmapCats[i] ?? [],
 }));
 
 /* Radar chart - equilíbrio financeiro */
@@ -152,8 +278,8 @@ export const timeDistribution = [
 /* Média móvel de gastos */
 export const movingAvgData = Array.from({ length: 30 }, (_, i) => ({
   day: `${i + 1}`,
-  daily: i < 11 ? Math.round((100 + Math.random() * 250) * 100) / 100 : 0,
-  avg7d: i < 11 ? Math.round((150 + Math.sin(i / 3) * 30) * 100) / 100 : 0,
+  daily: i < 11 ? Math.round((95 + (i % 5) * 22 + (i % 4) * 31) * 100) / 100 : 0,
+  avg7d: i < 11 ? Math.round((140 + Math.sin(i / 3) * 28) * 100) / 100 : 0,
   avg30d: 175,
 }));
 
@@ -204,13 +330,13 @@ export const goalsData: Goal[] = [
   },
 ];
 
-/* Insights automáticos */
+/* Dicas curtas para o painel (linguagem simples) */
 export const insights = [
-  { type: "warning" as const, text: "Você está gastando 18% a mais em alimentação que o normal", iconKey: "alert-triangle" },
-  { type: "success" as const, text: "Sua meta de fundo de emergência será atingida em 4 meses", iconKey: "target" },
-  { type: "info" as const, text: "Gastos aumentam 34% aos finais de semana", iconKey: "bar-chart-3" },
-  { type: "warning" as const, text: "Categoria Assinaturas excedeu o limite em R$ 35,80", iconKey: "alert-octagon" },
-  { type: "success" as const, text: "Seu score financeiro subiu 3 pontos este mês", iconKey: "line-chart" },
+  { type: "warning" as const, text: "Alimentação está um pouco acima do habitual — vale revisar o mês.", iconKey: "utensils" },
+  { type: "success" as const, text: "Reserva de emergência no caminho certo se você mantiver o ritmo.", iconKey: "target" },
+  { type: "info" as const, text: "Fins de semana costumam concentrar mais gastos; é normal, só acompanhe.", iconKey: "bar-chart-3" },
+  { type: "warning" as const, text: "Assinaturas passaram do limite que você definiu — confira o que dá para cortar.", iconKey: "tv" },
+  { type: "success" as const, text: "Sua nota financeira melhorou um pouco em relação ao mês passado.", iconKey: "line-chart" },
 ];
 
 /* Conversas IA */

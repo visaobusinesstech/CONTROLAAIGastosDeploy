@@ -55,6 +55,12 @@ import {
   summaryData, categoryData, monthlyEvolution, cashflowData,
   heatmapData, radarData, bulletData, weeklyTrend, timeDistribution,
   movingAvgData, stackedAreaData, recentTransactions, insights, CHART_COLORS,
+  mockDashboardCumulativeExpense,
+  mockDashboardScatterDespesas,
+  mockDashboardGastosDiaSemana,
+  mockDashboardDespesasOrigem,
+  mockReportLargestExpense,
+  mockReportPriciestDay,
 } from "@/lib/mockData";
 
 /* Tooltip Recharts — cores por tema */
@@ -519,7 +525,7 @@ export default function Dashboard() {
   const cumulativeExpenseData = useMemo(() => {
     const exp = [...txs].filter((t) => t.type === "expense").sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     let acc = 0;
-    return exp.map((t, idx) => {
+    const rows = exp.map((t, idx) => {
       acc += t.amount;
       return {
         ord: idx + 1,
@@ -527,16 +533,18 @@ export default function Dashboard() {
         acumulado: Math.round(acc * 100) / 100,
       };
     });
+    return rows.length > 0 ? rows : mockDashboardCumulativeExpense;
   }, [txs]);
 
   const scatterDespesas = useMemo(() => {
-    return txs
+    const rows = txs
       .filter((t) => t.type === "expense")
       .map((t) => ({
         diaMes: new Date(t.occurredAt).getDate(),
         valor: t.amount,
         nome: (t.description ?? t.categoryName ?? "Despesa").slice(0, 28),
       }));
+    return rows.length > 0 ? rows : mockDashboardScatterDespesas;
   }, [txs]);
 
   const gastosPorDiaSemana = useMemo(() => {
@@ -546,7 +554,9 @@ export default function Dashboard() {
       if (t.type !== "expense") continue;
       sums[new Date(t.occurredAt).getDay()] += t.amount;
     }
-    return labels.map((dia, i) => ({ dia, total: Math.round(sums[i] * 100) / 100 }));
+    const rows = labels.map((dia, i) => ({ dia, total: Math.round(sums[i] * 100) / 100 }));
+    const allZero = rows.every((r) => r.total === 0);
+    return allZero ? mockDashboardGastosDiaSemana : rows;
   }, [txs]);
 
   const despesasPorOrigem = useMemo(() => {
@@ -562,10 +572,11 @@ export default function Dashboard() {
       const k = t.source in label ? label[t.source] : t.source;
       m.set(k, (m.get(k) ?? 0) + t.amount);
     }
-    return [...m.entries()].map(([name, value]) => ({
+    const rows = [...m.entries()].map(([name, value]) => ({
       name,
       value: Math.round(value * 100) / 100,
     }));
+    return rows.length > 0 ? rows : mockDashboardDespesasOrigem;
   }, [txs]);
 
   const barEvolution = useMemo(() => {
@@ -591,8 +602,60 @@ export default function Dashboard() {
     }));
   }, [monthlyRes]);
 
-  const largest = largestExpense(txs);
-  const priciestDay = spendByDay(txs);
+  const largest = largestExpense(txs) ?? mockReportLargestExpense;
+  const priciestDay = spendByDay(txs) ?? mockReportPriciestDay;
+  const concentrationLabel = useMemo(() => {
+    if (analytics.topCat) return `${analytics.topCat} · ${analytics.topShare.toFixed(0)}%`;
+    const total = categoryData.reduce((s, c) => s + c.value, 0);
+    const c0 = categoryData[0];
+    if (!c0 || total <= 0) return "Alimentação · 28%";
+    return `${c0.name} · ${Math.round((c0.value / total) * 100)}%`;
+  }, [analytics.topCat, analytics.topShare]);
+
+  const expenseCount = useMemo(() => txs.filter((t) => t.type === "expense").length, [txs]);
+  const hasExpenseData = expenseCount > 0;
+
+  const secondaryCards = useMemo(() => {
+    const s = summaryData;
+    const ticket = hasExpenseData ? analytics.avgTicket : s.mockAvgTicket;
+    const ticketNote = hasExpenseData ? `${expenseCount} despesas` : `${s.mockExpenseCount} despesas (exemplo)`;
+    const topCat = txs.length && analytics.topCat ? analytics.topCat : s.mockTopCategoryName;
+    const topNote =
+      txs.length && analytics.topCat
+        ? `${analytics.topShare.toFixed(0)}% do que você gastou`
+        : `${s.mockTopCategoryShare}% do que você gastou (exemplo)`;
+    const days = txs.length ? analytics.activeDays : s.mockActiveDays;
+    const daysNote = txs.length ? "Neste período" : "Exemplo para acompanhar";
+    const planned = expectedIncome != null ? expectedIncome : s.mockPlannedIncome;
+    const plannedStr = `R$ ${planned.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+    let plannedNote: string;
+    if (expectedIncome == null) plannedNote = "Defina o valor em Renda mensal";
+    else if (txs.length && analytics.income > 0)
+      plannedNote =
+        analytics.budgetVar != null && analytics.budgetVar >= 0 ? "Receita acima do planejado" : "Receita abaixo do planejado";
+    else plannedNote = "Valor que você planejou receber";
+    const liq =
+      txs.length && analytics.expense > 0
+        ? Math.round((analytics.balance / analytics.expense) * 100)
+        : s.mockLiquidityPct;
+    const liqNote =
+      txs.length && analytics.expense > 0
+        ? "Sobra para cada R$ 1 de gasto"
+        : "Exemplo: sobra em relação aos gastos";
+    const proj =
+      txs.length && analytics.dailyAvgExpense > 0
+        ? Math.max(0, analytics.balance - analytics.dailyAvgExpense * 5)
+        : s.mockProjectionSimple;
+    const projStr = `R$ ${proj.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+    return { ticket, ticketNote, topCat, topNote, days, daysNote, plannedStr, plannedNote, liq, liqNote, projStr };
+  }, [txs, analytics, expenseCount, hasExpenseData, expectedIncome]);
+
+  const monthEndPreview = useMemo(() => {
+    if (!txs.length) return summaryData.mockMonthEndBalance;
+    const rest = Math.max(0, 30 - analytics.activeDays);
+    return analytics.balance - analytics.dailyAvgExpense * rest;
+  }, [txs.length, analytics.balance, analytics.activeDays, analytics.dailyAvgExpense]);
+
   const recentList = txs.slice(0, 12);
 
   const monthLabel = new Date(currentMonth + "-01").toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
@@ -877,7 +940,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
-          label="Saldo (período)"
+          label="Saldo do período"
           value={(txs.length ? analytics.balance : summaryData.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={txs.length ? Math.min(99, Math.abs(analytics.savingsRate)) : summaryData.balanceChange}
           trend={txs.length ? (analytics.balance >= 0 ? "up" : "down") : "up"}
@@ -895,7 +958,7 @@ export default function Dashboard() {
           trend="down"
         />
         <MetricCard
-          label="Taxa de Poupança"
+          label="Quanto sobrou (%)"
           value={(txs.length ? analytics.savingsRate : summaryData.savingsRate).toFixed(1)}
           change={txs.length ? Math.round(analytics.topShare) : summaryData.savingsRateChange}
           prefix=""
@@ -903,13 +966,13 @@ export default function Dashboard() {
           trend={txs.length ? (analytics.savingsRate >= 20 ? "up" : "neutral") : "up"}
         />
         <MetricCard
-          label="Média diária"
+          label="Gasto médio por dia"
           value={(txs.length ? analytics.dailyAvgExpense : summaryData.dailyAvgExpense).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={summaryData.dailyAvgChange}
           trend="down"
         />
         <MetricCard
-          label="Score Financeiro"
+          label="Sua nota (0–100)"
           value={(txs.length ? Math.round(analytics.score) : summaryData.financialScore).toString()}
           change={3}
           prefix=""
@@ -920,71 +983,59 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 xl:grid-cols-6">
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Ticket médio (desp.)</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Valor médio por compra</p>
           <p className="text-lg font-semibold tabular text-foreground">
-            R$ {(txs.length ? analytics.avgTicket : 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            R$ {secondaryCards.ticket.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </p>
-          <p className="text-[11px] text-muted-foreground">{txs.length ? `${txs.filter((t) => t.type === "expense").length} despesas` : "—"}</p>
+          <p className="text-[11px] text-muted-foreground">{secondaryCards.ticketNote}</p>
         </div>
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Maior categoria</p>
-          <p className="truncate text-lg font-semibold text-foreground">{txs.length && analytics.topCat ? analytics.topCat : "—"}</p>
-          <p className="text-[11px] text-muted-foreground">
-            {txs.length ? `${analytics.topShare.toFixed(0)}% das despesas` : "Filtre o período"}
-          </p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Onde mais gastou</p>
+          <p className="truncate text-lg font-semibold text-foreground">{secondaryCards.topCat}</p>
+          <p className="text-[11px] text-muted-foreground">{secondaryCards.topNote}</p>
         </div>
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Dias com lançamento</p>
-          <p className="text-lg font-semibold tabular text-foreground">{txs.length ? analytics.activeDays : "—"}</p>
-          <p className="text-[11px] text-muted-foreground">No intervalo selecionado</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Dias com registro</p>
+          <p className="text-lg font-semibold tabular text-foreground">{secondaryCards.days}</p>
+          <p className="text-[11px] text-muted-foreground">{secondaryCards.daysNote}</p>
         </div>
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Renda planejada</p>
-          <p className="text-lg font-semibold tabular text-foreground">
-            {expectedIncome != null ? `R$ ${expectedIncome.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            {expectedIncome != null && txs.length
-              ? `${analytics.budgetVar != null && analytics.budgetVar >= 0 ? "Acima" : "Abaixo"} da meta`
-              : "Defina em Renda mensal"}
-          </p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Renda que você planejou</p>
+          <p className="text-lg font-semibold tabular text-foreground">{secondaryCards.plannedStr}</p>
+          <p className="text-[11px] text-muted-foreground">{secondaryCards.plannedNote}</p>
         </div>
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Liquidez (período)</p>
-          <p className="text-lg font-semibold tabular text-cgreen-500">
-            {txs.length ? `${((analytics.balance / Math.max(analytics.expense, 1)) * 100).toFixed(0)}%` : "—"}
-          </p>
-          <p className="text-[11px] text-muted-foreground">Saldo ÷ despesas</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Sobra vs. gastos</p>
+          <p className="text-lg font-semibold tabular text-cgreen-500">{secondaryCards.liq}%</p>
+          <p className="text-[11px] text-muted-foreground">{secondaryCards.liqNote}</p>
         </div>
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Projeção simples</p>
-          <p className="text-lg font-semibold tabular text-foreground">
-            {txs.length && analytics.dailyAvgExpense > 0
-              ? `R$ ${Math.max(0, analytics.balance - analytics.dailyAvgExpense * 5).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`
-              : "—"}
-          </p>
-          <p className="text-[11px] text-muted-foreground">Saldo − 5× média diária</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Dinheiro após ~5 dias</p>
+          <p className="text-lg font-semibold tabular text-foreground">{secondaryCards.projStr}</p>
+          <p className="text-[11px] text-muted-foreground">Se o ritmo de gasto continuar igual</p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl bg-[#1C1C1E] p-4 dark:bg-[#1C1C1E]">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-cgray-400">Patrimônio Líquido</p>
-          <p className="text-xl font-semibold tabular tracking-tight text-cgreen-400">R$ 42.800</p>
-          <p className="text-[11px] text-cgray-500">↑ 8.2% este mês</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-cgray-400">Patrimônio (exemplo)</p>
+          <p className="text-xl font-semibold tabular tracking-tight text-cgreen-400">
+            R$ {summaryData.mockNetWorth.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
+          </p>
+          <p className="text-[11px] text-cgray-500">↑ {summaryData.mockNetWorthChangePct}% no mês (ilustrativo)</p>
         </div>
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Dívida / Renda</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Dívidas em relação à renda</p>
           <p className="text-xl font-semibold tabular tracking-tight text-foreground">{summaryData.debtToIncome}%</p>
-          <p className="text-[11px] text-cgreen-500">Saudável (&lt;30%)</p>
+          <p className="text-[11px] text-cgreen-500">Abaixo de 30% costuma ser confortável</p>
         </div>
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Fundo Emergência</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Reserva de emergência</p>
           <p className="text-xl font-semibold tabular tracking-tight text-foreground">{summaryData.emergencyFundMonths} meses</p>
-          <p className="text-[11px] text-camber-main">Meta: 6 meses</p>
+          <p className="text-[11px] text-camber-main">Muita gente mira em 6 meses de despesas</p>
         </div>
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Consistência</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Registros no mês</p>
           <p className="text-xl font-semibold tabular tracking-tight text-foreground">{summaryData.financialConsistency}%</p>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
             <div className="h-full rounded-full bg-cgreen-500" style={{ width: `${summaryData.financialConsistency}%` }} />
@@ -994,7 +1045,8 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Gastos por Categoria</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Gastos por categoria</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Cada fatia mostra quanto foi para cada tipo de despesa.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -1034,7 +1086,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Receitas vs Despesas</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Entrou vs. saiu (por mês)</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Barras verdes = receitas; vermelhas = despesas.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={barEvolution} barCategoryGap="30%">
@@ -1050,7 +1103,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Saldo Acumulado no Mês</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Saldo ao longo do mês</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Soma do que sobrou dia a dia (exemplo ilustrativo).</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={cashflowData}>
@@ -1086,15 +1140,16 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Equilíbrio Financeiro</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Equilíbrio por tipo de gasto</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Cada eixo é uma área; a linha tracejada é só uma referência visual.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <RadarChart data={radarData}>
                 <PolarGrid stroke={gridStroke} />
                 <PolarAngleAxis dataKey="category" tick={{ fontSize: 11, fill: tickFill }} />
-                <Radar name="Atual" dataKey="current" stroke="#4CAF50" fill="#4CAF50" fillOpacity={0.2} />
+                <Radar name="Seu perfil" dataKey="current" stroke="#4CAF50" fill="#4CAF50" fillOpacity={0.2} />
                 <Radar
-                  name="Ideal"
+                  name="Referência"
                   dataKey="ideal"
                   stroke={isDark ? "#5C5C5E" : "#E5E5EA"}
                   fill="transparent"
@@ -1108,13 +1163,15 @@ export default function Dashboard() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Meta vs Atual por Categoria</h3>
+        <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Limite vs. gasto real</h3>
+        <p className="mb-4 text-xs text-muted-foreground">Barra colorida = quanto você já usou da meta da categoria (exemplo).</p>
         <BulletChart data={bulletData} isDark={isDark} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Fluxo Acumulado</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Receitas e despesas empilhadas</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Áreas verde e vermelha mostram o volume de cada tipo ao longo dos meses.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <AreaChart data={stackedFromApi}>
@@ -1130,7 +1187,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Tendência Semanal</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Gasto por semana</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Barras = total da semana; linha tracejada = média (exemplo).</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <ComposedChart data={weeklyTrend}>
@@ -1146,7 +1204,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Média Móvel de Gastos</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Gasto do dia e média de 7 dias</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Linha verde suaviza picos do dia a dia (exemplo).</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={movingAvgData}>
@@ -1168,7 +1227,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Distribuição por Horário</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Gastos por faixa do dia</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Manhã, tarde ou noite — onde entram mais lançamentos (exemplo).</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
@@ -1194,23 +1254,24 @@ export default function Dashboard() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Mapa de Calor — Gastos Diários</h3>
+        <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Calendário: dias com mais gasto</h3>
+        <p className="mb-4 text-xs text-muted-foreground">Quanto mais escuro, mais você gastou naquele dia (exemplo).</p>
         <ChartPlotArea className="p-4">
           <SpendingHeatmap />
         </ChartPlotArea>
       </div>
 
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">Painéis adicionais de gastos</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">Mais gráficos de gastos</h2>
         <p className="text-sm text-muted-foreground">
-          Treemap, ranking, acumulado, dispersão, dia da semana e canal de registro — todos respeitam o intervalo de datas e filtros ativos.
+          Quando você filtra o período, usamos seus dados; se não houver despesas, mostramos números de exemplo para o painel não ficar vazio.
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Treemap — volume por categoria</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Área proporcional ao gasto no período filtrado.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Quanto cada categoria “pesa”</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Quadrados maiores = mais dinheiro naquela categoria.</p>
           <ChartPlotArea className="overflow-hidden p-2">
             <ResponsiveContainer width="100%" height={300}>
               <Treemap
@@ -1246,8 +1307,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Ranking horizontal — top categorias</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Ordenação por valor de despesa.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Categorias que mais gastaram</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Lista da maior para a menor despesa.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart layout="vertical" data={horizontalCategoryRank} margin={{ left: 8, right: 16 }}>
@@ -1262,68 +1323,60 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Despesas acumuladas no período</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Cada ponto é uma transação; eixo Y é o total acumulado.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Total gasto somando as compras</h3>
+          <p className="mb-4 text-xs text-muted-foreground">A linha sobe a cada nova despesa; mostra quanto já saiu no período.</p>
           <ChartPlotArea>
-            {cumulativeExpenseData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={cumulativeExpenseData}>
-                  <defs>
-                    <linearGradient id="accGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2} />
-                      <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 11, fill: tickFill }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
-                  <Tooltip content={<DashTooltip />} />
-                  <Area type="stepAfter" dataKey="acumulado" name="Acumulado" stroke="#ef4444" fill="url(#accGrad)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="py-12 text-center text-sm text-muted-foreground">Sem despesas no período.</p>
-            )}
+            <ResponsiveContainer width="100%" height={280}>
+              <AreaChart data={cumulativeExpenseData}>
+                <defs>
+                  <linearGradient id="accGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.2} />
+                    <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickFill }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: tickFill }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
+                <Tooltip content={<DashTooltip />} />
+                <Area type="stepAfter" dataKey="acumulado" name="Acumulado" stroke="#ef4444" fill="url(#accGrad)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
           </ChartPlotArea>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Dispersão — dia do mês × valor</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Identifique clusters de gastos e outliers.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Cada ponto é uma compra</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Eixo de baixo = dia do mês; altura = valor. Pontos altos = gastos maiores naquele dia.</p>
           <ChartPlotArea>
-            {scatterDespesas.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                  <XAxis type="number" dataKey="diaMes" name="Dia" tick={{ fontSize: 11, fill: tickFill }} domain={[0.5, 31.5]} />
-                  <YAxis type="number" dataKey="valor" name="R$" tick={{ fontSize: 11, fill: tickFill }} />
-                  <ZAxis type="number" dataKey="valor" range={[40, 400]} />
-                  <Tooltip
-                    cursor={{ strokeDasharray: "3 3" }}
-                    content={({ active, payload }) => {
-                      if (!active || !payload?.[0]) return null;
-                      const p = payload[0].payload as { nome: string; valor: number; diaMes: number };
-                      return (
-                        <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
-                          <p className="font-medium text-foreground">{p.nome}</p>
-                          <p className="text-muted-foreground">Dia {p.diaMes}</p>
-                          <p className="tabular font-semibold text-foreground">R$ {p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Scatter data={scatterDespesas} fill="#16a34a" fillOpacity={0.65} />
-                </ScatterChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="py-12 text-center text-sm text-muted-foreground">Sem despesas no período.</p>
-            )}
+            <ResponsiveContainer width="100%" height={280}>
+              <ScatterChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
+                <XAxis type="number" dataKey="diaMes" name="Dia" tick={{ fontSize: 11, fill: tickFill }} domain={[0.5, 31.5]} />
+                <YAxis type="number" dataKey="valor" name="R$" tick={{ fontSize: 11, fill: tickFill }} />
+                <ZAxis type="number" dataKey="valor" range={[40, 400]} />
+                <Tooltip
+                  cursor={{ strokeDasharray: "3 3" }}
+                  content={({ active, payload }) => {
+                    if (!active || !payload?.[0]) return null;
+                    const p = payload[0].payload as { nome: string; valor: number; diaMes: number };
+                    return (
+                      <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-md">
+                        <p className="font-medium text-foreground">{p.nome}</p>
+                        <p className="text-muted-foreground">Dia {p.diaMes}</p>
+                        <p className="tabular font-semibold text-foreground">R$ {p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                      </div>
+                    );
+                  }}
+                />
+                <Scatter data={scatterDespesas} fill="#16a34a" fillOpacity={0.65} />
+              </ScatterChart>
+            </ResponsiveContainer>
           </ChartPlotArea>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Gastos por dia da semana</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Útil para ver peso de fins de semana vs dias úteis.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Quanto gastou em cada dia da semana</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Compare domingo a sábado de um relance.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={gastosPorDiaSemana}>
@@ -1338,76 +1391,61 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Despesas por canal</h3>
-          <p className="mb-4 text-xs text-muted-foreground">WhatsApp, web, recorrente ou lançamento manual.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">De onde veio o lançamento</h3>
+          <p className="mb-4 text-xs text-muted-foreground">WhatsApp, site, recorrente ou lançamento manual no app.</p>
           <ChartPlotArea>
-            {despesasPorOrigem.length > 0 ? (
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={despesasPorOrigem}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius="45%"
-                    outerRadius="75%"
-                    paddingAngle={2}
-                  >
-                    {despesasPorOrigem.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<DashTooltip />} />
-                  <Legend formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <p className="py-12 text-center text-sm text-muted-foreground">Sem despesas no período.</p>
-            )}
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={despesasPorOrigem}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius="45%"
+                  outerRadius="75%"
+                  paddingAngle={2}
+                >
+                  {despesasPorOrigem.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
+                  ))}
+                </Pie>
+                <Tooltip content={<DashTooltip />} />
+                <Legend formatter={(value) => <span className="text-xs text-muted-foreground">{value}</span>} />
+              </PieChart>
+            </ResponsiveContainer>
           </ChartPlotArea>
         </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground capitalize">Relatório de gastos — {monthLabel}</h3>
+        <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground capitalize">Resumo do mês — {monthLabel}</h3>
+        <p className="mb-4 text-xs text-muted-foreground">Três números rápidos; sem dados no filtro, usamos um exemplo.</p>
         <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-xl bg-muted/50 p-4">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Maior gasto único</p>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Maior compra do período</p>
             <p className="text-base font-semibold text-foreground">
-              {largest ? `R$ ${largest.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "—"}
+              R$ {largest.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </p>
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
-              {largest ? (
-                <>
-                  <CategoryIcon name={largest.categoryIcon} size={14} />
-                  {largest.description ?? largest.categoryName} —{" "}
-                  {new Date(largest.occurredAt).toLocaleDateString("pt-BR")}
-                </>
-              ) : (
-                "Sem despesas no filtro"
-              )}
+              <CategoryIcon name={largest.categoryIcon} size={14} />
+              {largest.description ?? largest.categoryName} — {new Date(largest.occurredAt).toLocaleDateString("pt-BR")}
             </p>
           </div>
           <div className="rounded-xl bg-muted/50 p-4">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Dia mais caro</p>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Dia em que mais gastou</p>
             <p className="text-base font-semibold text-foreground">
-              {priciestDay
-                ? new Date(priciestDay.day + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })
-                : "—"}
+              {new Date(priciestDay.day + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}
             </p>
             <p className="text-xs text-muted-foreground">
-              {priciestDay
-                ? `R$ ${priciestDay.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em ${priciestDay.count} transações`
-                : "—"}
+              R$ {priciestDay.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em {priciestDay.count}{" "}
+              transações
             </p>
           </div>
           <div className="rounded-xl bg-muted/50 p-4">
-            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Concentração</p>
-            <p className="text-base font-semibold text-camber-main">
-              {txs.length && analytics.topCat ? `${analytics.topCat} · ${analytics.topShare.toFixed(0)}%` : "—"}
-            </p>
-            <p className="text-xs text-muted-foreground">Participação nas despesas do período</p>
+            <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Maior fatia do gasto</p>
+            <p className="text-base font-semibold text-camber-main">{concentrationLabel}</p>
+            <p className="text-xs text-muted-foreground">Quanto essa parte representa do que você gastou</p>
           </div>
         </div>
         <div className="overflow-x-auto">
@@ -1464,10 +1502,11 @@ export default function Dashboard() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-1 flex items-center gap-2">
           <Lightbulb size={18} className="text-camber-main" />
-          <h3 className="text-base font-semibold tracking-tight text-foreground">Análise Inteligente</h3>
+          <h3 className="text-base font-semibold tracking-tight text-foreground">Dicas em linguagem simples</h3>
         </div>
+        <p className="mb-4 text-xs text-muted-foreground">Resumos curtos para você bater o olho e entender o cenário (inclui exemplos).</p>
         <div className="space-y-3">
           {insights.map((insight, i) => (
             <motion.div
@@ -1493,82 +1532,84 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Padrão de Comportamento</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Hábitos que vale observar</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Exemplos para ilustrar o painel — com seus dados reais, estes textos podem mudar.</p>
           <div className="space-y-3">
             <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
               <CalendarDays className="h-8 w-8 shrink-0 text-cgreen-500" strokeWidth={1.5} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">Fim de semana = mais gastos</p>
-                <p className="text-xs text-muted-foreground">Você gasta 34% a mais sáb/dom vs dias úteis</p>
+                <p className="text-sm font-medium text-foreground">Fins de semana costumam pesar mais</p>
+                <p className="text-xs text-muted-foreground">Muita gente gasta um pouco mais sábado e domingo — compare com seus lançamentos.</p>
               </div>
               <span className="shrink-0 rounded-full bg-camber-light px-2 py-1 text-xs font-medium text-camber-main dark:bg-amber-900/30">
-                Padrão
+                Dica
               </span>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
               <Utensils className="h-8 w-8 shrink-0 text-camber-main" strokeWidth={1.5} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">Delivery à noite</p>
-                <p className="text-xs text-muted-foreground">68% dos gastos em alimentação são após 19h</p>
+                <p className="text-sm font-medium text-foreground">Comida à noite</p>
+                <p className="text-xs text-muted-foreground">Se delivery e restaurante concentram à noite, o total do mês sobe rápido.</p>
               </div>
               <span className="shrink-0 rounded-full bg-cred-light px-2 py-1 text-xs font-medium text-cred-main dark:bg-red-900/25">
-                Atenção
+                Olho vivo
               </span>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-muted/50 p-3">
               <CreditCard className="h-8 w-8 shrink-0 text-cred-main" strokeWidth={1.5} />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-foreground">Compras por impulso</p>
-                <p className="text-xs text-muted-foreground">3 compras acima de R$ 100 não planejadas</p>
+                <p className="text-sm font-medium text-foreground">Compras maiores sem planejar</p>
+                <p className="text-xs text-muted-foreground">Alguns gastos acima do habitual podem ser só revisar antes de repetir.</p>
               </div>
               <span className="shrink-0 rounded-full bg-camber-light px-2 py-1 text-xs font-medium text-camber-main dark:bg-amber-900/30">
-                Alerta
+                Lembrete
               </span>
             </div>
           </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-4 text-base font-semibold tracking-tight text-foreground">Previsão & Risco</h3>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Fechamento do mês (estimativa)</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Número aproximado; serve para ter uma ideia, não é promessa exata.</p>
           <div className="space-y-4">
             <div className="rounded-xl bg-cgreen-50 p-4 dark:bg-cgreen-900/20">
               <div className="mb-1 flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-cgreen-600 dark:text-cgreen-400" />
-                <p className="text-sm font-medium text-cgreen-700 dark:text-cgreen-400">Previsão de saldo fim do mês</p>
+                <p className="text-sm font-medium text-cgreen-700 dark:text-cgreen-400">Saldo estimado no último dia do mês</p>
               </div>
               <p className="text-xl font-semibold tabular tracking-tight text-cgreen-700 dark:text-cgreen-400">
-                {txs.length
-                  ? `R$ ${(analytics.balance - analytics.dailyAvgExpense * Math.max(0, 30 - analytics.activeDays)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`
-                  : "R$ 3.680,00"}
+                R$ {monthEndPreview.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
               </p>
-              <p className="mt-1 text-xs text-cgreen-600 dark:text-cgreen-500/90">Projeção linear a partir do período filtrado</p>
+              <p className="mt-1 text-xs text-cgreen-600 dark:text-cgreen-500/90">
+                {txs.length ? "Com base no que já entrou e no ritmo de gasto do período." : "Valor de exemplo até você registrar transações."}
+              </p>
             </div>
             <div className="rounded-xl bg-camber-light p-4 dark:bg-amber-900/20">
               <div className="mb-1 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-camber-main" />
-                <p className="text-sm font-medium text-camber-main">Risco de estouro</p>
+                <p className="text-sm font-medium text-camber-main">Meta de alimentação</p>
               </div>
               <p className="text-sm text-foreground/90">
-                Alimentação tem <span className="font-medium text-cred-main">78% de chance</span> de exceder a meta nos próximos 10 dias.
+                Se o ritmo continuar, <span className="font-medium text-cred-main">alimentação</span> pode passar do limite que você definiu — vale conferir a categoria esta semana.
               </p>
             </div>
             <div className="rounded-xl bg-muted/50 p-4">
               <div className="mb-1 flex items-center gap-2">
                 <Target className="h-4 w-4 text-foreground" />
-                <p className="text-sm font-medium text-foreground">Score financeiro</p>
+                <p className="text-sm font-medium text-foreground">Sua nota geral</p>
               </div>
               <div className="mt-1 flex items-center gap-3">
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-cgreen-500"
-                    style={{ width: `${txs.length ? analytics.score : 76}%` }}
+                    style={{ width: `${txs.length ? analytics.score : summaryData.financialScore}%` }}
                   />
                 </div>
                 <span className="text-base font-semibold tabular text-foreground">
-                  {txs.length ? Math.round(analytics.score) : 76}/100
+                  {txs.length ? Math.round(analytics.score) : summaryData.financialScore}/100
                 </span>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">Composto por poupança, concentração e meta de renda</p>
+              <p className="text-xs text-muted-foreground mt-1">Quanto você poupa, como distribui gastos e se bate a meta de renda entram nessa nota.</p>
             </div>
           </div>
         </div>
