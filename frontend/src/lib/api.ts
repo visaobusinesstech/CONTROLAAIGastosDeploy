@@ -1,4 +1,13 @@
-const base = import.meta.env.VITE_API_URL ?? "";
+/** Sem https:// o browser trata o host como caminho relativo (ex.: Vercel → 404 no /login). */
+function normalizeApiBase(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  const noTrail = t.replace(/\/+$/, "");
+  if (/^https?:\/\//i.test(noTrail)) return noTrail;
+  return `https://${noTrail.replace(/^\/+/, "")}`;
+}
+
+const base = normalizeApiBase(String(import.meta.env.VITE_API_URL ?? ""));
 
 export type ApiUser = {
   id: string;
@@ -201,8 +210,7 @@ export async function apiExportTransactionsCsv(
   const q = new URLSearchParams();
   if (params.from) q.set("from", params.from);
   if (params.to) q.set("to", params.to);
-  const baseUrl = import.meta.env.VITE_API_URL ?? "";
-  const res = await fetch(`${baseUrl}/api/transactions/export?${q}`, {
+  const res = await fetch(`${base}/api/transactions/export?${q}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
