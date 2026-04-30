@@ -8,11 +8,9 @@ const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replac
 
 let app: any = null;
 
-async function init() {
-  if (app) return app;
-
-  try {
-    console.log("Initializing Fastify app...");
+async function getApp() {
+  if (!app) {
+    console.log("Creating Fastify app...");
     app = Fastify({ logger: true });
 
     console.log("Registering CORS...");
@@ -21,32 +19,43 @@ async function init() {
       credentials: true,
     });
 
-    console.log("Registering health route...");
+    console.log("Registering routes...");
     app.get("/health", async () => ({ ok: true }));
-
-    console.log("Registering auth routes...");
     await registerAuthRoutes(app);
-
-    console.log("Registering API routes...");
     await registerApiRoutes(app);
 
-    console.log("Fastify app initialized successfully!");
-    return app;
-  } catch (error) {
-    console.error("Error initializing app:", error);
-    throw error;
+    console.log("Fastify app ready!");
   }
+  return app;
 }
 
 export default async function handler(req: any, res: any) {
   try {
-    console.log("Received request:", req.method, req.url);
-    const fastify = await init();
+    console.log(`Request: ${req.method} ${req.url}`);
+    const fastify = await getApp();
     await fastify.ready();
-    fastify.server.emit("request", req, res);
+    
+    const response = await fastify.inject({
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      payload: req.body,
+    });
+    
+    res.statusCode = response.statusCode;
+    for (const [key, value] of Object.entries(response.headers)) {
+      if (typeof value === "string") {
+        res.setHeader(key, value);
+      }
+    }
+    res.end(response.body);
   } catch (error) {
     console.error("Handler error:", error);
     res.statusCode = 500;
-    res.end(JSON.stringify({ error: "Internal Server Error", details: error instanceof Error ? error.message : String(error) }));
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ 
+      error: "Internal Server Error", 
+      details: error instanceof Error ? error.message : String(error) 
+    }));
   }
 }
