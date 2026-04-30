@@ -8,7 +8,7 @@ const port = Number(process.env.PORT) || 3333;
 /* Origin do browser não leva barra final; alinhar para o CORS bater certo. */
 const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
 
-async function main() {
+async function createApp() {
   const app = Fastify({ logger: true });
 
   await app.register(cors, {
@@ -21,6 +21,11 @@ async function main() {
   await registerAuthRoutes(app);
   await registerApiRoutes(app);
 
+  return app;
+}
+
+async function main() {
+  const app = await createApp();
   try {
     await app.listen({ port, host: "0.0.0.0" });
     app.log.info(`API http://localhost:${port}`);
@@ -30,4 +35,16 @@ async function main() {
   }
 }
 
-main();
+let appInstance: any = null;
+
+export default async function handler(req: any, res: any) {
+  if (!appInstance) {
+    appInstance = await createApp();
+  }
+  await appInstance.ready();
+  appInstance.server.emit("request", req, res);
+}
+
+if (require.main === module || import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
