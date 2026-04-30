@@ -6,27 +6,28 @@ import { registerApiRoutes } from "../src/modules/api-routes.js";
 
 const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/+$/, "");
 
-let app: any = null;
+const app = Fastify({ logger: true });
 
-async function getApp() {
-  if (!app) {
-    app = Fastify({ logger: true });
+let isReady = false;
 
-    await app.register(cors, {
-      origin: [frontendUrl, "http://localhost:5173", "http://localhost:5174"],
-      credentials: true,
-    });
+async function setup() {
+  if (isReady) return;
 
-    app.get("/health", async () => ({ ok: true }));
+  await app.register(cors, {
+    origin: [frontendUrl, "http://localhost:5173", "http://localhost:5174"],
+    credentials: true,
+  });
 
-    await registerAuthRoutes(app);
-    await registerApiRoutes(app);
-  }
-  return app;
+  app.get("/health", async () => ({ ok: true }));
+
+  await registerAuthRoutes(app);
+  await registerApiRoutes(app);
+
+  isReady = true;
 }
 
 export default async function handler(req: any, res: any) {
-  const fastify = await getApp();
-  await fastify.ready();
-  fastify.server.emit("request", req, res);
+  await setup();
+  await app.ready();
+  app.server.emit("request", req, res);
 }
