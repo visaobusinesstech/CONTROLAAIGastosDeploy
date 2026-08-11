@@ -1,0 +1,31 @@
+-- PASSO A PASSO DBeaver: migrar Neon → PostgreSQL local
+-- =====================================================
+-- ORIGEM (Neon — reset senha em https://console.neon.tech se falhar):
+--   Host: ep-calm-shape-ac838ty0-pooler.sa-east-1.aws.neon.tech
+--   Port: 5432
+--   Database: controlaai
+--   User: neondb_owner
+--   Password: (senha atual do Neon)
+--   SSL: require
+--
+-- DESTINO (local):
+--   Host: localhost
+--   Port: 5432
+--   Database: controlaai   ← NÃO use "postgres"
+--   User: controlaai
+--   Password: controlaai123
+--   SSL: disable
+--
+-- MIGRAÇÃO PELO DBEAVER (sem código):
+-- 1. Crie as duas conexões acima
+-- 2. Botão direito na conexão ORIGEM (Neon controlaai)
+-- 3. Tools → Data Transfer (ou Export Data)
+-- 4. Source: todas as tabelas do schema public
+-- 5. Target: conexão local controlaai
+-- 6. Opções: "Truncate target tables" + "Disable FK checks" se disponível
+-- 7. Start
+--
+-- MIGRAÇÃO AUTOMÁTICA (terminal, após reset da senha Neon):
+--   No backend/.env adicione:
+--   SOURCE_DATABASE_URL=postgresql://neondb_owner:NOVA_SENHA@ep-calm-shape-ac838ty0-pooler.sa-east-1.aws.neon.tech/controlaai?sslmode=require
+--   Depois: npm run db:migrate:neon-local

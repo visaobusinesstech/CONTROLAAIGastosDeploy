@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"/>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 2900px; min-height: 2228px; font-family: "Segoe UI", Arial, sans-serif; background: #fff; }
+  
+  .d-canvas { position: relative; background: linear-gradient(165deg, #fafafa 0%, #eef2ff 50%, #f0fdf4 100%); border: 4px solid #4338ca; border-radius: 18px; overflow: visible; margin-bottom: 32px; padding-bottom: 24px; }
+  .d-title { position: absolute; top: 18px; left: 32px; font-weight: 800; color: #1e1b4b; z-index: 10; }
+  .d-subtitle { position: absolute; top: 62px; left: 32px; color: #6366f1; z-index: 10; }
+  .d-legend { position: absolute; top: 18px; right: 32px; background: #fff; border: 2px solid #4338ca; border-radius: 12px; padding: 10px 16px; z-index: 10; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  .d-zone-label { position: absolute; font-weight: 800; font-size: 18px; text-transform: uppercase; letter-spacing: 0.08em; pointer-events: none; z-index: 10; background: rgba(255,255,255,0.92); padding: 6px 14px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .d-rel-svg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 4; overflow: visible; }
+  .d-rel-shadow { fill: none; stroke: #fff; opacity: 1; stroke-linecap: round; stroke-linejoin: round; }
+  .d-rel-line { fill: none; opacity: 1; stroke-linecap: round; stroke-linejoin: round; }
+  .d-rel-tag { position: absolute; z-index: 5; width: 36px; height: 36px; line-height: 32px; text-align: center; font-weight: 800; font-size: 16px; color: #1e3a8a; background: #fff; border: 2px solid #1e3a8a; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.1); pointer-events: none; }
+  .d-entity { position: absolute; background: #fff; border: 3px solid #4338ca; border-radius: 12px; overflow: hidden; box-shadow: 0 6px 24px rgba(67,56,202,0.2); z-index: 8; }
+  .d-entity-name { display: flex; align-items: center; padding: 0 14px; font-weight: 800; color: #fff; letter-spacing: 0.02em; }
+  .d-cols { padding: 4px 0 6px; }
+  .d-col-n, .d-col-pk, .d-col-fk { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #f1f5f9; }
+  .d-col-pk { background: #fffbeb; }
+  .d-col-fk { background: #eff6ff; }
+  .d-col-name { font-weight: 700; color: #1e293b; flex: 1; font-family: Consolas, monospace; }
+  .d-col-type { color: #64748b; font-family: Consolas, monospace; min-width: 90px; text-align: right; }
+  .d-badge { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; white-space: nowrap; }
+  .d-badge-pk { background: #fef3c7; color: #92400e; }
+  .d-badge-fk { background: #dbeafe; color: #1e40af; }
+  .d-hub { position: absolute; z-index: 6; background: #eff6ff; border: 3px solid #4338ca; border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 16px rgba(67,56,202,0.15); }
+  .d-hub-title { font-weight: 800; color: #1e3a8a; font-size: 15px; margin-bottom: 4px; }
+  .d-hub-sub { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+  .d-hub-list { margin: 0; padding-left: 18px; font-size: 12px; color: #334155; columns: 2; line-height: 1.5; }
+
+</style></head>
+<body>
+  <div class="d-canvas" style="width:2900px;min-height:2228px;">
+    <div class="d-title" style="font-size:38px">Arquitetura do banco — tabelas e relacionamentos</div>
+    <div class="d-subtitle" style="font-size:18px">16 tabelas · 6 setas A–F (sem cruzamento) · users.id na caixa azul + tabela FK abaixo</div>
+    <div class="d-legend" style="font-size:13px">
+      <span class="d-badge d-badge-pk">PK</span> &nbsp;
+      <span class="d-badge d-badge-fk">FK</span> &nbsp;
+      <span style="color:#1e3a8a;font-weight:800">A–F</span> = setas · A user_settings · B,C,D category_id · E goal_id · F transaction_id
+    </div>
+    <div class="d-zone-label" style="left:62px;top:438px;color:#7c3aed">IA</div>
+<div class="d-zone-label" style="left:532px;top:358px;color:#059669">Núcleo</div>
+<div class="d-zone-label" style="left:1012px;top:358px;color:#0891b2">Metas</div>
+<div class="d-zone-label" style="left:1492px;top:438px;color:#4338ca">Usuário · WhatsApp</div>
+    <svg class="d-rel-svg" style="width:2900px;height:2228px">
+    <defs>
+      <marker id="arrowFk" markerWidth="18" markerHeight="14" refX="16" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+        <polygon points="0,0 18,7 0,14" fill="#1e3a8a"/>
+      </marker>
+    </defs><g class="d-rel-group">
+      <path d="M 1920 530 L 1944 530 L 1944 796 L 1920 796" class="d-rel-shadow" style="stroke-width:14"/>
+      <path d="M 1920 530 L 1944 530 L 1944 796 L 1920 796" class="d-rel-line" style="stroke:#1e3a8a;stroke-width:10" marker-end="url(#arrowFk)"/>
+    </g>
+<g class="d-rel-group">
+      <path d="M 560 1142 L 536 1142 L 536 490 L 560 490" class="d-rel-shadow" style="stroke-width:14"/>
+      <path d="M 560 1142 L 536 1142 L 536 490 L 560 490" class="d-rel-line" style="stroke:#1e3a8a;stroke-width:10" marker-end="url(#arrowFk)"/>
+    </g>
+<g class="d-rel-group">
+      <path d="M 960 1142 L 984 1142 L 984 1428 L 960 1428" class="d-rel-shadow" style="stroke-width:14"/>
+      <path d="M 960 1142 L 984 1142 L 984 1428 L 960 1428" class="d-rel-line" style="stroke:#1e3a8a;stroke-width:10" marker-end="url(#arrowFk)"/>
+    </g>
+<g class="d-rel-group">
+      <path d="M 960 1142 L 1000 1142 L 1000 490 L 1040 490" class="d-rel-shadow" style="stroke-width:14"/>
+      <path d="M 960 1142 L 1000 1142 L 1000 490 L 1040 490" class="d-rel-line" style="stroke:#1e3a8a;stroke-width:10" marker-end="url(#arrowFk)"/>
+    </g>
+<g class="d-rel-group">
+      <path d="M 1040 450 L 1016 450 L 1016 876 L 1040 876" class="d-rel-shadow" style="stroke-width:14"/>
+      <path d="M 1040 450 L 1016 450 L 1016 876 L 1040 876" class="d-rel-line" style="stroke:#1e3a8a;stroke-width:10" marker-end="url(#arrowFk)"/>
+    </g>
+<g class="d-rel-group">
+      <path d="M 560 450 L 500 450 L 500 996 L 560 996" class="d-rel-shadow" style="stroke-width:14"/>
+      <path d="M 560 450 L 500 450 L 500 996 L 560 996" class="d-rel-line" style="stroke:#1e3a8a;stroke-width:10" marker-end="url(#arrowFk)"/>
+    </g></svg>
+    <div class="d-entity" id="tbl-subscriptions" style="left:80px;top:478px;width:400px;min-height:210px;border-color:#7c3aed">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#7c3aed">subscriptions</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="stripe_sub_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">stripe_sub_id</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="stripe_price_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">stripe_price_id</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="plan" style="height:20px;font-size:13px">
+        <span class="d-col-name">plan</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="status" style="height:20px;font-size:13px">
+        <span class="d-col-name">status</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="current_period_end" style="height:20px;font-size:13px">
+        <span class="d-col-name">current_period_end</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-financial_memory" style="left:80px;top:744px;width:400px;min-height:190px;border-color:#7c3aed">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#7c3aed">financial_memory</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="category_name" style="height:20px;font-size:13px">
+        <span class="d-col-name">category_name</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="preference_key" style="height:20px;font-size:13px">
+        <span class="d-col-name">preference_key</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="preference_value" style="height:20px;font-size:13px">
+        <span class="d-col-name">preference_value</span>
+        <span class="d-col-type" style="font-size:11px">jsonb</span>
+        
+      </div><div class="d-col-n" data-col="frequency" style="height:20px;font-size:13px">
+        <span class="d-col-name">frequency</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="updated_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">updated_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-ai_conversations" style="left:80px;top:990px;width:400px;min-height:190px;border-color:#7c3aed">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#7c3aed">ai_conversations</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="title" style="height:20px;font-size:13px">
+        <span class="d-col-name">title</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="messages" style="height:20px;font-size:13px">
+        <span class="d-col-name">messages</span>
+        <span class="d-col-type" style="font-size:11px">jsonb</span>
+        
+      </div><div class="d-col-n" data-col="context_month" style="height:20px;font-size:13px">
+        <span class="d-col-name">context_month</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="updated_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">updated_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-ai_logs" style="left:80px;top:1236px;width:400px;min-height:350px;border-color:#7c3aed">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#7c3aed">ai_logs</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="source" style="height:20px;font-size:13px">
+        <span class="d-col-name">source</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="operation" style="height:20px;font-size:13px">
+        <span class="d-col-name">operation</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="prompt" style="height:20px;font-size:13px">
+        <span class="d-col-name">prompt</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="response" style="height:20px;font-size:13px">
+        <span class="d-col-name">response</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="model" style="height:20px;font-size:13px">
+        <span class="d-col-name">model</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="input_tokens" style="height:20px;font-size:13px">
+        <span class="d-col-name">input_tokens</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="output_tokens" style="height:20px;font-size:13px">
+        <span class="d-col-name">output_tokens</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="cost_usd" style="height:20px;font-size:13px">
+        <span class="d-col-name">cost_usd</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="processing_ms" style="height:20px;font-size:13px">
+        <span class="d-col-name">processing_ms</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="status" style="height:20px;font-size:13px">
+        <span class="d-col-name">status</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="error_message" style="height:20px;font-size:13px">
+        <span class="d-col-name">error_message</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="metadata" style="height:20px;font-size:13px">
+        <span class="d-col-name">metadata</span>
+        <span class="d-col-type" style="font-size:11px">jsonb</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-document_imports" style="left:80px;top:1642px;width:400px;min-height:250px;border-color:#7c3aed">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#7c3aed">document_imports</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="file_name" style="height:20px;font-size:13px">
+        <span class="d-col-name">file_name</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="file_type" style="height:20px;font-size:13px">
+        <span class="d-col-name">file_type</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="status" style="height:20px;font-size:13px">
+        <span class="d-col-name">status</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="extracted_text" style="height:20px;font-size:13px">
+        <span class="d-col-name">extracted_text</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="transactions_created" style="height:20px;font-size:13px">
+        <span class="d-col-name">transactions_created</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="metadata" style="height:20px;font-size:13px">
+        <span class="d-col-name">metadata</span>
+        <span class="d-col-type" style="font-size:11px">jsonb</span>
+        
+      </div><div class="d-col-n" data-col="error_message" style="height:20px;font-size:13px">
+        <span class="d-col-name">error_message</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-transactions" style="left:560px;top:398px;width:400px;min-height:290px;border-color:#059669">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#059669">transactions</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-fk" data-col="category_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">category_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→categories</span>
+      </div><div class="d-col-n" data-col="amount" style="height:20px;font-size:13px">
+        <span class="d-col-name">amount</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="type" style="height:20px;font-size:13px">
+        <span class="d-col-name">type</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="description" style="height:20px;font-size:13px">
+        <span class="d-col-name">description</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="occurred_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">occurred_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="source" style="height:20px;font-size:13px">
+        <span class="d-col-name">source</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="raw_message" style="height:20px;font-size:13px">
+        <span class="d-col-name">raw_message</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="payment_method" style="height:20px;font-size:13px">
+        <span class="d-col-name">payment_method</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="installments" style="height:20px;font-size:13px">
+        <span class="d-col-name">installments</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-whatsapp_messages" style="left:560px;top:744px;width:400px;min-height:290px;border-color:#4338ca">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#4338ca">whatsapp_messages</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="remote_phone" style="height:20px;font-size:13px">
+        <span class="d-col-name">remote_phone</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="direction" style="height:20px;font-size:13px">
+        <span class="d-col-name">direction</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="message_type" style="height:20px;font-size:13px">
+        <span class="d-col-name">message_type</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="content" style="height:20px;font-size:13px">
+        <span class="d-col-name">content</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="media_url" style="height:20px;font-size:13px">
+        <span class="d-col-name">media_url</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="media_mime_type" style="height:20px;font-size:13px">
+        <span class="d-col-name">media_mime_type</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="whatsapp_message_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">whatsapp_message_id</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="processed" style="height:20px;font-size:13px">
+        <span class="d-col-name">processed</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-fk" data-col="transaction_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">transaction_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→transactions</span>
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-categories" style="left:560px;top:1090px;width:400px;min-height:190px;border-color:#059669">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#059669">categories</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="name" style="height:20px;font-size:13px">
+        <span class="d-col-name">name</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="icon" style="height:20px;font-size:13px">
+        <span class="d-col-name">icon</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="type" style="height:20px;font-size:13px">
+        <span class="d-col-name">type</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="color" style="height:20px;font-size:13px">
+        <span class="d-col-name">color</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="is_default" style="height:20px;font-size:13px">
+        <span class="d-col-name">is_default</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-recurring_transactions" style="left:560px;top:1336px;width:400px;min-height:270px;border-color:#059669">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#059669">recurring_transactions</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-fk" data-col="category_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">category_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→categories</span>
+      </div><div class="d-col-n" data-col="description" style="height:20px;font-size:13px">
+        <span class="d-col-name">description</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="amount" style="height:20px;font-size:13px">
+        <span class="d-col-name">amount</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="type" style="height:20px;font-size:13px">
+        <span class="d-col-name">type</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="frequency" style="height:20px;font-size:13px">
+        <span class="d-col-name">frequency</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="day_of_month" style="height:20px;font-size:13px">
+        <span class="d-col-name">day_of_month</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="next_due" style="height:20px;font-size:13px">
+        <span class="d-col-name">next_due</span>
+        <span class="d-col-type" style="font-size:11px">date</span>
+        
+      </div><div class="d-col-n" data-col="is_active" style="height:20px;font-size:13px">
+        <span class="d-col-name">is_active</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-budgets" style="left:560px;top:1662px;width:400px;min-height:190px;border-color:#059669">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#059669">budgets</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="month" style="height:20px;font-size:13px">
+        <span class="d-col-name">month</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="total_income_expected" style="height:20px;font-size:13px">
+        <span class="d-col-name">total_income_expected</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="total_expense_limit" style="height:20px;font-size:13px">
+        <span class="d-col-name">total_expense_limit</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="notes" style="height:20px;font-size:13px">
+        <span class="d-col-name">notes</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-goals" style="left:1040px;top:398px;width:400px;min-height:350px;border-color:#0891b2">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#0891b2">goals</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-fk" data-col="category_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">category_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→categories</span>
+      </div><div class="d-col-n" data-col="name" style="height:20px;font-size:13px">
+        <span class="d-col-name">name</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="color" style="height:20px;font-size:13px">
+        <span class="d-col-name">color</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="limit_amount" style="height:20px;font-size:13px">
+        <span class="d-col-name">limit_amount</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="period_type" style="height:20px;font-size:13px">
+        <span class="d-col-name">period_type</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="goal_type" style="height:20px;font-size:13px">
+        <span class="d-col-name">goal_type</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="target_amount" style="height:20px;font-size:13px">
+        <span class="d-col-name">target_amount</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="alert_at_80" style="height:20px;font-size:13px">
+        <span class="d-col-name">alert_at_80</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="alert_at_100" style="height:20px;font-size:13px">
+        <span class="d-col-name">alert_at_100</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="is_active" style="height:20px;font-size:13px">
+        <span class="d-col-name">is_active</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="duration_months" style="height:20px;font-size:13px">
+        <span class="d-col-name">duration_months</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="deadline_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">deadline_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-goal_checkpoints" style="left:1040px;top:804px;width:400px;min-height:250px;border-color:#0891b2">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#0891b2">goal_checkpoints</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="goal_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">goal_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→goals</span>
+      </div><div class="d-col-n" data-col="month" style="height:20px;font-size:13px">
+        <span class="d-col-name">month</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="spent_amount" style="height:20px;font-size:13px">
+        <span class="d-col-name">spent_amount</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="limit_snapshot" style="height:20px;font-size:13px">
+        <span class="d-col-name">limit_snapshot</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="percentage" style="height:20px;font-size:13px">
+        <span class="d-col-name">percentage</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="exceeded" style="height:20px;font-size:13px">
+        <span class="d-col-name">exceeded</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="alert_80_sent" style="height:20px;font-size:13px">
+        <span class="d-col-name">alert_80_sent</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="alert_100_sent" style="height:20px;font-size:13px">
+        <span class="d-col-name">alert_100_sent</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-users" style="left:1520px;top:478px;width:400px;min-height:210px;border-color:#4338ca">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#4338ca">users</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-n" data-col="name" style="height:20px;font-size:13px">
+        <span class="d-col-name">name</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="email" style="height:20px;font-size:13px">
+        <span class="d-col-name">email</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="password_hash" style="height:20px;font-size:13px">
+        <span class="d-col-name">password_hash</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="phone" style="height:20px;font-size:13px">
+        <span class="d-col-name">phone</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="plan" style="height:20px;font-size:13px">
+        <span class="d-col-name">plan</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="stripe_customer_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">stripe_customer_id</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="created_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">created_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-user_settings" style="left:1520px;top:744px;width:400px;min-height:330px;border-color:#4338ca">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#4338ca">user_settings</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-n" data-col="alert_at_80" style="height:20px;font-size:13px">
+        <span class="d-col-name">alert_at_80</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="alert_at_100" style="height:20px;font-size:13px">
+        <span class="d-col-name">alert_at_100</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="weekly_report" style="height:20px;font-size:13px">
+        <span class="d-col-name">weekly_report</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="theme_preference" style="height:20px;font-size:13px">
+        <span class="d-col-name">theme_preference</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="updated_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">updated_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="onboarding_completed" style="height:20px;font-size:13px">
+        <span class="d-col-name">onboarding_completed</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="initial_balance" style="height:20px;font-size:13px">
+        <span class="d-col-name">initial_balance</span>
+        <span class="d-col-type" style="font-size:11px">numeric</span>
+        
+      </div><div class="d-col-n" data-col="income_recurrence" style="height:20px;font-size:13px">
+        <span class="d-col-name">income_recurrence</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="income_pay_day" style="height:20px;font-size:13px">
+        <span class="d-col-name">income_pay_day</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="income_pay_weekday" style="height:20px;font-size:13px">
+        <span class="d-col-name">income_pay_weekday</span>
+        <span class="d-col-type" style="font-size:11px">integer</span>
+        
+      </div><div class="d-col-n" data-col="income_type" style="height:20px;font-size:13px">
+        <span class="d-col-name">income_type</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="income_is_recurring" style="height:20px;font-size:13px">
+        <span class="d-col-name">income_is_recurring</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="income_end_date" style="height:20px;font-size:13px">
+        <span class="d-col-name">income_end_date</span>
+        <span class="d-col-type" style="font-size:11px">date</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-whatsapp_connection" style="left:1520px;top:1130px;width:400px;min-height:230px;border-color:#4338ca">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#4338ca">whatsapp_connection</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-n" data-col="status" style="height:20px;font-size:13px">
+        <span class="d-col-name">status</span>
+        <span class="d-col-type" style="font-size:11px">enum</span>
+        
+      </div><div class="d-col-n" data-col="session_data" style="height:20px;font-size:13px">
+        <span class="d-col-name">session_data</span>
+        <span class="d-col-type" style="font-size:11px">jsonb</span>
+        
+      </div><div class="d-col-n" data-col="qr_code" style="height:20px;font-size:13px">
+        <span class="d-col-name">qr_code</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="phone_number" style="height:20px;font-size:13px">
+        <span class="d-col-name">phone_number</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="last_activity_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">last_activity_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="connected_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">connected_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div><div class="d-col-n" data-col="error_message" style="height:20px;font-size:13px">
+        <span class="d-col-name">error_message</span>
+        <span class="d-col-type" style="font-size:11px">text</span>
+        
+      </div><div class="d-col-n" data-col="updated_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">updated_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+<div class="d-entity" id="tbl-whatsapp_sessions" style="left:1520px;top:1416px;width:400px;min-height:150px;border-color:#4338ca">
+    <div class="d-entity-name" style="height:42px;font-size:19px;background:#4338ca">whatsapp_sessions</div>
+    <div class="d-cols"><div class="d-col-pk" data-col="id" style="height:20px;font-size:13px">
+        <span class="d-col-name">id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-pk">PK</span>
+      </div><div class="d-col-fk" data-col="user_id" style="height:20px;font-size:13px">
+        <span class="d-col-name">user_id</span>
+        <span class="d-col-type" style="font-size:11px">uuid</span>
+        <span class="d-badge d-badge-fk">FK→users</span>
+      </div><div class="d-col-n" data-col="session_data" style="height:20px;font-size:13px">
+        <span class="d-col-name">session_data</span>
+        <span class="d-col-type" style="font-size:11px">jsonb</span>
+        
+      </div><div class="d-col-n" data-col="is_active" style="height:20px;font-size:13px">
+        <span class="d-col-name">is_active</span>
+        <span class="d-col-type" style="font-size:11px">boolean</span>
+        
+      </div><div class="d-col-n" data-col="updated_at" style="height:20px;font-size:13px">
+        <span class="d-col-name">updated_at</span>
+        <span class="d-col-type" style="font-size:11px">timestamptz</span>
+        
+      </div></div>
+  </div>
+    <div class="d-rel-tag" title="A: user_id 1:1" style="left:1702px;top:698px">A</div>
+<div class="d-rel-tag" title="B: category_id" style="left:428px;top:798px">B</div>
+<div class="d-rel-tag" title="C: category_id" style="left:742px;top:1290px">C</div>
+<div class="d-rel-tag" title="D: category_id" style="left:982px;top:1100px">D</div>
+<div class="d-rel-tag" title="E: goal_id" style="left:1222px;top:758px">E</div>
+<div class="d-rel-tag" title="F: transaction_id" style="left:742px;top:698px">F</div>
+    <div class="d-hub" style="left:1520px;top:1594px;width:400px;">
+    <div class="d-hub-title">users.id → user_id (1:N) — 12 tabelas</div>
+    <div class="d-hub-sub">Demais FK listadas abaixo · badges FK→users em cada coluna</div>
+    <ul class="d-hub-list"><li>transactions</li><li>categories</li><li>goals</li><li>budgets</li><li>recurring_transactions</li><li>ai_conversations</li><li>financial_memory</li><li>document_imports</li><li>whatsapp_messages</li><li>whatsapp_sessions</li><li>subscriptions</li><li>ai_logs</li></ul>
+  </div>
+  </div></body></html>

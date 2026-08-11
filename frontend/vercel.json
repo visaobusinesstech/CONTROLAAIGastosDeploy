@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/auth/:path*", "destination": "/api/backend-proxy/auth/:path*" },
+    { "source": "/api/:path*", "destination": "/api/backend-proxy/api/:path*" },
+    { "source": "/health", "destination": "/api/backend-proxy/health" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/register", "destination": "/index.html" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}
