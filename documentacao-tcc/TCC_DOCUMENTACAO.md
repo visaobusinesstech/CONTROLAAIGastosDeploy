@@ -963,6 +963,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | jun/2026 | 7.5 | Stripe live completo: chave `rk_live`, webhook `we_1Tj4EZ…` + `whsec_…`, Payment Links mensal/anual, logo/ícone no Stripe; webhook vincula assinatura por e-mail (Payment Links) |
 | jun/2026 | 7.6 | UI planos: `BillingPlanCards` (anual R$ 6,67 × 12, cards estéticos); checkout abre nova guia via Payment Link |
 | ago/2026 | 7.7 | PDFs TCC: `TCC_CONTROLAAI_BD_APRESENTACAO_FINAL.pdf` e `TCC_CONTROLAAI_AUTENTICACAO_E_BANCO.pdf` — **8 páginas** cada; BD com 3 capítulos e capa “ControlaAI TCC — Banco de Dados PostgresSQL (Colunas, Tabelas, Relações e Chaves)”; logo embutida em base64 (sem URL quebrada); scripts `generate-PDF-FINAL.ts` e `generate-AUTENTICACAO-BD.ts` |
+| ago/2026 | 7.8 | Redeploy: backend Railway `https://backend-production-c328.up.railway.app` (substitui URL antiga 404); frontend Vercel com `VITE_API_URL` atualizado; migration `0006` (`trial_ends_at`) aplicada — login `admin@admin.com` OK |
 
 ---
 
