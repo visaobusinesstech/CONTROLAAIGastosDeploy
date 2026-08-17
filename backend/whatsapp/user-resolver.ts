@@ -4,7 +4,7 @@
  * account_id = users.id (não há tabela accounts separada).
  */
 
-import { eq, or, sql } from "drizzle-orm"; // Operadores SQL e OR dinâmico
+import { eq, or, sql, inArray } from "drizzle-orm"; // Operadores SQL e OR dinâmico
 import { db } from "../src/db/index.js"; // Cliente PostgreSQL
 import { users } from "../src/db/schema.js"; // Tabela de contas
 import { expandPhoneVariants, normalizePhone } from "../src/utils/phone.js"; // Variantes BR com/sem 9
@@ -39,20 +39,16 @@ export async function resolveUserFromConversationPhone(
   const canonical = normalizePhone(conversationPhone) ?? variants.find((v) => v.startsWith("55") && v.length === 13) ?? variants[0];
 
   const digitVariants = [...new Set(variants.map((v) => v.replace(/\D/g, "")).filter(Boolean))];
-  const suffix11Set = new Set(digitVariants.map((d) => d.slice(-11)).filter((s) => s.length === 11)); // Últimos 11 dígitos
-  const suffix10Set = new Set(digitVariants.map((d) => d.slice(-10)).filter((s) => s.length === 10)); // Últimos 10 dígitos
+  const suffix11Set = new Set(
+    digitVariants
+      .map((d) => (d.startsWith("55") && d.length >= 13 ? d.slice(-11) : d.slice(-11)))
+      .filter((s) => s.length === 11),
+  );
 
-  const phoneConditions = digitVariants.map((d) => eq(users.phone, d)); // Match exato
-  const suffixConditions = [
-    ...[...suffix11Set].map(
-      (s) =>
-        sql`${users.phone} IS NOT NULL AND right(regexp_replace(${users.phone}, '\\D', '', 'g'), 11) = ${s}`,
-    ),
-    ...[...suffix10Set].map(
-      (s) =>
-        sql`${users.phone} IS NOT NULL AND right(regexp_replace(${users.phone}, '\\D', '', 'g'), 10) = ${s}`,
-    ),
-  ]; // Match por sufixo quando formato no banco difere
+  const phoneConditions = digitVariants.map((d) => eq(users.phone, d));
+  const suffixConditions = [...suffix11Set].map(
+    (s) => sql`${users.phone} IS NOT NULL AND right(regexp_replace(${users.phone}, '\\D', '', 'g'), 11) = ${s}`,
+  );
 
   const [row] = await db
     .select({
@@ -103,8 +99,32 @@ export async function findUserByPhone(
   return { id: user.userId, name: user.name, phone: user.phone };
 }
 
+/** Busca dono do número só pelas variantes canônicas (mesmo DDD + número). */
+export async function findUsersByCanonicalPhone(
+  phone: string,
+): Promise<Array<{ id: string; name: string; email: string; phone: string | null }>> {
+  const keys = expandPhoneVariants(phone);
+  if (keys.length === 0) return [];
+  return db
+    .select({ id: users.id, name: users.name, email: users.email, phone: users.phone })
+    .from(users)
+    .where(inArray(users.phone, keys));
+}
+
+/** Libera o WhatsApp de outros cadastros para o novo usuário assumir o número. */
+export async function releasePhoneFromOtherUsers(phone: string, exceptUserId?: string): Promise<string[]> {
+  const owners = await findUsersByCanonicalPhone(phone);
+  const released: string[] = [];
+  for (const owner of owners) {
+    if (exceptUserId && owner.id === exceptUserId) continue;
+    await db.update(users).set({ phone: null }).where(eq(users.id, owner.id));
+    released.push(owner.email);
+  }
+  return released;
+}
+
 /** Verifica se telefone já está cadastrado (usado no registro web). */
-export async function isPhoneRegistered(phone: string): Promise<boolean> {
-  const user = await resolveUserFromConversationPhone(phone);
-  return user !== null;
+export async function isPhoneRegistered(phone: string, exceptUserId?: string): Promise<boolean> {
+  const owners = await findUsersByCanonicalPhone(phone);
+  return owners.some((o) => o.id !== exceptUserId);
 }

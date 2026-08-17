@@ -19,7 +19,7 @@ import {
   users,
 } from "./db/schema.js"; // Tabelas de autenticação
 import { normalizePhone } from "./utils/phone.js"; // Formato 55DDD9NUMERO
-import { isPhoneRegistered } from "../whatsapp/user-resolver.js"; // Evita telefone duplicado no cadastro
+import { releasePhoneFromOtherUsers } from "../whatsapp/user-resolver.js"; // Telefone único por conta
 import {
   getLegalDocumentsPayload,
   LEGAL_DOCUMENT_VERSION,
@@ -324,9 +324,17 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     }
 
     if (phoneNorm) {
-      const phoneTaken = await isPhoneRegistered(phoneNorm);
-      if (phoneTaken) {
-        return reply.status(409).send({ error: "Phone already registered" });
+      const released = await releasePhoneFromOtherUsers(phoneNorm);
+      if (released.length > 0) {
+        request.log.info({ phoneNorm, released }, "WhatsApp liberado de cadastro anterior para o novo registro");
+        await writeAuditLog({
+          routine: "users.release_phone",
+          action: "update",
+          entity: "users",
+          ipAddress: getClientIp(request),
+          userAgent: getUserAgent(request),
+          details: { phone: phoneNorm, releasedFrom: released },
+        });
       }
     }
 

@@ -44,55 +44,33 @@ export function normalizePhone(raw: string | undefined | null): string | null {
   return digits;
 }
 
-/** Gera todas as variantes possíveis (WhatsApp vs cadastro web). */
+/** Gera variantes reais do mesmo número (com/sem 55, com/sem 9º dígito). Sem sufixos curtos. */
 export function expandPhoneVariants(raw: string | undefined | null): string[] {
   if (!raw) return [];
-  const digits = raw.replace(/\D/g, "").replace(/^0+/, ""); // Só dígitos, sem zeros iniciais
-  const variants = new Set<string>();
-
+  const canonical = normalizePhone(raw);
+  const keys = new Set<string>();
   const add = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (digits) keys.add(digits);
     const n = normalizePhone(value);
-    if (n) variants.add(n);
-    variants.add(value.replace(/\D/g, "")); // Também guarda forma bruta
+    if (n) keys.add(n);
   };
 
-  add(digits);
+  add(raw);
+  if (!canonical) return [...keys];
 
-  if (digits.startsWith("55")) {
-    if (digits.length === 12) {
-      const ddd = digits.slice(2, 4);
-      const local = digits.slice(4);
-      if (local.length === 8) {
-        variants.add(`55${ddd}9${local}`); // Com nono dígito
-        variants.add(`${ddd}9${local}`); // Sem 55
-      }
-    }
-    if (digits.length === 13) {
-      const ddd = digits.slice(2, 4);
-      const local = digits.slice(4);
-      if (local.length === 9) {
-        variants.add(`55${ddd}${local.slice(1)}`); // Sem o 9
-        variants.add(`${ddd}${local.slice(1)}`);
-        for (let i = 0; i < local.length; i++) {
-          const eight = local.slice(0, i) + local.slice(i + 1); // Tenta omitir cada dígito
-          if (eight.length === 8) {
-            variants.add(`55${ddd}9${eight}`);
-            variants.add(`${ddd}9${eight}`);
-          }
-        }
-      }
+  add(canonical);
+  if (canonical.startsWith("55") && canonical.length === 13) {
+    const ddd = canonical.slice(2, 4);
+    const local9 = canonical.slice(4); // 9 + 8 dígitos
+    add(`${ddd}${local9}`); // 11 dígitos nacionais
+    if (local9.startsWith("9") && local9.length === 9) {
+      const local8 = local9.slice(1);
+      add(`55${ddd}${local8}`); // WhatsApp sem o 9
+      add(`${ddd}${local8}`);
     }
   }
-
-  if (digits.length === 11) add(`55${digits}`);
-  if (digits.length === 10) add(`55${digits}`);
-
-  for (const v of [...variants]) {
-    const n = normalizePhone(v); // Re-normaliza cada variante
-    if (n) variants.add(n);
-  }
-
-  return [...variants].filter(Boolean);
+  return [...keys];
 }
 
 /** Variantes para busca no banco (com/sem 9, com/sem 55). */

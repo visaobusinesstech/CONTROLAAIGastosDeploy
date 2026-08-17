@@ -69,7 +69,7 @@ export default function Register() {
       setStep("terms");
       return;
     }
-    if (!phoneValid) {
+    if (!phoneValid && digitsOnly(phone).length > 0) {
       setError("Informe um número de WhatsApp válido com DDD");
       return;
     }
@@ -84,7 +84,7 @@ export default function Register() {
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
-        phone: digitsOnly(phone),
+        phone: digitsOnly(phone) || undefined,
         documentVersion: acceptedTerms.documentVersion,
         consents: acceptedTerms.consents,
       });
@@ -225,7 +225,7 @@ export default function Register() {
 
                   <div>
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
-                      WhatsApp
+                      WhatsApp <span className="normal-case tracking-normal text-cgray-400">(opcional)</span>
                     </label>
                     <div className="relative">
                       <input
@@ -233,7 +233,6 @@ export default function Register() {
                         value={phone}
                         onChange={(e) => handlePhoneChange(e.target.value)}
                         placeholder="(11) 99999-0000"
-                        required
                         autoComplete="tel"
                         className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                       />

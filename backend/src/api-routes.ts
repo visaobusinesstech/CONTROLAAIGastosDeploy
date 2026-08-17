@@ -16,6 +16,7 @@ import { materializeDueRecurringIncomes, syncFullIncomeProfile, syncIncomeToDash
 import type { IncomeRecurrence, IncomeType } from "../api/onboarding-agent.js";
 import { billingAccessPreHandler } from "./billing-routes.js";
 import { requestAuditMeta, writeAuditLog } from "./audit.js";
+import { releasePhoneFromOtherUsers } from "../whatsapp/user-resolver.js";
 
 /** Converte numeric Postgres para number (helper local). */
 function num(v: string | null): number {
@@ -617,10 +618,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       }
 
       if (phoneNorm) {
-        const taken = await db.select({ id: users.id }).from(users).where(eq(users.phone, phoneNorm));
-        if (taken.length > 0 && taken[0].id !== userId) {
-          return reply.status(409).send({ error: "Phone already in use" });
-        }
+        await releasePhoneFromOtherUsers(phoneNorm, userId);
       }
 
       const [u] = await db
