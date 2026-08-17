@@ -109,7 +109,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.13", // Reset: e-mail com botão da página de nova senha; 2FA segue HTML com código
+      build: "8.14", // Login não trava: timeout SMTP/Resend no OTP
 
     };
 

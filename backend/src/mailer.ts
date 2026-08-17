@@ -13,6 +13,7 @@ const RESET_MINUTES = 30; // Validade do link de nova senha
 const DEFAULT_SMTP_HOST = "smtp.gmail.com"; // Host Gmail
 const DEFAULT_SMTP_PORT = 587; // STARTTLS
 const DEFAULT_SMTP_USER = "controlaaisistematech@gmail.com"; // Conta do sistema
+const MAIL_CHANNEL_MS = 5000; // Railway/Gmail não pode travar o login
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
@@ -86,6 +87,9 @@ function getSmtpTransport(): Transporter | null {
     port,
     secure: port === 465, // SSL direto só na 465
     auth: { user: smtpUser(), pass },
+    connectionTimeout: MAIL_CHANNEL_MS, // Evita "Entrando…" infinito se a porta 587 travar
+    greetingTimeout: MAIL_CHANNEL_MS,
+    socketTimeout: MAIL_CHANNEL_MS,
   });
   return smtpTransport;
 }
@@ -131,7 +135,7 @@ function wrapHtml(title: string, bodyHtml: string): string {
 </html>`;
 }
 
-/** Envia pelo Gmail (Nodemailer). */
+/** Envia pelo Gmail (Nodemailer) com timeout curto. */
 async function sendViaSmtp(opts: {
   to: string;
   subject: string;
@@ -140,14 +144,19 @@ async function sendViaSmtp(opts: {
 }): Promise<MailSendResult | null> {
   const smtp = getSmtpTransport();
   if (!smtp) return null;
-  await smtp.sendMail({
-    from: smtpFrom(),
-    to: opts.to,
-    subject: opts.subject,
-    html: opts.html,
-    text: opts.text,
-  });
-  return { sent: true, skipped: false, via: "smtp" };
+  try {
+    await smtp.sendMail({
+      from: smtpFrom(),
+      to: opts.to,
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    });
+    return { sent: true, skipped: false, via: "smtp" };
+  } catch (err) {
+    smtpTransport = null; // Não reutiliza conexão morta
+    throw err;
+  }
 }
 
 /** Tenta Resend (domínio próprio ou só o e-mail da conta). */
@@ -172,6 +181,7 @@ async function sendViaResend(opts: {
       html: opts.html,
       text: opts.text,
     }),
+    signal: AbortSignal.timeout(MAIL_CHANNEL_MS), // Não segura o /auth/login
   });
   if (res.ok) return { sent: true, skipped: false, via: "resend" };
   const body = await res.text();

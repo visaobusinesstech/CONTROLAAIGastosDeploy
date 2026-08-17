@@ -86,15 +86,23 @@ export async function apiFetch<T>(
   }
 
   let res: Response;
+  const timeoutMs = 20_000; // Login não pode ficar em “Entrando…” se o mailer travar
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    res = await fetch(`${base}${path}`, { ...options, headers });
-  } catch {
+    res = await fetch(`${base}${path}`, { ...options, headers, signal: options.signal ?? ac.signal });
+  } catch (err) {
+    const aborted = err instanceof DOMException && err.name === "AbortError";
     throw new ApiError(
-      import.meta.env.DEV
-        ? "Não foi possível conectar à API local (porta 3333). Inicie o backend."
-        : "Não foi possível conectar ao servidor. Verifique VITE_API_URL no Vercel.",
+      aborted
+        ? "O servidor demorou para responder. Tente de novo."
+        : import.meta.env.DEV
+          ? "Não foi possível conectar à API local (porta 3333). Inicie o backend."
+          : "Não foi possível conectar ao servidor. Verifique VITE_API_URL no Vercel.",
       0,
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   const data = (await parseJson(res)) as Record<string, unknown>;
@@ -121,6 +129,7 @@ export function translateApiError(message: string): string {
     "Missing required consents": "Aceite todos os termos para continuar.",
     "Invalid consents": "Aceites inválidos. Recarregue a página.",
     "Invalid email or password": "E-mail ou senha incorretos.",
+    "O servidor demorou para responder. Tente de novo.": "O servidor demorou para responder. Tente de novo.",
     "Account inactive": "Esta conta foi inativada. Fale com o administrador.",
     "Invalid or expired reset token": "Link de redefinição inválido ou expirado. Solicite outro.",
     "Invalid or expired code": "Código inválido ou expirado. Solicite um novo.",

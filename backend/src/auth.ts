@@ -48,6 +48,23 @@ function isUniqueViolation(err: unknown, column: string): boolean {
 const SALT_ROUNDS = 10; // Custo bcrypt — equilíbrio segurança/performance
 const OTP_MAX_ATTEMPTS = 5; // Tentativas por desafio de e-mail
 const OTP_TTL_MS = OTP_MINUTES * 60 * 1000; // 10 minutos
+
+/** Promessa com teto de tempo — o login não espera o Gmail eternamente. */
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("mail-timeout")), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 const RESET_TTL_MS = RESET_MINUTES * 60 * 1000; // 30 minutos
 
 const consentTypeSchema = z.enum(["terms_of_use", "privacy_policy", "data_processing_lgpd"]);
@@ -267,12 +284,13 @@ async function createAndSendChallenge(opts: {
   let emailSent = false;
   let emailError: string | undefined;
   try {
-    const mail = await sendOtpEmail(opts.email, code, opts.purpose);
+    // Mailer tem timeout próprio; este teto impede o POST /auth/login de ficar aberto
+    const mail = await withTimeout(sendOtpEmail(opts.email, code, opts.purpose), 12_000);
     emailSent = mail.sent;
     if (!mail.sent) emailError = mail.error;
   } catch (err) {
     console.error("[auth] falha ao enviar OTP:", err);
-    emailError = "resend_rejected";
+    emailError = "smtp_failed";
   }
 
   return {
