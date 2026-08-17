@@ -285,7 +285,7 @@ async function createAndSendChallenge(opts: {
   let emailError: string | undefined;
   try {
     // Mailer tem timeout próprio; este teto impede o POST /auth/login de ficar aberto
-    const mail = await withTimeout(sendOtpEmail(opts.email, code, opts.purpose), 12_000);
+    const mail = await withTimeout(sendOtpEmail(opts.email, code, opts.purpose), 25_000);
     emailSent = mail.sent;
     if (!mail.sent) emailError = mail.error;
   } catch (err) {

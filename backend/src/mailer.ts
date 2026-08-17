@@ -12,8 +12,8 @@ const RESET_MINUTES = 30; // Validade do link de nova senha
 
 const DEFAULT_SMTP_HOST = "smtp.gmail.com"; // Host Gmail
 const DEFAULT_SMTP_PORT = 587; // STARTTLS
-const DEFAULT_SMTP_USER = "controlaaisistematech@gmail.com"; // Conta do sistema
-const MAIL_CHANNEL_MS = 5000; // Railway/Gmail não pode travar o login
+const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
+const MAIL_CHANNEL_MS = 20_000; // Envio Gmail real leva ~5–8s; 5s abortava envio válido
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
@@ -51,9 +51,11 @@ function resendFrom(): string {
   return from;
 }
 
-/** Usuário SMTP (Gmail do sistema, salvo SMTP_USER no Railway). */
+/** Usuário SMTP — a senha de app é da conta com um "a" (controlai…), não controlaa…. */
 function smtpUser(): string {
-  return process.env.SMTP_USER?.trim() || DEFAULT_SMTP_USER;
+  const raw = process.env.SMTP_USER?.trim() || DEFAULT_SMTP_USER;
+  if (/^controlaaisistematech@gmail\.com$/i.test(raw)) return DEFAULT_SMTP_USER;
+  return raw;
 }
 
 /** Senha de app — só via SMTP_PASS no Railway (nunca no git). */
@@ -61,10 +63,12 @@ function smtpPass(): string {
   return (process.env.SMTP_PASS ?? "").replace(/\s+/g, "");
 }
 
-/** Remetente SMTP — Gmail não aceita from de resend.dev. */
+/** Remetente SMTP — Gmail exige o mesmo endereço autenticado. */
 function smtpFrom(): string {
   const explicit = process.env.MAIL_FROM_SMTP?.trim();
-  if (explicit) return compactFromHeader(explicit);
+  if (explicit) {
+    return compactFromHeader(explicit).replace(/controlaaisistematech@gmail\.com/gi, DEFAULT_SMTP_USER);
+  }
   return `Controla.ai <${smtpUser()}>`;
 }
 

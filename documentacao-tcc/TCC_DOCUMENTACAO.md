@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.14 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.15 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -338,7 +338,7 @@ sequenceDiagram
 2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used` + linha em `audit_logs`.
 3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
 4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
-5. E-mails: SMTP Gmail primeiro (`controlaaisistematech@gmail.com`), cada canal com timeout de 5s (teto 12s) para o login não ficar em “Entrando…”. **Reset** = HTML com botão da página. **2FA/cadastro** = HTML com código de 6 dígitos (não é página). Resend é extra. Sem provedor em desenvolvimento, o código/link aparece no JSON (`devCode` / `devToken`).
+5. E-mails: SMTP Gmail primeiro (`controlaisistematech@gmail.com` — um “a”; a senha de app dessa conta Google). Cada canal com timeout de 5s (teto 12s) para o login não ficar em “Entrando…”. **Reset** = HTML com botão da página. **2FA/cadastro** = HTML com código de 6 dígitos (não é página). Resend é extra. Sem provedor em desenvolvimento, o código/link aparece no JSON (`devCode` / `devToken`).
 
 ### 4.8 Auditoria, inativação e LGPD por nível
 
@@ -953,7 +953,7 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `PUBLIC_DASHBOARD_URL` | Não | URL do painel nas mensagens pós-renda |
 | `RESEND_API_KEY` | Não | Tentativa extra (sem domínio verificado, só entrega para o e-mail da conta Resend) |
 | `MAIL_FROM` | Não | Remetente Resend (padrão `beth.t@example.com` — modo teste) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Padrão no código: Gmail `smtp.gmail.com` + `controlaaisistematech@gmail.com`. `SMTP_PASS` no Railway sobrescreve a senha de app |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Padrão: Gmail `smtp.gmail.com` + `controlaisistematech@gmail.com` (um “a”). `SMTP_PASS` = senha de app dessa conta |
 | `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
@@ -1097,6 +1097,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.12 | OTP e reset passam a sair pelo SMTP Gmail padrão (`controlaaisistematech@gmail.com`); Resend fica secundário; `/health` build `8.12` |
 | ago/2026 | 8.13 | “Esqueci a senha” envia HTML com botão para `/reset-password` (página no padrão do login; grava `password_hash` + `token_version` + auditoria); 2FA permanece HTML com código; índice UNIQUE do token (`0011`) |
 | ago/2026 | 8.14 | Login não fica em “Entrando…”: SMTP/Resend com timeout de 5s e teto de 12s no OTP; frontend aborta fetch em 20s |
+| ago/2026 | 8.15 | SMTP Gmail usa `controlaisistematech@gmail.com` (um “a”); `controlaaisistematech@…` no Railway é corrigido no mailer |
 
 ---
 

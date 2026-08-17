@@ -86,7 +86,7 @@ export async function apiFetch<T>(
   }
 
   let res: Response;
-  const timeoutMs = 20_000; // Login não pode ficar em “Entrando…” se o mailer travar
+  const timeoutMs = 30_000; // Espera o SMTP Gmail (~5–8s) sem ficar eterno
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
