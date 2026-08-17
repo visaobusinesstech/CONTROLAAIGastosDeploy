@@ -76,6 +76,12 @@ export const twoFactorPurposeEnum = pgEnum("two_factor_purpose", [
   "disable", // Desligar 2FA nas configurações
 ]);
 
+/** Nível de acesso — user vê só os próprios dados; staff vê painel com máscara LGPD */
+export const accessLevelEnum = pgEnum("access_level", ["user", "viewer", "operator", "admin"]);
+
+/** Ação registrada na auditoria de cadastros (nunca exclusão física) */
+export const auditActionEnum = pgEnum("audit_action", ["insert", "update", "inactivate", "activate"]);
+
 // --- TABELA users: contas do sistema (web + auto-criadas via WhatsApp) ---
 
 export const users = pgTable("users", {
@@ -95,6 +101,10 @@ export const users = pgTable("users", {
   /** E-mail confirmado via código OTP (cadastro em 2 etapas) */
   emailVerified: boolean("email_verified").notNull().default(false),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  /** Nível: user (titular) | viewer | operator | admin */
+  accessLevel: accessLevelEnum("access_level").notNull().default("user"),
+  /** Cadastro ativo — inativar em vez de excluir */
+  isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), // Data cadastro
 });
 
@@ -211,6 +221,7 @@ export const categories = pgTable("categories", {
   type: categoryTypeEnum("type").notNull(), // expense ou income
   color: text("color").notNull(), // Hex para gráficos
   isDefault: boolean("is_default").notNull().default(false), // Seed inicial
+  isActive: boolean("is_active").notNull().default(true), // Inativar em vez de excluir
 });
 
 // --- TABELA transactions: núcleo financeiro — cada gasto/receita ---
@@ -229,6 +240,7 @@ export const transactions = pgTable("transactions", {
   rawMessage: text("raw_message"), // Mensagem WhatsApp original
   paymentMethod: text("payment_method"), // Pix, cartão, etc.
   installments: integer("installments"), // Parcelas se aplicável
+  isActive: boolean("is_active").notNull().default(true), // Inativar em vez de excluir
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -288,6 +300,7 @@ export const budgets = pgTable(
     totalIncomeExpected: numeric("total_income_expected", { precision: 12, scale: 2 }),
     totalExpenseLimit: numeric("total_expense_limit", { precision: 12, scale: 2 }),
     notes: text("notes"),
+    isActive: boolean("is_active").notNull().default(true), // Inativar orçamento em vez de excluir
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [unique("budgets_user_month").on(t.userId, t.month)], // Um orçamento por usuário/mês
@@ -321,6 +334,7 @@ export const aiConversations = pgTable("ai_conversations", {
   title: text("title"), // Título gerado ou manual
   messages: jsonb("messages").notNull().default([]), // Array {role, content}[]
   contextMonth: text("context_month"), // Mês de referência financeira
+  isActive: boolean("is_active").notNull().default(true), // Inativar conversa em vez de excluir
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -449,7 +463,48 @@ export const documentImports = pgTable(
     metadata: jsonb("metadata"),
     errorMessage: text("error_message"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    isActive: boolean("is_active").notNull().default(true),
   },
   (t) => [index("document_imports_user_id_idx").on(t.userId)],
+);
+
+// --- TABELA audit_logs: inclusão, alteração e inativação por rotina/usuário/data ---
+
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }), // Quem executou (null = sistema)
+    routine: text("routine").notNull(), // Ex.: transactions.create
+    action: auditActionEnum("action").notNull(), // insert | update | inactivate | activate
+    entity: text("entity").notNull(), // Tabela afetada
+    entityId: uuid("entity_id"), // PK do registro
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    details: jsonb("details"), // Diff opcional
+  },
+  (t) => [
+    index("audit_logs_occurred_at_idx").on(t.occurredAt),
+    index("audit_logs_user_id_idx").on(t.userId),
+    index("audit_logs_entity_idx").on(t.entity),
+  ],
+);
+
+// --- TABELA lgpd_sensitive_fields: quais campos mascarar por nível de acesso ---
+
+export const lgpdSensitiveFields = pgTable(
+  "lgpd_sensitive_fields",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    entity: text("entity").notNull(), // users | transactions | whatsapp_messages | ai_logs
+    fieldName: text("field_name").notNull(), // Coluna a mascarar
+    label: text("label").notNull(), // Nome amigável no painel
+    hideFromOperator: boolean("hide_from_operator").notNull().default(false),
+    hideFromViewer: boolean("hide_from_viewer").notNull().default(true),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("lgpd_sensitive_fields_entity_field").on(t.entity, t.fieldName)],
 );
 

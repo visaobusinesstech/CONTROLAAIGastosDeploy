@@ -34,6 +34,7 @@ import { registerExtendedRoutes } from "./extended-routes.js"; // Chat IA, KPIs,
 
 import { registerWhatsAppRoutes } from "../whatsapp/routes.js"; // Rotas admin /api/admin/whatsapp/*
 import { registerBillingRoutes, registerStripeRawBody } from "./billing-routes.js";
+import { registerGovernanceRoutes } from "./governance-routes.js"; // Auditoria, LGPD e níveis
 
 import { initWhatsApp } from "../whatsapp/client.js"; // Inicia socket Baileys + keep-alive
 
@@ -121,6 +122,8 @@ async function createApp() {
   await registerExtendedRoutes(app); // Registra rotas IA, metas e imports
 
   await registerBillingRoutes(app); // Billing Stripe + admin assinantes
+
+  await registerGovernanceRoutes(app); // Auditoria, campos LGPD e ativar/inativar usuários
 
   await registerWhatsAppRoutes(app); // Registra rotas admin WhatsApp
 

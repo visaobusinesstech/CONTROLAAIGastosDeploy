@@ -23,7 +23,7 @@ export type UserBalance = {
 
 /** Calcula totais de receita/despesa/saldo para o usuário em um intervalo de datas. */
 export async function getUserBalance(userId: string, from?: Date, to?: Date): Promise<UserBalance> {
-  const conds = [eq(transactions.userId, userId)]; // Filtro base por usuário
+      const conds = [eq(transactions.userId, userId), eq(transactions.isActive, true)]; // Filtro base por usuário ativo
   if (from) conds.push(gte(transactions.occurredAt, from)); // Data inicial (inclusiva)
   if (to) conds.push(lte(transactions.occurredAt, to)); // Data final (inclusiva)
 
@@ -104,6 +104,7 @@ export async function getTopSpendingDays(userId: string, limit = 5): Promise<Arr
     .where(
       and(
         eq(transactions.userId, userId),
+        eq(transactions.isActive, true),
         eq(transactions.type, "expense"),
         gte(transactions.occurredAt, monthStart),
         lte(transactions.occurredAt, monthEnd),
@@ -130,7 +131,7 @@ export async function getMonthlyCategoryBreakdown(userId: string, month: string)
     })
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id)) // JOIN para nome da categoria
-    .where(and(eq(transactions.userId, userId), gte(transactions.occurredAt, from), lte(transactions.occurredAt, to)));
+    .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true), gte(transactions.occurredAt, from), lte(transactions.occurredAt, to)));
 
   const byCat = new Map<string, number>(); // Acumulador categoria → total
   for (const r of rows) {

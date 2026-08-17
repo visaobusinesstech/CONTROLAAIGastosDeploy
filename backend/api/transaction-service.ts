@@ -4,6 +4,7 @@
  */
 import { and, eq } from "drizzle-orm"; // Operadores para filtros de saldo mensal
 import { db } from "../src/db/index.js"; // Cliente Drizzle PostgreSQL
+import { writeAuditLog } from "../src/audit.js";
 import { transactions } from "../src/db/schema.js"; // Tabela transactions
 import { formatBrl, monthKey } from "../src/utils/money.js";
 import type { FinancialIntent } from "./parser.js";
@@ -56,6 +57,14 @@ export async function createTransactionFromIntent(
       installments: intent.installments ?? null, // Parcelas se informadas
     })
     .returning({ id: transactions.id }); // Retorna UUID gerado
+
+  await writeAuditLog({
+    userId,
+    routine: "transactions.create_whatsapp",
+    action: "insert",
+    entity: "transactions",
+    entityId: row.id,
+  });
 
   await recordCategoryUsage(userId, categoryName);
 

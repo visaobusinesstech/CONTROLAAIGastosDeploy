@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 7.5 · **Última revisão:** jun/2026 · **Repositório:** Controla.AI
+**Versão:** 8.8 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -13,6 +13,7 @@
 | Módulo | Pasta / arquivos principais |
 |--------|----------------------------|
 | **Autenticação (JWT, reset, 2FA e-mail)** | `backend/src/auth.ts`, `backend/src/mailer.ts` — login/registro, OTP, `password_reset_tokens` |
+| **Governança (auditoria, LGPD, níveis)** | `backend/src/governance-routes.ts`, `audit.ts`, `lgpd.ts` — `audit_logs`, `lgpd_sensitive_fields` |
 | **Integração WhatsApp (Baileys)** | `backend/whatsapp/` — `client.ts`, `message-handler.ts`, `whatsapp-bubbles.ts`, `user-resolver.ts`, `routes.ts` |
 | **Consultas financeiras** | `backend/api/insights.ts` — respostas a "quanto gastei?", projeções, relatórios e KPIs |
 | **Integração IA com Baileys** | `backend/whatsapp/message-handler.ts` → `backend/api/financial-agent.ts`, `parser.ts`, `openai-client.ts`, `media-processor.ts` |
@@ -339,6 +340,13 @@ sequenceDiagram
 4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
 5. E-mails: `RESEND_API_KEY` (Resend) ou `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`. Sem provedor em desenvolvimento, o código aparece no JSON (`devCode`) e no log.
 
+### 4.8 Auditoria, inativação e LGPD por nível
+
+1. Toda inclusão/alteração/inativação de cadastro grava linha em `audit_logs` (`routine`, `action`, `entity`, `occurred_at`, `user_id`, IP).
+2. Cadastros **não são excluídos**: `DELETE` de transação ou conversa IA vira `UPDATE is_active=false`. Usuário inativo não entra (`Account inactive`).
+3. Níveis em `users.access_level`: `user` (titular), `viewer`, `operator`, `admin`. WhatsApp Baileys e troca de modelo OpenAI ficam só no `admin`.
+4. Tabela `lgpd_sensitive_fields` cadastra campos (e-mail, telefone, prompt IA etc.) e flags `hide_from_operator` / `hide_from_viewer`. O painel aplica máscara (`***`) conforme o nível de quem consulta.
+
 ### 4.3 Admin conecta WhatsApp
 
 1. Admin faz login (`admin@admin.com`).
@@ -391,11 +399,11 @@ sequenceDiagram
 
 - **GET `/auth/legal`:** retorna versão e textos dos documentos legais (Termos, Privacidade, LGPD) para a tela de cadastro.
 - **Registro:** exige `documentVersion` + três `consents` (LGPD) → valida Zod → hash bcrypt (10 rounds) → insert `users` (`email_verified=false`) + `user_settings` + **`user_consents`** (IP, user-agent, versão) → envia OTP por e-mail (`purpose=register`) → **201** `{ requiresTwoFactor, challengeId }` (JWT só após `POST /auth/2fa/verify`).
-- **Login:** busca por email → `bcrypt.compare` → se e-mail não verificado ou 2FA ligado, envia OTP; senão JWT. Admin pula OTP.
+- **Login:** busca por email → `bcrypt.compare` → conta inativa retorna 403 → se e-mail não verificado ou 2FA ligado, envia OTP; senão JWT. Admin pula OTP.
+- **Middleware `authPreHandler`:** extrai Bearer → `jwt.verify` → confere `tv` vs `users.token_version` → rejeita `is_active=false` → carrega `request.user` (inclui `accessLevel`).
 - **POST `/auth/forgot`:** resposta genérica; grava `password_reset_tokens.token_sha256`; e-mail com link de 30 min.
 - **POST `/auth/reset`:** valida token → nova senha bcrypt → `token_version++`.
 - **POST `/auth/2fa/verify` | `/resend` | `/enable` | `/disable`:** desafios em `two_factor_challenges` (bcrypt do código, 10 min, ≤5 tentativas).
-- **Middleware `authPreHandler`:** extrai Bearer → `jwt.verify` → confere `tv` vs `users.token_version` → carrega `request.user`.
 
 Mailer: `backend/src/mailer.ts`. Documentos legais: `backend/src/legal/documents.ts` (versão `LEGAL_DOCUMENT_VERSION`).
 
@@ -407,9 +415,10 @@ Prefixo implícito `/api` (registrado no Fastify). Endpoints principais:
 |--------|------|--------|
 | GET | `/transactions` | Lista transações do usuário |
 | POST | `/transactions` | Cria lançamento manual |
-| GET | `/categories` | Categorias globais + do usuário |
-| GET | `/dashboard/summary` | Totais do mês |
-| PUT | `/budgets/:month` | Orçamento mensal |
+| GET | `/categories` | Categorias globais + do usuário (somente ativas) |
+| DELETE | `/transactions/:id` | **Inativa** lançamento (`is_active=false`) |
+| PATCH | `/categories/:id` | Inativa/reativa categoria do usuário |
+| PUT | `/budgets` | Upsert orçamento mensal |
 
 ### 5.4 `src/extended-routes.ts` — IA e metas
 
@@ -418,10 +427,21 @@ Prefixo implícito `/api` (registrado no Fastify). Endpoints principais:
 | POST | `/ai/chat` | Chat conversacional |
 | GET | `/ai/kpis` | Indicadores financeiros |
 | GET | `/ai/insights` | Insights automáticos |
-| CRUD | `/goals` | Metas financeiras |
+| CRUD | `/goals` | Metas financeiras (PATCH inativa, sem DELETE) |
 | POST | `/imports/pdf` | Importação de extrato |
 | GET | `/whatsapp/conversations` | Histórico do usuário |
-| Admin | `/admin/ai/*` | Logs IA, troca de modelo |
+| Admin | `/admin/ai/logs` | Logs IA (staff; prompt/resposta mascarados por LGPD) |
+| Admin | `/admin/ai/model` | Troca de modelo (somente admin) |
+
+### 5.6 `src/governance-routes.ts` — auditoria e LGPD
+
+Prefixo `/api/admin`. Exige JWT + `staffPreHandler` (`viewer`/`operator`/`admin`).
+
+| Método | Rota | Função |
+|--------|------|--------|
+| GET | `/audit-logs` | Logs de inclusão/alteração/inativação |
+| GET/POST/PATCH | `/lgpd/fields` | Cadastro de campos sensíveis (escrita só admin) |
+| PATCH | `/users/:id` | Nível de acesso e ativar/inativar cadastro (só admin) |
 
 ### 5.5 `src/goals-service.ts`
 
@@ -554,7 +574,10 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 | `/ai` | AiChat | Chat IA (histórico interno na sidebar) |
 | `/settings` | Settings | Perfil, 2FA por e-mail, tema, export CSV |
 | `/admin/whatsapp` | WhatsApp | QR Baileys, modelo OpenAI (admin) |
-| `/admin/ai-logs` | AiLogs | Logs OpenAI (admin) |
+| `/admin/ai-logs` | AiLogs | Logs OpenAI (staff; conteúdo mascarado por nível) |
+| `/admin/subscribers` | AdminSubscribers | Assinantes, níveis e ativar/inativar |
+| `/admin/audit` | AdminAuditLogs | Auditoria de cadastros |
+| `/admin/lgpd` | AdminLgpd | Campos sensíveis LGPD |
 | `*` | NotFound | 404 |
 
 **Cliente HTTP:** `frontend/src/lib/api.ts` — todas as chamadas REST.  
@@ -646,6 +669,7 @@ erDiagram
   users ||--o{ financial_memory : memoriza
   users ||--o{ document_imports : importa
   users ||--o{ whatsapp_messages : envia_recebe
+  users ||--o{ audit_logs : audita
 
   categories ||--o{ transactions : categoriza
   categories ||--o{ goals : limita
@@ -701,6 +725,8 @@ erDiagram
 | `consent_type` | terms_of_use, privacy_policy, data_processing_lgpd |
 | `two_factor_method` | email, app, sms |
 | `two_factor_purpose` | register, login, enable, disable |
+| `access_level` | user, viewer, operator, admin |
+| `audit_action` | insert, update, inactivate, activate |
 
 ### 9.3 Tabelas — detalhamento
 
@@ -716,6 +742,8 @@ Conta do usuário. Criada via web (email/senha) ou automaticamente via WhatsApp 
 | token_version | integer | Incrementa no reset — invalida JWTs antigos (claim `tv`) |
 | email_verified | boolean | Confirmado via OTP no cadastro |
 | email_verified_at | timestamptz | Momento da confirmação |
+| access_level | enum | user / viewer / operator / admin |
+| is_active | boolean | Cadastro ativo — inativar em vez de excluir |
 | phone | text UNIQUE | Vínculo WhatsApp (55DDD...) |
 | plan | enum | free / pro / premium |
 
@@ -764,11 +792,37 @@ Aceites legais no cadastro web (auditoria LGPD). Três registros por usuário na
 
 UNIQUE (`user_id`, `consent_type`, `document_version`).
 
+#### `audit_logs`
+Inclusão, alteração, inativação e reativação por rotina, data/hora e usuário. Nunca registra exclusão física.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID PK | Identificador |
+| user_id | UUID FK | Quem executou (null = sistema) |
+| routine | text | Ex.: `transactions.create` |
+| action | enum | insert / update / inactivate / activate |
+| entity | text | Tabela afetada |
+| entity_id | UUID | PK do registro |
+| occurred_at | timestamptz | Data e hora |
+| ip_address / user_agent | text | Origem da requisição |
+| details | jsonb | Diff opcional |
+
+#### `lgpd_sensitive_fields`
+Cadastro de campos cujo conteúdo não deve aparecer para alguns níveis.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| entity + field_name | text UNIQUE | Tabela e coluna |
+| label | text | Nome no painel |
+| hide_from_operator | boolean | Mascara para operador |
+| hide_from_viewer | boolean | Mascara para visualizador |
+| is_active | boolean | Regra ligada |
+
 #### `categories`
 Categorias globais (`user_id` NULL) + personalizadas por usuário. Campos: name, icon, type, color, is_default.
 
 #### `transactions`
-Núcleo financeiro — cada gasto ou receita.
+Núcleo financeiro — cada gasto ou receita. Listagens e KPIs consideram só `is_active=true`; inativar substitui o DELETE.
 
 | Coluna | Tipo | Descrição |
 |--------|------|-----------|
@@ -866,7 +920,10 @@ npm run tcc:banco-pdf # PDF completo na raiz: MODELO_BANCO_DADOS_COMPLETO.pdf
 | 2FA / confirmação | OTP 6 dígitos por e-mail (`two_factor_challenges`, bcrypt, 10 min, ≤5 tentativas) |
 | Rotas protegidas | `authPreHandler` — Bearer obrigatório |
 | Cadastro LGPD | Aceite obrigatório de 3 documentos; persistido em `user_consents` com IP e user-agent |
-| Admin | Apenas `admin@admin.com` — `adminPreHandler` |
+| Admin | Apenas `admin@admin.com` ou `access_level=admin` — `adminPreHandler` |
+| Staff | `viewer` / `operator` / `admin` — `staffPreHandler` (auditoria, LGPD, assinantes) |
+| Inativação | Cadastros usam `is_active`; login de conta inativa retorna 403 |
+| LGPD campos | `lgpd_sensitive_fields` mascara e-mail/telefone/prompts conforme o nível |
 | WhatsApp admin | QR/connect/logs só para admin |
 | Sessão Baileys | Arquivos locais, fora do git |
 | CORS | Origins do FRONTEND_URL + localhost |
@@ -929,7 +986,8 @@ npm run dev          # http://localhost:5173
 | Banco | Railway PostgreSQL | `DATABASE_URL` |
 
 Migration onboarding: `npm run db:migrate:onboarding` ou `drizzle/0001_onboarding_settings.sql`.  
-Auth e-mail/2FA: `npm run db:migrate:auth-email` (`drizzle/0008_auth_email_2fa.sql`) no Postgres local e no Railway.
+Auth e-mail/2FA: `npm run db:migrate:auth-email` (`drizzle/0008_auth_email_2fa.sql`) no Postgres local e no Railway.  
+Auditoria/LGPD/inativação: `npm run db:migrate:audit-lgpd` (`drizzle/0009_audit_lgpd_soft_delete.sql`).
 
 ---
 
@@ -941,7 +999,7 @@ Cada arquivo abaixo possui **comentários em português** no código-fonte (cabe
 
 | Pasta | Arquivos comentados (PT) |
 |-------|--------------------------|
-| `src/` | index, env, auth, **mailer**, api-routes, extended-routes, goals-service, db/index, db/schema, db/ensure-admin, utils/* |
+| `src/` | index, env, auth, **mailer**, api-routes, extended-routes, **governance-routes**, **audit**, **lgpd**, goals-service, db/index, db/schema, db/ensure-admin, utils/* |
 | `api/` | financial-agent, onboarding-agent, goal-agent, **goal-parser**, app-links, parser, prompts, transaction-service, category-resolver, insights, financial-memory, media-processor, openai-client, runtime-config, logger, **stripe-service**, **stripe-branding**, index |
 | `whatsapp/` | client, message-handler, user-resolver, jid-resolver, routes, session-utils, keep-alive, baileys-log |
 
@@ -953,8 +1011,8 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 |-------|----------|
 | Raiz | main.tsx, App.tsx, MAPA-SISTEMA.tsx |
 | `lib/` | api.ts, auth.tsx, routes.ts, admin.ts, utils.ts, chart-colors.ts, category-icons.tsx, mockData.ts |
-| `pages/` | Dashboard.tsx, Goals.tsx, AiChat.tsx, Settings.tsx, Login.tsx, Register.tsx, ForgotPassword.tsx, ResetPassword.tsx, WhatsApp.tsx, AiLogs.tsx, Index.tsx, NotFound.tsx |
-| `components/` | Layout.tsx, DashboardDialogs.tsx, NavLink.tsx, RequireAdmin.tsx, RequireAdminAuth.tsx, ChartPlotArea.tsx, Logo.tsx, AppErrorBoundary.tsx, RegisterTermsAcceptance.tsx, EmailOtpStep.tsx |
+| `pages/` | Dashboard.tsx, Goals.tsx, AiChat.tsx, Settings.tsx, Login.tsx, Register.tsx, ForgotPassword.tsx, ResetPassword.tsx, WhatsApp.tsx, AiLogs.tsx, AdminSubscribers.tsx, AdminAuditLogs.tsx, AdminLgpd.tsx, Index.tsx, NotFound.tsx |
+| `components/` | Layout.tsx, DashboardDialogs.tsx, NavLink.tsx, RequireAdmin.tsx, RequireStaff.tsx, RequireAdminAuth.tsx, ChartPlotArea.tsx, Logo.tsx, AppErrorBoundary.tsx, RegisterTermsAcceptance.tsx, EmailOtpStep.tsx |
 | `hooks/` | use-capabilities.ts, use-mobile.tsx, use-toast.ts |
 
 > Catálogo exportado em `MAPA-SISTEMA.tsx` (`FRONTEND_APPLICATION_FILES`). Ao criar ou renomear arquivos, adicionar comentários e **atualizar esta seção**.
@@ -1031,6 +1089,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.6 | PDF BD págs. 6–10: textos reescritos — módulos coloridos, exemplo Zap→gasto, dicionário com “para que serve” em cada tabela; removidas caixas “como explicar na banca”; `generate-PDF-FINAL.ts` |
 | ago/2026 | 8.0 | Login Vercel: URL Railway correta `https://controlaaigastosdeploy.up.railway.app` (remove fallback inexistente `…-production…`); `VITE_API_URL` / `BACKEND_URL` em `.env*` e fallbacks `api.ts` / middleware / proxy |
 | ago/2026 | 8.7 | Recuperação de senha + verificação em 2 etapas por e-mail: rotas `/auth/forgot`, `/auth/reset`, `/auth/2fa/*`; cadastro confirma OTP antes do JWT; tabelas `password_reset_tokens`, `two_factor_secrets`, `two_factor_challenges`; colunas `users.token_version`, `email_verified`, `user_settings.two_factor_enabled`; mailer Resend/SMTP (`src/mailer.ts`); UI `/forgot-password`, `/reset-password`, OTP no login/cadastro e toggle em Settings; migration `0008_auth_email_2fa.sql` |
+| ago/2026 | 8.8 | Governança: `audit_logs` (inclusão/alteração/inativação por rotina, data/hora e usuário); cadastros inativam (`is_active`) em vez de excluir; `lgpd_sensitive_fields` mascara PII por nível (`user`/`viewer`/`operator`/`admin`); painel Auditoria, LGPD e Assinantes; migration `0009_audit_lgpd_soft_delete.sql` |
 
 ---
 

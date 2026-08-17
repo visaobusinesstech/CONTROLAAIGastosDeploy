@@ -147,7 +147,7 @@ async function getUserProfileFlags(userId: string) {
   const [txRow] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(transactions)
-    .where(eq(transactions.userId, userId));
+    .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true)));
 
   const monthlyIncome = await getMonthlyIncomeBudget(userId);
   const recurrence = (settings?.incomeRecurrence as IncomeRecurrence | null) ?? null;

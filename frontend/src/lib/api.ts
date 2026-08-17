@@ -46,6 +46,8 @@ export type ApiUser = {
   phone: string | null;
   plan: string;
   createdAt: string;
+  accessLevel?: "user" | "viewer" | "operator" | "admin";
+  isActive?: boolean;
 };
 
 /** Erro HTTP com status e detalhes opcionais do backend. */
@@ -119,6 +121,7 @@ export function translateApiError(message: string): string {
     "Missing required consents": "Aceite todos os termos para continuar.",
     "Invalid consents": "Aceites inválidos. Recarregue a página.",
     "Invalid email or password": "E-mail ou senha incorretos.",
+    "Account inactive": "Esta conta foi inativada. Fale com o administrador.",
     "Invalid or expired reset token": "Link de redefinição inválido ou expirado. Solicite outro.",
     "Invalid or expired code": "Código inválido ou expirado. Solicite um novo.",
     "Invalid code": "Código incorreto. Tente novamente.",
@@ -375,7 +378,7 @@ export async function apiExportTransactionsCsv(
 
 export type ApiBillingAccess = {
   hasAccess: boolean;
-  reason: "admin" | "grandfathered" | "trial" | "subscription" | "expired";
+  reason: "admin" | "staff" | "grandfathered" | "trial" | "subscription" | "expired";
   trialEndsAt: string | null;
   daysLeftInTrial: number | null;
   requiresPayment: boolean;
@@ -390,6 +393,8 @@ export type ApiBillingAccess = {
 
 export type ApiCapabilities = {
   isAdmin: boolean;
+  isStaff?: boolean;
+  accessLevel?: "user" | "viewer" | "operator" | "admin";
   whatsappEnabled: boolean;
   openaiConfigured: boolean;
   whatsappBotPhone: string | null;
@@ -419,6 +424,8 @@ export type ApiAdminSubscriber = {
   trialEndsAt: string | null;
   billingGrandfathered: boolean;
   stripeCustomerId: string | null;
+  accessLevel?: "user" | "viewer" | "operator" | "admin";
+  isActive?: boolean;
   access: string;
   hasAccess: boolean;
   subscription: {
@@ -555,6 +562,64 @@ export async function apiGetAdminSubscribers(token: string): Promise<{
   users: ApiAdminSubscriber[];
 }> {
   return apiFetch("/api/admin/billing/subscribers", { method: "GET", token });
+}
+
+export type ApiAuditLog = {
+  id: string;
+  userId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  routine: string;
+  action: "insert" | "update" | "inactivate" | "activate";
+  entity: string;
+  entityId: string | null;
+  occurredAt: string;
+  ipAddress: string | null;
+};
+
+export async function apiGetAuditLogs(token: string, limit = 150): Promise<{ logs: ApiAuditLog[] }> {
+  return apiFetch(`/api/admin/audit-logs?limit=${limit}`, { method: "GET", token });
+}
+
+export type ApiLgpdField = {
+  id: string;
+  entity: string;
+  fieldName: string;
+  label: string;
+  hideFromOperator: boolean;
+  hideFromViewer: boolean;
+  isActive: boolean;
+};
+
+export async function apiGetLgpdFields(token: string): Promise<{ fields: ApiLgpdField[] }> {
+  return apiFetch("/api/admin/lgpd/fields", { method: "GET", token });
+}
+
+export async function apiPostLgpdField(
+  token: string,
+  body: { entity: string; fieldName: string; label: string; hideFromOperator?: boolean; hideFromViewer?: boolean },
+): Promise<{ field: ApiLgpdField }> {
+  return apiFetch("/api/admin/lgpd/fields", { method: "POST", body: JSON.stringify(body), token });
+}
+
+export async function apiPatchLgpdField(
+  token: string,
+  id: string,
+  body: { label?: string; hideFromOperator?: boolean; hideFromViewer?: boolean; isActive?: boolean },
+): Promise<{ field: ApiLgpdField }> {
+  return apiFetch(`/api/admin/lgpd/fields/${id}`, { method: "PATCH", body: JSON.stringify(body), token });
+}
+
+export async function apiPatchAdminUser(
+  token: string,
+  id: string,
+  body: { accessLevel?: "user" | "viewer" | "operator" | "admin"; isActive?: boolean },
+): Promise<{ user: { id: string; name: string; email: string; accessLevel: string; isActive: boolean } }> {
+  return apiFetch(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body), token });
+}
+
+export async function apiPatchGoal(token: string, id: string, body: { isActive: boolean }): Promise<{ goal: { id: string; isActive: boolean } }> {
+  return apiFetch(`/api/goals/${id}`, { method: "PATCH", body: JSON.stringify(body), token });
 }
 
 export async function apiGetKpis(token: string): Promise<{ kpis: FinancialKpis }> {

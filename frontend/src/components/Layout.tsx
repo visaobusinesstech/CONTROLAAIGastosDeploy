@@ -14,6 +14,8 @@ import {
   Smartphone,
   ScrollText,
   Users,
+  ClipboardList,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth"; // Dados do usuário logado
@@ -30,10 +32,16 @@ const baseNavItems = [
 
 const settingsNavItem = { to: "/settings", icon: Settings, label: "Configurações" };
 
-/** Itens extras visíveis apenas para administradores. */
-const adminNavItems = [
+/** Itens visíveis para staff (admin, operator, viewer). */
+const staffNavItems = [
   { to: "/admin/subscribers", icon: Users, label: "Assinantes" },
+  { to: "/admin/audit", icon: ClipboardList, label: "Auditoria" },
+  { to: "/admin/lgpd", icon: Shield, label: "LGPD" },
   { to: "/admin/ai-logs", icon: ScrollText, label: "Logs IA" },
+];
+
+/** Itens extras só para admin (WhatsApp Baileys). */
+const adminOnlyNavItems = [
   { to: "/admin/whatsapp", icon: Smartphone, label: "WhatsApp" },
 ];
 
@@ -54,6 +62,9 @@ function mobileNavLabel(label: string) {
     Dashboard: "Início",
     "IA Chat": "IA",
     Configurações: "Config",
+    Assinantes: "Users",
+    Auditoria: "Audit",
+    LGPD: "LGPD",
     "Logs IA": "Logs",
   };
   return map[label] ?? label.split(" ")[0];
@@ -67,19 +78,22 @@ export default function Layout() {
   const displayName = user?.name ?? "Usuário";
   const displayPlan = user ? planLabel(user.plan) : "—";
   const isAdmin = isAdminUser(user?.email) || caps?.isAdmin;
-  const billingBlocked = caps?.billing && !caps.billing.hasAccess && !isAdmin;
+  const isStaff = Boolean(caps?.isStaff) || isAdmin;
+  const billingBlocked = caps?.billing && !caps.billing.hasAccess && !isStaff;
   const onSettings = location.pathname === "/settings";
   const navItems = isAdmin
-    ? [...baseNavItems, ...adminNavItems, settingsNavItem]
-    : [...baseNavItems, settingsNavItem];
+    ? [...baseNavItems, ...staffNavItems, ...adminOnlyNavItems, settingsNavItem]
+    : isStaff
+      ? [...baseNavItems, ...staffNavItems, settingsNavItem]
+      : [...baseNavItems, settingsNavItem];
   const isAiChat = location.pathname === "/ai";
 
   // Impede usuário comum de acessar URLs /admin/* via barra de endereço
   useEffect(() => {
-    if (user && !isAdmin && location.pathname.startsWith("/admin")) {
+    if (user && !isStaff && location.pathname.startsWith("/admin")) {
       navigate("/", { replace: true });
     }
-  }, [user, isAdmin, location.pathname, navigate]);
+  }, [user, isStaff, location.pathname, navigate]);
 
   useEffect(() => {
     if (billingBlocked && !onSettings) {

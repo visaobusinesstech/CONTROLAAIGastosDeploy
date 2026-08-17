@@ -28,6 +28,7 @@ import {
 } from "./legal/documents.js"; // Textos e versão dos termos LGPD
 import { isAdminEmail } from "./utils/admin.js";
 import { defaultTrialEndsAt } from "../api/billing-access.js";
+import { writeAuditLog } from "./audit.js";
 import {
   OTP_MINUTES,
   RESET_MINUTES,
@@ -88,6 +89,8 @@ type PublicUser = {
   phone: string | null;
   plan: "free" | "pro" | "premium";
   createdAt: Date;
+  accessLevel: "user" | "viewer" | "operator" | "admin";
+  isActive: boolean;
 };
 
 type OtpPurpose = z.infer<typeof otpPurposeSchema>;
@@ -172,6 +175,8 @@ function publicUser(row: {
   phone: string | null;
   plan: string;
   createdAt: Date;
+  accessLevel?: "user" | "viewer" | "operator" | "admin";
+  isActive?: boolean;
 }): PublicUser {
   return {
     id: row.id,
@@ -180,6 +185,8 @@ function publicUser(row: {
     phone: row.phone,
     plan: row.plan as "free" | "pro" | "premium",
     createdAt: row.createdAt,
+    accessLevel: row.accessLevel ?? "user",
+    isActive: row.isActive !== false,
   };
 }
 
@@ -340,6 +347,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           billingGrandfathered: false,
           emailVerified: false, // Só vira true após o código do e-mail
           tokenVersion: 0,
+          accessLevel: isAdminEmail(email.toLowerCase()) ? "admin" : "user",
+          isActive: true,
         })
         .returning({
           id: users.id,
@@ -349,6 +358,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           plan: users.plan,
           createdAt: users.createdAt,
           tokenVersion: users.tokenVersion,
+          accessLevel: users.accessLevel,
+          isActive: users.isActive,
         });
 
       await db.insert(userSettings).values({ userId: row.id }).onConflictDoNothing(); // Settings padrão
@@ -363,6 +374,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           userAgent: clientUserAgent,
         })),
       );
+      await writeAuditLog({
+        userId: row.id,
+        routine: "users.register",
+        action: "insert",
+        entity: "users",
+        entityId: row.id,
+        ipAddress: clientIp,
+        userAgent: clientUserAgent,
+      });
     } catch (err) {
       request.log.error({ err }, "register insert error");
       return reply.status(503).send({ error: "Database unavailable" });
@@ -403,6 +423,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const ok = await bcrypt.compare(password, user.passwordHash); // Compara senha com hash
     if (!ok) {
       return reply.status(401).send({ error: "Invalid email or password" });
+    }
+    if (user.isActive === false) {
+      return reply.status(403).send({ error: "Account inactive" }); // Cadastro inativado — sem exclusão
     }
 
     const ip = getClientIp(request);
@@ -674,6 +697,8 @@ declare module "fastify" {
       phone: string | null;
       plan: "free" | "pro" | "premium";
       createdAt: Date;
+      accessLevel: "user" | "viewer" | "operator" | "admin";
+      isActive: boolean;
     };
   }
 }
@@ -701,12 +726,18 @@ async function authPreHandler(request: FastifyRequest, reply: FastifyReply): Pro
       plan: users.plan,
       createdAt: users.createdAt,
       tokenVersion: users.tokenVersion,
+      accessLevel: users.accessLevel,
+      isActive: users.isActive,
     })
     .from(users)
     .where(eq(users.id, payload.sub)); // sub do JWT = users.id
 
   if (!user) {
     reply.status(401).send({ error: "User not found" }); // Usuário deletado após emissão do token
+    return;
+  }
+  if (!user.isActive) {
+    reply.status(403).send({ error: "Account inactive" });
     return;
   }
 
@@ -723,6 +754,8 @@ async function authPreHandler(request: FastifyRequest, reply: FastifyReply): Pro
     phone: user.phone,
     plan: user.plan as "free" | "pro" | "premium",
     createdAt: user.createdAt,
+    accessLevel: user.accessLevel,
+    isActive: user.isActive,
   };
 }
 

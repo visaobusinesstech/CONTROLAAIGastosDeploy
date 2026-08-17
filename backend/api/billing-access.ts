@@ -5,10 +5,12 @@
 import { desc, eq } from "drizzle-orm";
 import { db } from "../src/db/index.js";
 import { subscriptions, users } from "../src/db/schema.js";
-import { isAdminEmail } from "../src/utils/admin.js";
+import { isAdminEmail, userIsAdmin } from "../src/utils/admin.js";
+import { isStaffLevel, type AccessLevel } from "../src/lgpd.js";
 
 export type BillingAccessReason =
   | "admin"
+  | "staff"
   | "grandfathered"
   | "trial"
   | "subscription"
@@ -63,9 +65,22 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
       trialEndsAt: users.trialEndsAt,
       billingGrandfathered: users.billingGrandfathered,
       plan: users.plan,
+      accessLevel: users.accessLevel,
+      email: users.email,
     })
     .from(users)
     .where(eq(users.id, userId));
+
+  if (user && (userIsAdmin({ email: user.email, accessLevel: user.accessLevel as AccessLevel }) || isStaffLevel(user.accessLevel as AccessLevel))) {
+    return {
+      hasAccess: true,
+      reason: isAdminEmail(email) ? "admin" : "staff",
+      trialEndsAt: null,
+      daysLeftInTrial: null,
+      requiresPayment: false,
+      subscription: null,
+    };
+  }
 
   const [sub] = await db
     .select()

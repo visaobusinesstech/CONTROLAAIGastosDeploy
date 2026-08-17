@@ -7,7 +7,7 @@ import { useTheme } from "next-themes";
 import { motion } from "framer-motion"; // Animações de entrada dos cards
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Plus, TrendingUp, AlertTriangle, CheckCircle2, Ban } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Slider } from "@/components/ui/slider";
 import { MagicCard } from "@/components/ui/magic-card";
@@ -29,6 +29,7 @@ import {
   apiCreateGoal,
   apiGetCategories,
   apiGetGoals,
+  apiPatchGoal,
   type ApiCategory,
   type ApiGoal,
 } from "@/lib/api";
@@ -129,7 +130,7 @@ function GoalProgressBar({ percentage }: { percentage: number }) {
   );
 }
 
-function GoalCard({ goal }: { goal: ApiGoal }) {
+function GoalCard({ goal, onInactivate }: { goal: ApiGoal; onInactivate: () => void }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const gridStroke = isDark ? "#48484A" : "#F0F0F2";
@@ -178,6 +179,15 @@ function GoalCard({ goal }: { goal: ApiGoal }) {
                 </div>
               </div>
             </div>
+            <button
+              type="button"
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
+              aria-label="Inativar meta"
+              title="Inativar meta"
+              onClick={onInactivate}
+            >
+              <Ban size={16} />
+            </button>
           </div>
 
           <div>
@@ -327,6 +337,15 @@ export default function Goals() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const inactivateMut = useMutation({
+    mutationFn: (id: string) => apiPatchGoal(token!, id, { isActive: false }),
+    onSuccess: () => {
+      toast.success("Meta inativada");
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const createFromTemplate = (template: GoalTemplate) => {
     createMut.mutate({
       name: template.name,
@@ -455,7 +474,7 @@ export default function Goals() {
           </div>
           <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
             {goals.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} />
+              <GoalCard key={goal.id} goal={goal} onInactivate={() => inactivateMut.mutate(goal.id)} />
             ))}
           </div>
         </>

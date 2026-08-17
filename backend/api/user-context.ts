@@ -162,7 +162,7 @@ export async function getUserFinancialContext(userId: string): Promise<UserFinan
       categoryName: sql<string>`(SELECT name FROM categories WHERE id = ${transactions.categoryId})`,
     })
     .from(transactions)
-    .where(eq(transactions.userId, userId))
+    .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true)))
     .orderBy(desc(transactions.occurredAt))
     .limit(8);
 

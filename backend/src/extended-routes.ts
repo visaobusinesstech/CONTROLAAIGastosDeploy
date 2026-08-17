@@ -10,7 +10,9 @@ import { z } from "zod"; // Validação JSON
 import { db } from "./db/index.js"; // Cliente PostgreSQL
 import { aiConversations, aiLogs, documentImports, goals, categories, whatsappMessages, whatsappConnection, users } from "./db/schema.js"; // Tabelas IA/WA/imports
 import { authPreHandler } from "./auth.js"; // Middleware JWT
-import { adminPreHandler, isAdminEmail } from "./utils/admin.js"; // Gate admin@admin.com
+import { adminPreHandler, staffPreHandler, userIsAdmin } from "./utils/admin.js"; // Gate admin e staff
+import { applyLgpdMask, isStaffLevel, loadLgpdRules } from "./lgpd.js";
+import { requestAuditMeta, writeAuditLog } from "./audit.js";
 import {
   buildWebChatWelcomeMessage,
   buildWebChatWelcomeMessageForUser,
@@ -65,7 +67,9 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
       const billing = await getBillingAccess(request.user!.id, request.user!.email);
 
       return reply.send({
-        isAdmin: isAdminEmail(request.user!.email),
+        isAdmin: userIsAdmin(request.user),
+        isStaff: userIsAdmin(request.user) || isStaffLevel(request.user!.accessLevel),
+        accessLevel: request.user!.accessLevel,
         whatsappEnabled: process.env.ENABLE_WHATSAPP !== "false",
         openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
         /** Número público do bot — visível para usuários comuns enviarem mensagens */
@@ -91,7 +95,7 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
       const rows = await db
         .select()
         .from(aiConversations)
-        .where(eq(aiConversations.userId, userId))
+        .where(and(eq(aiConversations.userId, userId), eq(aiConversations.isActive, true)))
         .orderBy(desc(aiConversations.updatedAt))
         .limit(50);
 
@@ -106,16 +110,26 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
       });
     });
 
-    /** DELETE /api/ai/conversations/:id — remove conversa do usuário. */
+    /** DELETE /api/ai/conversations/:id — inativa conversa (sem exclusão física). */
     r.delete<{ Params: { id: string } }>("/ai/conversations/:id", async (request, reply) => {
       const userId = request.user!.id;
       const { id } = request.params;
-      const [deleted] = await db
-        .delete(aiConversations)
-        .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, userId)))
+      const [row] = await db
+        .update(aiConversations)
+        .set({ isActive: false, updatedAt: new Date() })
+        .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, userId), eq(aiConversations.isActive, true)))
         .returning({ id: aiConversations.id });
-      if (!deleted) return reply.status(404).send({ error: "Conversation not found" });
-      return reply.send({ ok: true });
+      if (!row) return reply.status(404).send({ error: "Conversation not found" });
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: "ai_conversations.inactivate",
+        action: "inactivate",
+        entity: "ai_conversations",
+        entityId: id,
+        ...meta,
+      });
+      return reply.send({ ok: true, inactivated: true });
     });
 
     /** POST /api/ai/chat — envia mensagem ao agente financeiro web. */
@@ -134,7 +148,7 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
         [conversation] = await db
           .select()
           .from(aiConversations)
-          .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, userId)));
+          .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, userId), eq(aiConversations.isActive, true)));
       }
 
       const history = (conversation?.messages as Array<{ role: string; content: string }>) ?? [];
@@ -166,6 +180,16 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
           .returning();
         conversation = created;
       }
+
+      const chatMeta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: conversationId ? "ai_conversations.update" : "ai_conversations.create",
+        action: conversationId ? "update" : "insert",
+        entity: "ai_conversations",
+        entityId: conversation!.id,
+        ...chatMeta,
+      });
 
       return reply.send({
         conversationId: conversation!.id,
@@ -240,6 +264,16 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
         })
         .returning();
 
+      const goalMeta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: "goals.create",
+        action: "insert",
+        entity: "goals",
+        entityId: row.id,
+        ...goalMeta,
+      });
+
       return reply.status(201).send({
         goal: {
           id: row.id,
@@ -248,6 +282,31 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
           goalType: row.goalType,
         },
       });
+    });
+
+    /** PATCH /api/goals/:id — inativa/reativa meta (sem exclusão). */
+    r.patch<{ Params: { id: string } }>("/goals/:id", async (request, reply) => {
+      const parsed = z.object({ isActive: z.boolean() }).safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const [row] = await db
+        .update(goals)
+        .set({ isActive: parsed.data.isActive })
+        .where(and(eq(goals.id, request.params.id), eq(goals.userId, userId)))
+        .returning({ id: goals.id, isActive: goals.isActive });
+      if (!row) return reply.status(404).send({ error: "Not found" });
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: parsed.data.isActive ? "goals.activate" : "goals.inactivate",
+        action: parsed.data.isActive ? "activate" : "inactivate",
+        entity: "goals",
+        entityId: row.id,
+        ...meta,
+      });
+      return reply.send({ goal: row });
     });
 
     // --- User WhatsApp conversations ---
@@ -280,7 +339,7 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
       const rows = await db
         .select()
         .from(documentImports)
-        .where(eq(documentImports.userId, request.user!.id))
+        .where(and(eq(documentImports.userId, request.user!.id), eq(documentImports.isActive, true)))
         .orderBy(desc(documentImports.createdAt))
         .limit(50);
 
@@ -339,17 +398,19 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
     });
   }, { prefix: "/api" });
 
-  // --- Admin AI logs (/api/admin/ai) ---
+  // --- Admin AI logs (/api/admin/ai) — staff vê logs; modelo só admin ---
 
   app.register(async (r) => {
     r.addHook("preHandler", authPreHandler);
-    r.addHook("preHandler", adminPreHandler); // Só admin@admin.com
+    r.addHook("preHandler", staffPreHandler); // viewer/operator/admin — prompt mascarado via LGPD
 
-    /** GET /api/admin/ai/logs — auditoria chamadas OpenAI. */
+    /** GET /api/admin/ai/logs — auditoria chamadas OpenAI (campos sensíveis mascarados). */
     r.get("/logs", async (request: FastifyRequest, reply: FastifyReply) => {
       const q = request.query as { limit?: string; source?: string };
       const limit = Math.min(Number(q.limit) || 50, 200);
       const conds = q.source ? [eq(aiLogs.source, q.source)] : [];
+      const rules = await loadLgpdRules();
+      const level = request.user!.accessLevel;
 
       const rows = await db
         .select()
@@ -359,22 +420,29 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
         .limit(limit);
 
       return reply.send({
-        logs: rows.map((l) => ({
-          id: l.id,
-          userId: l.userId,
-          source: l.source,
-          operation: l.operation,
-          prompt: l.prompt,
-          response: l.response,
-          model: l.model,
-          inputTokens: l.inputTokens,
-          outputTokens: l.outputTokens,
-          costUsd: l.costUsd != null ? num(l.costUsd) : null,
-          processingMs: l.processingMs,
-          status: l.status,
-          errorMessage: l.errorMessage,
-          createdAt: l.createdAt.toISOString(),
-        })),
+        logs: rows.map((l) =>
+          applyLgpdMask(
+            {
+              id: l.id,
+              userId: l.userId,
+              source: l.source,
+              operation: l.operation,
+              prompt: l.prompt,
+              response: l.response,
+              model: l.model,
+              inputTokens: l.inputTokens,
+              outputTokens: l.outputTokens,
+              costUsd: l.costUsd != null ? num(l.costUsd) : null,
+              processingMs: l.processingMs,
+              status: l.status,
+              errorMessage: l.errorMessage,
+              createdAt: l.createdAt.toISOString(),
+            },
+            "ai_logs",
+            level,
+            rules,
+          ),
+        ),
         summary: await getAiSummary(),
       });
     });
@@ -383,6 +451,11 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
     r.get("/stats", async (_request: FastifyRequest, reply: FastifyReply) => {
       return reply.send({ summary: await getAiSummary() });
     });
+  }, { prefix: "/api/admin/ai" });
+
+  app.register(async (r) => {
+    r.addHook("preHandler", authPreHandler);
+    r.addHook("preHandler", adminPreHandler); // Só admin troca modelo OpenAI
 
     /** GET /api/admin/ai/model — modelo OpenAI ativo + lista disponível. */
     r.get("/model", async (_request: FastifyRequest, reply: FastifyReply) => {

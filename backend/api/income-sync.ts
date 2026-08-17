@@ -77,6 +77,7 @@ export async function syncIncomeToDashboard(
         occurredAt,
         categoryId,
         source,
+        isActive: true,
       })
       .where(eq(transactions.id, existing.id));
     return;

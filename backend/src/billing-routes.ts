@@ -6,7 +6,8 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { authPreHandler } from "./auth.js";
-import { adminPreHandler } from "./utils/admin.js";
+import { staffPreHandler } from "./utils/admin.js";
+import { applyLgpdMask, loadLgpdRules } from "./lgpd.js";
 import { db } from "./db/index.js";
 import { subscriptions, users } from "./db/schema.js";
 import { getBillingAccess } from "../api/billing-access.js";
@@ -133,9 +134,11 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
   /** Admin — central de assinantes e usuários. */
   app.register(async (r) => {
     r.addHook("preHandler", authPreHandler);
-    r.addHook("preHandler", adminPreHandler);
+    r.addHook("preHandler", staffPreHandler);
 
-    r.get("/subscribers", async (_request, reply) => {
+    r.get("/subscribers", async (request, reply) => {
+      const rules = await loadLgpdRules();
+      const level = request.user!.accessLevel;
       const rows = await db
         .select({
           id: users.id,
@@ -147,6 +150,8 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
           trialEndsAt: users.trialEndsAt,
           billingGrandfathered: users.billingGrandfathered,
           stripeCustomerId: users.stripeCustomerId,
+          accessLevel: users.accessLevel,
+          isActive: users.isActive,
         })
         .from(users)
         .orderBy(desc(users.createdAt));
@@ -161,10 +166,18 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
         rows.map(async (u) => {
           const access = await getBillingAccess(u.id, u.email);
           const sub = subByUser.get(u.id);
+          const masked = applyLgpdMask(
+            {
+              ...u,
+              createdAt: u.createdAt.toISOString(),
+              trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
+            } as Record<string, unknown>,
+            "users",
+            level,
+            rules,
+          );
           return {
-            ...u,
-            createdAt: u.createdAt.toISOString(),
-            trialEndsAt: u.trialEndsAt?.toISOString() ?? null,
+            ...masked,
             access: access.reason,
             hasAccess: access.hasAccess,
             subscription: sub

@@ -20,7 +20,10 @@ import NotFound from "@/pages/NotFound";
 import WhatsAppPage from "@/pages/WhatsApp";
 import AiLogsPage from "@/pages/AiLogs";
 import AdminSubscribersPage from "@/pages/AdminSubscribers";
-import RequireAdmin from "@/components/RequireAdmin"; // Guard de rotas /admin/*
+import AdminAuditLogsPage from "@/pages/AdminAuditLogs";
+import AdminLgpdPage from "@/pages/AdminLgpd";
+import RequireAdmin from "@/components/RequireAdmin"; // Guard WhatsApp / modelo
+import RequireStaff from "@/components/RequireStaff"; // Guard governança
 import { DocumentTitle } from "@/components/DocumentTitle"; // Título dinâmico da aba
 import { AppErrorBoundary } from "@/components/AppErrorBoundary"; // Captura erros de render
 import { useAuth } from "@/lib/auth"; // Hook de sessão JWT
@@ -80,17 +83,33 @@ const App = () => (
                 <Route
                   path="admin/subscribers"
                   element={
-                    <RequireAdmin>
+                    <RequireStaff>
                       <AdminSubscribersPage />
-                    </RequireAdmin>
+                    </RequireStaff>
+                  }
+                />
+                <Route
+                  path="admin/audit"
+                  element={
+                    <RequireStaff>
+                      <AdminAuditLogsPage />
+                    </RequireStaff>
+                  }
+                />
+                <Route
+                  path="admin/lgpd"
+                  element={
+                    <RequireStaff>
+                      <AdminLgpdPage />
+                    </RequireStaff>
                   }
                 />
                 <Route
                   path="admin/ai-logs"
                   element={
-                    <RequireAdmin>
+                    <RequireStaff>
                       <AiLogsPage />
-                    </RequireAdmin>
+                    </RequireStaff>
                   }
                 />
               </Route>

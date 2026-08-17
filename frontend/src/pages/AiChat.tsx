@@ -187,7 +187,7 @@ export default function AiChat() {
         await apiDeleteAiConversation(token, conversationId);
         void qc.invalidateQueries({ queryKey: ["ai-conversations"] });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Erro ao excluir");
+        toast.error(err instanceof Error ? err.message : "Erro ao inativar");
         return;
       }
     }
@@ -300,7 +300,7 @@ export default function AiChat() {
               type="button"
               onClick={handleDelete}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-cred-main"
-              aria-label="Limpar conversa"
+              aria-label="Inativar conversa"
             >
               <Trash2 size={16} />
             </button>

@@ -35,15 +35,19 @@
  *   pages/Index.tsx         → Placeholder Lovable (não usado em produção)
  *   pages/NotFound.tsx      → Página 404
  *
- * PÁGINAS (admin — admin@admin.com)
- *   pages/WhatsApp.tsx    → QR Code Baileys, modelo OpenAI, logs
- *   pages/AiLogs.tsx      → Logs de tokens/custos OpenAI
+ * PÁGINAS (admin / staff)
+ *   pages/WhatsApp.tsx    → QR Code Baileys, modelo OpenAI (admin)
+ *   pages/AiLogs.tsx      → Logs de tokens/custos OpenAI (staff, campos mascarados)
+ *   pages/AdminSubscribers.tsx → Assinantes, níveis e ativar/inativar
+ *   pages/AdminAuditLogs.tsx → Auditoria de cadastros
+ *   pages/AdminLgpd.tsx   → Cadastro de campos sensíveis LGPD
  *
  * COMPONENTES DE APLICAÇÃO
  *   components/Layout.tsx           → Sidebar + navegação + outlet
  *   components/DashboardDialogs.tsx → Modais de transação e orçamento
  *   components/NavLink.tsx          → NavLink estilizado (react-router)
  *   components/RequireAdmin.tsx     → Guard isAdmin via capabilities
+ *   components/RequireStaff.tsx     → Guard staff (admin/operator/viewer)
  *   components/RequireAdminAuth.tsx → Guard login admin dedicado
  *   components/ChartPlotArea.tsx    → Container de gráficos Recharts
  *   components/Logo.tsx             → LogoSymbol SVG + LogoFull PNG
@@ -94,12 +98,16 @@ export const FRONTEND_APPLICATION_FILES = [
   "pages/ResetPassword.tsx",
   "pages/WhatsApp.tsx",
   "pages/AiLogs.tsx",
+  "pages/AdminSubscribers.tsx",
+  "pages/AdminAuditLogs.tsx",
+  "pages/AdminLgpd.tsx",
   "pages/Index.tsx",
   "pages/NotFound.tsx",
   "components/Layout.tsx",
   "components/DashboardDialogs.tsx",
   "components/NavLink.tsx",
   "components/RequireAdmin.tsx",
+  "components/RequireStaff.tsx",
   "components/RequireAdminAuth.tsx",
   "components/ChartPlotArea.tsx",
   "components/Logo.tsx",

@@ -1,5 +1,5 @@
 /**
- * Aplica todas as migrations incrementais (0001 → 0008) em ordem.
+ * Aplica todas as migrations incrementais (0001 → 0009) em ordem.
  * Doc TCC: TCC_DOCUMENTACAO.md
  */
 import pg from "pg";
@@ -22,6 +22,7 @@ const MIGRATIONS = [
   "0006_billing_trial.sql",
   "0007_user_consents.sql",
   "0008_auth_email_2fa.sql",
+  "0009_audit_lgpd_soft_delete.sql",
 ];
 
 function normalizeUrl(raw) {

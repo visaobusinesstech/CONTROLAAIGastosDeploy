@@ -15,6 +15,7 @@ import { RICH_DEMO_EMAIL, seedRichMockForUserId } from "./db/seed-rich-leonardo.
 import { materializeDueRecurringIncomes, syncFullIncomeProfile, syncIncomeToDashboard } from "../api/income-sync.js";
 import type { IncomeRecurrence, IncomeType } from "../api/onboarding-agent.js";
 import { billingAccessPreHandler } from "./billing-routes.js";
+import { requestAuditMeta, writeAuditLog } from "./audit.js";
 
 /** Converte numeric Postgres para number (helper local). */
 function num(v: string | null): number {
@@ -56,6 +57,7 @@ const txPatchBody = z.object({
   categoryId: z.string().uuid().nullable().optional(),
   description: z.string().max(500).nullable().optional(),
   occurredAt: z.string().min(4).optional(),
+  isActive: z.boolean().optional(),
 });
 
 /** Schema Zod — PUT /api/budgets */
@@ -129,7 +131,12 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       const rows = await db
         .select()
         .from(categories)
-        .where(or(isNull(categories.userId), eq(categories.userId, userId))) // Sistema ou do usuário
+        .where(
+          and(
+            or(isNull(categories.userId), eq(categories.userId, userId)),
+            eq(categories.isActive, true),
+          ),
+        )
         .orderBy(categories.name);
       return reply.send({
         categories: rows.map((c) => ({
@@ -143,6 +150,31 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       });
     });
 
+    /** PATCH /api/categories/:id — inativa categoria do próprio usuário (sem exclusão). */
+    r.patch<{ Params: { id: string } }>("/categories/:id", async (request, reply) => {
+      const parsed = z.object({ isActive: z.boolean() }).safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const [row] = await db
+        .update(categories)
+        .set({ isActive: parsed.data.isActive })
+        .where(and(eq(categories.id, request.params.id), eq(categories.userId, userId)))
+        .returning({ id: categories.id, isActive: categories.isActive });
+      if (!row) return reply.status(404).send({ error: "Not found" });
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: parsed.data.isActive ? "categories.activate" : "categories.inactivate",
+        action: parsed.data.isActive ? "activate" : "inactivate",
+        entity: "categories",
+        entityId: row.id,
+        ...meta,
+      });
+      return reply.send({ category: row });
+    });
+
     /** GET /api/transactions — lista com filtros from, to, type. */
     r.get("/transactions", async (request: FastifyRequest, reply: FastifyReply) => {
       const userId = request.user!.id;
@@ -152,7 +184,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       const to = q.to ? new Date(q.to) : null;
       const type = q.type as "expense" | "income" | undefined;
 
-      const conds: SQL[] = [eq(transactions.userId, userId)];
+      const conds: SQL[] = [eq(transactions.userId, userId), eq(transactions.isActive, true)];
       if (from && !Number.isNaN(from.getTime())) conds.push(gte(transactions.occurredAt, from));
       if (to && !Number.isNaN(to.getTime())) conds.push(lte(transactions.occurredAt, to));
       if (type === "expense" || type === "income") conds.push(eq(transactions.type, type));
@@ -187,7 +219,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       const from = q.from ? new Date(q.from) : null;
       const to = q.to ? new Date(q.to) : null;
 
-      const conds: SQL[] = [eq(transactions.userId, userId)];
+      const conds: SQL[] = [eq(transactions.userId, userId), eq(transactions.isActive, true)];
       if (from && !Number.isNaN(from.getTime())) conds.push(gte(transactions.occurredAt, from));
       if (to && !Number.isNaN(to.getTime())) conds.push(lte(transactions.occurredAt, to));
 
@@ -262,6 +294,16 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(eq(transactions.id, row.id));
 
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: "transactions.create",
+        action: "insert",
+        entity: "transactions",
+        entityId: row.id,
+        ...meta,
+      });
+
       return reply.status(201).send({ transaction: mapTxRow(joined) });
     });
 
@@ -282,6 +324,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       if (parsed.data.categoryId !== undefined) patch.categoryId = parsed.data.categoryId;
       if (parsed.data.description !== undefined) patch.description = parsed.data.description;
       if (parsed.data.occurredAt !== undefined) patch.occurredAt = new Date(parsed.data.occurredAt);
+      if (parsed.data.isActive !== undefined) patch.isActive = parsed.data.isActive;
 
       if (Object.keys(patch).length === 0) {
         const [joined] = await db
@@ -326,19 +369,42 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(eq(transactions.id, id));
 
+      const meta = requestAuditMeta(request);
+      const inactivated = parsed.data.isActive === false;
+      const activated = parsed.data.isActive === true;
+      await writeAuditLog({
+        userId,
+        routine: inactivated ? "transactions.inactivate" : activated ? "transactions.activate" : "transactions.update",
+        action: inactivated ? "inactivate" : activated ? "activate" : "update",
+        entity: "transactions",
+        entityId: id,
+        ...meta,
+        details: patch,
+      });
+
       return reply.send({ transaction: mapTxRow(joined) });
     });
 
-    /** DELETE /api/transactions/:id — remove lançamento do usuário. */
+    /** DELETE /api/transactions/:id — inativa lançamento (sem exclusão física). */
     r.delete<{ Params: { id: string } }>("/transactions/:id", async (request, reply) => {
       const userId = request.user!.id;
       const { id } = request.params;
-      const del = await db
-        .delete(transactions)
-        .where(and(eq(transactions.id, id), eq(transactions.userId, userId)))
+      const [row] = await db
+        .update(transactions)
+        .set({ isActive: false })
+        .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isActive, true)))
         .returning({ id: transactions.id });
-      if (del.length === 0) return reply.status(404).send({ error: "Not found" });
-      return reply.send({ ok: true });
+      if (!row) return reply.status(404).send({ error: "Not found" });
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: "transactions.inactivate",
+        action: "inactivate",
+        entity: "transactions",
+        entityId: id,
+        ...meta,
+      });
+      return reply.send({ ok: true, inactivated: true });
     });
 
     /** GET /api/budgets?month=YYYY-MM — orçamento do mês. */
@@ -395,6 +461,16 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           },
         })
         .returning();
+
+      const budgetMeta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: existing ? "budgets.update" : "budgets.create",
+        action: existing ? "update" : "insert",
+        entity: "budgets",
+        entityId: row.id,
+        ...budgetMeta,
+      });
 
       // Renda informada no painel → transação + recorrência + saldo no dashboard
       if (totalIncomeExpected !== undefined && inc != null) {
@@ -595,7 +671,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           occurredAt: transactions.occurredAt,
         })
         .from(transactions)
-        .where(eq(transactions.userId, userId));
+        .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true)));
 
       const budgetRows = await db
         .select({ month: budgets.month, income: budgets.totalIncomeExpected })

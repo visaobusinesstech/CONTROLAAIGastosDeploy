@@ -11,15 +11,18 @@
  *   auth.ts               → Register, login, JWT 7d, reset senha, OTP e-mail, 2FA, authPreHandler
  *   mailer.ts             → Resend/SMTP — códigos 2FA e link de reset
  *   legal/documents.ts    → Termos, Privacidade e consentimento LGPD (versão)
- *   api-routes.ts         → CRUD transações, categorias, budgets, settings
+ *   api-routes.ts         → CRUD transações, categorias, budgets, settings (inativação)
  *   extended-routes.ts    → Chat IA, KPIs, metas, conversas, admin IA
+ *   governance-routes.ts  → Auditoria, campos LGPD, níveis e ativar/inativar usuários
+ *   audit.ts              → Persistência em audit_logs
+ *   lgpd.ts               → Máscara de campos sensíveis por nível
  *   goals-service.ts      → Metas enriquecidas + createGoalForUser
  *   db/index.ts           → Cliente Drizzle + postgres pool
  *   db/schema.ts          → Todas as tabelas e enums PostgreSQL
  *   db/ensure-admin.ts    → Garante admin@admin.com no boot
  *   utils/phone.ts        → Normalização BR + variantes WhatsApp (9º dígito)
  *   utils/money.ts        → formatBrl, parseMoneyAmount, monthKey
- *   utils/admin.ts        → isAdminEmail, adminPreHandler
+ *   utils/admin.ts        → isAdminEmail, adminPreHandler, staffPreHandler
  *
  * OPENAI + AGENTE (`api/`)
  *   financial-agent.ts    → Pipeline unificado WhatsApp + chat web
@@ -72,6 +75,9 @@ export const BACKEND_APPLICATION_FILES = [
   "src/legal/documents.ts",
   "src/api-routes.ts",
   "src/extended-routes.ts",
+  "src/governance-routes.ts",
+  "src/audit.ts",
+  "src/lgpd.ts",
   "src/goals-service.ts",
   "src/db/index.ts",
   "src/db/schema.ts",

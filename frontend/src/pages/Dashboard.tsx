@@ -30,6 +30,7 @@ import {
   apiPostTransaction,
   apiPutBudget,
   apiSeedRichDemo,
+  apiDeleteTransaction,
   type ApiTransaction,
 } from "@/lib/api";
 import {
@@ -50,6 +51,7 @@ import {
   AlertTriangle,
   Target,
   Wallet,
+  Ban,
 } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
@@ -440,6 +442,17 @@ export default function Dashboard() {
   const { token, user } = useAuth();
   const isRichDemoAccount = user?.email?.toLowerCase() === "leonardosena1010@hotmail.com";
   const qc = useQueryClient();
+
+  const inactivateTx = useMutation({
+    mutationFn: (id: string) => apiDeleteTransaction(token!, id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["transactions"] });
+      void qc.invalidateQueries({ queryKey: ["kpis"] });
+      void qc.invalidateQueries({ queryKey: ["monthly-report"] });
+      toast.success("Lançamento inativado");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   /* ── Estado local: mês, filtros, modais e calendário ── */
   const { resolvedTheme } = useTheme();
@@ -1764,6 +1777,16 @@ export default function Dashboard() {
                   >
                     {t.type === "income" ? "+" : "-"} R$ {txAmount(t).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </span>
+                  <button
+                    type="button"
+                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
+                    aria-label="Inativar lançamento"
+                    title="Inativar lançamento"
+                    disabled={inactivateTx.isPending}
+                    onClick={() => inactivateTx.mutate(t.id)}
+                  >
+                    <Ban size={14} />
+                  </button>
                 </div>
               ))
             : (

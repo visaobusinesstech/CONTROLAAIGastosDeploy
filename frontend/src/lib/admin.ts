@@ -10,3 +10,8 @@ export const ADMIN_EMAIL = "admin@admin.com";
 export function isAdminUser(email: string | undefined | null): boolean {
   return email?.trim().toLowerCase() === ADMIN_EMAIL;
 }
+
+/** Níveis com acesso ao painel de governança (não é o cliente titular). */
+export function isStaffAccessLevel(level: string | undefined | null): boolean {
+  return level === "admin" || level === "operator" || level === "viewer";
+}

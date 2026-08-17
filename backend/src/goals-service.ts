@@ -134,6 +134,7 @@ export async function getEnrichedGoals(userId: string): Promise<EnrichedGoal[]> 
             eq(transactions.userId, userId),
             eq(transactions.categoryId, g.categoryId),
             eq(transactions.type, "expense"),
+            eq(transactions.isActive, true),
             gte(transactions.occurredAt, from),
             lte(transactions.occurredAt, to),
           ),
@@ -148,6 +149,7 @@ export async function getEnrichedGoals(userId: string): Promise<EnrichedGoal[]> 
           and(
             eq(transactions.userId, userId),
             eq(transactions.type, "income"),
+            eq(transactions.isActive, true),
             gte(transactions.occurredAt, from),
             lte(transactions.occurredAt, to),
           ),

@@ -18,7 +18,11 @@ export async function ensureAdminUser(): Promise<void> {
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
 
   if (existing) {
-    console.log(`[admin] usuário ${email} já existe`); // Nada a fazer
+    await db
+      .update(users)
+      .set({ accessLevel: "admin", isActive: true, emailVerified: true })
+      .where(eq(users.id, existing.id));
+    console.log(`[admin] usuário ${email} já existe (nível admin garantido)`);
     return;
   }
 
@@ -32,6 +36,8 @@ export async function ensureAdminUser(): Promise<void> {
       plan: "premium", // Admin com plano premium para testes completos
       emailVerified: true,
       emailVerifiedAt: new Date(),
+      accessLevel: "admin",
+      isActive: true,
     })
     .returning({ id: users.id });
 
