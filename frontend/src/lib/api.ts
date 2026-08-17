@@ -189,6 +189,7 @@ export type AuthChallengeResponse = {
   emailHint: string;
   expiresInSeconds: number;
   emailSent?: boolean;
+  emailError?: string;
   devCode?: string;
 };
 

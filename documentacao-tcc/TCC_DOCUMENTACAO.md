@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.10 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.12 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -338,7 +338,7 @@ sequenceDiagram
 2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used`.
 3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
 4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
-5. E-mails: `RESEND_API_KEY` (Resend) ou `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`. Sem provedor em desenvolvimento, o código aparece no JSON (`devCode`) e no log.
+5. E-mails: o mailer envia primeiro via **SMTP Gmail** (`smtp.gmail.com`, conta `controlaaisistematech@gmail.com`) — vale para qualquer destinatário (OTP e “esqueci a senha”). O Resend é tentativa extra; `beth.t@example.com` só entrega para o e-mail da conta Resend. Templates do dashboard Resend **não são usados**. Sem provedor em desenvolvimento, o código aparece no JSON (`devCode`) e no log.
 
 ### 4.8 Auditoria, inativação e LGPD por nível
 
@@ -632,7 +632,7 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 |--------|---------|
 | Textos legais | `backend/src/legal/documents.ts` |
 | API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register, OTP, reset |
-| Mailer | `backend/src/mailer.ts` — Resend ou SMTP |
+| Mailer | `backend/src/mailer.ts` — SMTP Gmail primeiro; Resend extra |
 | Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents`, reset/2FA |
 | UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx`, `EmailOtpStep.tsx` |
 | Orquestração | `frontend/src/pages/Register.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` |
@@ -951,9 +951,10 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_YEARLY` | Não | IDs dos preços (defaults no código) |
 | `STRIPE_PAYMENT_LINK_MONTHLY` / `STRIPE_PAYMENT_LINK_YEARLY` | Não | URLs buy.stripe.com (links diretos de assinatura) |
 | `PUBLIC_DASHBOARD_URL` | Não | URL do painel nas mensagens pós-renda |
-| `RESEND_API_KEY` | Sim (e-mail em prod) | Envio de reset e códigos 2FA (Resend) |
-| `MAIL_FROM` | Não | Remetente (padrão `beth.t@example.com` no Resend) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Alternativa ao Resend |
+| `RESEND_API_KEY` | Não | Tentativa extra (sem domínio verificado, só entrega para o e-mail da conta Resend) |
+| `MAIL_FROM` | Não | Remetente Resend (padrão `beth.t@example.com` — modo teste) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Padrão no código: Gmail `smtp.gmail.com` + `controlaaisistematech@gmail.com`. `SMTP_PASS` no Railway sobrescreve a senha de app |
+| `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
 
@@ -1092,6 +1093,8 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.8 | Governança: `audit_logs` (inclusão/alteração/inativação por rotina, data/hora e usuário); cadastros inativam (`is_active`) em vez de excluir; `lgpd_sensitive_fields` mascara PII por nível (`user`/`viewer`/`operator`/`admin`); painel Auditoria, LGPD e Assinantes; migration `0009_audit_lgpd_soft_delete.sql` |
 | ago/2026 | 8.9 | Cadastro web: WhatsApp opcional; o mesmo número deixa o cadastro antigo (não bloqueia com “já cadastrado”); busca de telefone só por variantes canônicas (sem sufixo de 10 dígitos) |
 | ago/2026 | 8.10 | Remove UNIQUE de `users.phone`; cadastro libera o WhatsApp de qualquer conta anterior (11 dígitos) e, se ainda houver conflito, cria a conta sem telefone — nenhum e-mail novo é bloqueado por número já usado |
+| ago/2026 | 8.11 | Mailer: Templates do Resend não entram no fluxo; sanitiza `MAIL_FROM` partido no Railway (`beth.t@` + quebra + `example.com`); se o Resend 403, tenta SMTP; OTP devolve `emailError` em vez de “configure a chave” |
+| ago/2026 | 8.12 | OTP e reset passam a sair pelo SMTP Gmail padrão (`controlaaisistematech@gmail.com`); Resend fica secundário; `/health` build `8.12` |
 
 ---
 
@@ -1328,7 +1331,7 @@ Custo estimado por request em `ai_logs.cost_usd`.
 |---------|-------------------|
 | `index.ts` | Boot Fastify, CORS, rotas, WhatsApp |
 | `auth.ts` | register, login, forgot/reset, OTP 2FA, JWT |
-| `mailer.ts` | `sendOtpEmail`, `sendPasswordResetEmail` |
+| `mailer.ts` | `sendOtpEmail`, `sendPasswordResetEmail` — SMTP Gmail (qualquer destinatário); Resend extra |
 | `api-routes.ts` | CRUD REST transações/metas/settings |
 | `extended-routes.ts` | Chat IA, KPIs, admin |
 | `goals-service.ts` | `createGoalForUser`, metas enriquecidas |

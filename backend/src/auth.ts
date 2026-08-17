@@ -235,6 +235,7 @@ async function createAndSendChallenge(opts: {
   emailHint: string;
   expiresInSeconds: number;
   emailSent: boolean;
+  emailError?: string;
   devCode?: string;
 }> {
   // Invalida desafios abertos do mesmo propósito (só o último código vale)
@@ -264,11 +265,14 @@ async function createAndSendChallenge(opts: {
     .returning({ id: twoFactorChallenges.id });
 
   let emailSent = false;
+  let emailError: string | undefined;
   try {
     const mail = await sendOtpEmail(opts.email, code, opts.purpose);
     emailSent = mail.sent;
+    if (!mail.sent) emailError = mail.error;
   } catch (err) {
     console.error("[auth] falha ao enviar OTP:", err);
+    emailError = "resend_rejected";
   }
 
   return {
@@ -278,6 +282,7 @@ async function createAndSendChallenge(opts: {
     emailHint: maskEmail(opts.email),
     expiresInSeconds: OTP_MINUTES * 60,
     emailSent,
+    ...(emailError ? { emailError } : {}),
     ...(shouldExposeDevCode() ? { devCode: code } : {}),
   };
 }

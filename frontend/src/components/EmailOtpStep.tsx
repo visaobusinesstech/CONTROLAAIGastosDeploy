@@ -15,6 +15,26 @@ type Props = {
   onBack?: () => void;
 };
 
+/** Mensagem estável do backend — a chave no Railway já existe; o Resend recusa outro Gmail. */
+function mailErrorCopy(code?: string): string {
+  if (code === "resend_from_domain") {
+    return "O MAIL_FROM no Railway está partido (example.com). Deixe em uma linha: Controla.ai <beth.t@example.com>. Não cadastre example.com em Domains.";
+  }
+  if (code === "resend_testing_recipient") {
+    return "O Resend só entrega para o e-mail da conta Resend enquanto o remetente for beth.t@example.com. Cadastro em outro Gmail precisa de domínio verificado (menu Domains) ou SMTP Gmail no Railway.";
+  }
+  if (code === "resend_auth") {
+    return "A API do Resend recusou a chave. Confira RESEND_API_KEY no Railway.";
+  }
+  if (code === "smtp_failed") {
+    return "O Gmail recusou o envio. Confira a senha de app (SMTP_PASS) e se a verificação em 2 etapas está ligada nessa conta.";
+  }
+  if (code === "no_provider") {
+    return "Nenhum provedor de e-mail no backend (Resend ou SMTP).";
+  }
+  return "O e-mail não saiu. No Resend abra Logs (não Templates) e confira o 403 de destinatário de teste.";
+}
+
 const PURPOSE_COPY: Record<string, { title: string; hint: string }> = {
   register: {
     title: "Confirme seu e-mail",
@@ -112,7 +132,7 @@ export function EmailOtpStep({
       )}
       {challenge.emailSent === false && !challenge.devCode && (
         <p className="text-center text-xs text-amber-600 dark:text-amber-400">
-          O e-mail não saiu (configure RESEND_API_KEY ou SMTP no backend). Use Reenviar depois de configurar.
+          {mailErrorCopy(challenge.emailError)}
         </p>
       )}
 

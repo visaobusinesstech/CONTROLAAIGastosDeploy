@@ -1,50 +1,112 @@
 /**
  * Envio de e-mails transacionais — reset de senha e códigos 2FA.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Prioridade: RESEND_API_KEY → SMTP (SMTP_HOST) → log em desenvolvimento.
+ * Caminho principal: SMTP Gmail (qualquer destinatário).
+ * Resend fica como tentativa extra; beth.t@example.com só entrega para a conta Resend.
  */
-import { createTransport, type Transporter } from "nodemailer"; // SMTP genérico (Gmail, etc.)
+import { createTransport, type Transporter } from "nodemailer"; // SMTP genérico (Gmail)
 import { getAppBaseUrl } from "../api/app-links.js"; // FRONTEND_URL para links do reset
 
 const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
 
-/** Resultado do envio — skipped=true quando não há provedor configurado. */
+const DEFAULT_SMTP_HOST = "smtp.gmail.com"; // Host Gmail
+const DEFAULT_SMTP_PORT = 587; // STARTTLS
+const DEFAULT_SMTP_USER = "controlaaisistematech@gmail.com"; // Conta do sistema
+
+/** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
   sent: boolean;
   skipped: boolean;
+  via?: "resend" | "smtp" | "none";
+  error?: string;
 };
 
 let smtpTransport: Transporter | null = null; // Reusa a conexão SMTP no processo
 
-/** Remetente padrão — Resend aceita beth.t@example.com no plano gratuito. */
-function mailFrom(): string {
-  return process.env.MAIL_FROM?.trim() || "Controla.ai <beth.t@example.com>";
+const RESEND_TEST_FROM = "Controla.ai <beth.t@example.com>"; // From de teste do Resend
+
+/** Tira quebra de linha do Railway no cabeçalho From. */
+function compactFromHeader(raw: string): string {
+  const angled = raw.match(/^(.*<)([\s\S]*?)(>.*)$/);
+  if (angled) {
+    const email = angled[2].replace(/\s+/g, "");
+    return `${angled[1].replace(/\s+$/, "")}${email}${angled[3].replace(/^\s+/, "")}`.trim();
+  }
+  return raw.replace(/\s+/g, " ").trim();
 }
 
-/** True quando não há Resend nem SMTP — o código OTP pode ir na resposta (só fora de produção). */
+/** Remetente do Resend — ignora example.com (placeholder). */
+function resendFrom(): string {
+  const raw = process.env.MAIL_FROM?.trim();
+  if (!raw) return RESEND_TEST_FROM;
+  const from = compactFromHeader(raw);
+  const email = from.match(/<([^>]+)>/)?.[1] ?? from;
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (!domain || domain === "example.com") {
+    console.warn("[mail] MAIL_FROM inválido. Usando onboarding.resend.dev.");
+    return RESEND_TEST_FROM;
+  }
+  return from;
+}
+
+/** Usuário SMTP (Gmail do sistema, salvo SMTP_USER no Railway). */
+function smtpUser(): string {
+  return process.env.SMTP_USER?.trim() || DEFAULT_SMTP_USER;
+}
+
+/** Senha de app — só via SMTP_PASS no Railway (nunca no git). */
+function smtpPass(): string {
+  return (process.env.SMTP_PASS ?? "").replace(/\s+/g, "");
+}
+
+/** Remetente SMTP — Gmail não aceita from de resend.dev. */
+function smtpFrom(): string {
+  const explicit = process.env.MAIL_FROM_SMTP?.trim();
+  if (explicit) return compactFromHeader(explicit);
+  return `Controla.ai <${smtpUser()}>`;
+}
+
+/** True quando não há Resend nem SMTP — OTP pode ir no JSON (só fora de produção). */
 export function shouldExposeDevCode(): boolean {
   const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
-  const hasSmtp = Boolean(process.env.SMTP_HOST?.trim());
+  const hasSmtp = Boolean(smtpPass());
   return !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
 }
 
-/** Cria (ou reusa) o transporter Nodemailer a partir das variáveis SMTP_*. */
+/** Cria (ou reusa) o transporter Gmail. */
 function getSmtpTransport(): Transporter | null {
-  const host = process.env.SMTP_HOST?.trim();
-  if (!host) return null;
+  const pass = smtpPass();
+  if (!pass) return null;
   if (smtpTransport) return smtpTransport;
-  const port = Number(process.env.SMTP_PORT ?? "587");
+  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT ?? String(DEFAULT_SMTP_PORT));
   smtpTransport = createTransport({
     host,
     port,
     secure: port === 465, // SSL direto só na 465
-    auth:
-      process.env.SMTP_USER && process.env.SMTP_PASS
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-        : undefined,
+    auth: { user: smtpUser(), pass },
   });
   return smtpTransport;
+}
+
+/** Classifica o corpo do Resend sem vazar a chave. */
+function classifyResendError(status: number, body: string): string {
+  const lower = body.toLowerCase();
+  if (lower.includes("domain not verified") || lower.includes("example.com")) {
+    return "resend_from_domain";
+  }
+  if (
+    status === 403 &&
+    (lower.includes("own email") ||
+      lower.includes("testing emails") ||
+      lower.includes("verify a domain") ||
+      lower.includes("resend.dev"))
+  ) {
+    return "resend_testing_recipient";
+  }
+  if (status === 401) return "resend_auth";
+  return "resend_rejected";
 }
 
 /** Envelope HTML simples com a identidade visual verde do Controla.ai. */
@@ -69,42 +131,95 @@ function wrapHtml(title: string, bodyHtml: string): string {
 </html>`;
 }
 
-/** Envia HTML+texto via Resend, SMTP ou console (dev). */
+/** Envia pelo Gmail (Nodemailer). */
+async function sendViaSmtp(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<MailSendResult | null> {
+  const smtp = getSmtpTransport();
+  if (!smtp) return null;
+  await smtp.sendMail({
+    from: smtpFrom(),
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+  });
+  return { sent: true, skipped: false, via: "smtp" };
+}
+
+/** Tenta Resend (domínio próprio ou só o e-mail da conta). */
+async function sendViaResend(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<MailSendResult> {
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (!resendKey) return { sent: false, skipped: true, via: "resend", error: "no_provider" };
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${resendKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: resendFrom(),
+      to: [opts.to],
+      subject: opts.subject,
+      html: opts.html,
+      text: opts.text,
+    }),
+  });
+  if (res.ok) return { sent: true, skipped: false, via: "resend" };
+  const body = await res.text();
+  console.error(`[mail] Resend ${res.status}: ${body.slice(0, 500)}`);
+  return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
+}
+
+/** Gmail primeiro (qualquer destinatário); Resend só se o SMTP falhar ou não houver senha. */
 export async function sendMail(opts: {
   to: string;
   subject: string;
   html: string;
   text: string;
 }): Promise<MailSendResult> {
-  const from = mailFrom();
-  const resendKey = process.env.RESEND_API_KEY?.trim();
-
-  if (resendKey) {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ from, to: [opts.to], subject: opts.subject, html: opts.html, text: opts.text }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Resend ${res.status}: ${body.slice(0, 300)}`);
+  let smtpAttempted = false;
+  if (smtpPass()) {
+    smtpAttempted = true;
+    try {
+      const smtpResult = await sendViaSmtp(opts);
+      if (smtpResult?.sent) return smtpResult;
+    } catch (err) {
+      console.error("[mail] SMTP falhou, tentando Resend:", err);
     }
-    return { sent: true, skipped: false };
   }
 
-  const smtp = getSmtpTransport();
-  if (smtp) {
-    await smtp.sendMail({ from, to: opts.to, subject: opts.subject, html: opts.html, text: opts.text });
-    return { sent: true, skipped: false };
+  try {
+    const resendResult = await sendViaResend(opts);
+    if (resendResult.sent) return resendResult;
+    if (resendResult.error && resendResult.error !== "no_provider") {
+      return {
+        sent: false,
+        skipped: false,
+        via: smtpAttempted ? "smtp" : "resend",
+        error: smtpAttempted ? "smtp_failed" : resendResult.error,
+      };
+    }
+  } catch (err) {
+    console.error("[mail] Resend rede:", err);
   }
 
-  console.warn(`[mail] Sem RESEND_API_KEY/SMTP — e-mail NÃO enviado para ${opts.to}`);
+  if (smtpAttempted) {
+    return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
+  }
+
+  console.warn(`[mail] Sem provedor — e-mail NÃO enviado para ${opts.to}`);
   console.warn(`[mail] Assunto: ${opts.subject}`);
   console.warn(`[mail] ${opts.text}`);
-  return { sent: false, skipped: true };
+  return { sent: false, skipped: true, via: "none", error: "no_provider" };
 }
 
 /** E-mail com código de 6 dígitos (cadastro, login 2FA, ligar/desligar). */
