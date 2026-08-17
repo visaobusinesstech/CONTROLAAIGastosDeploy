@@ -1,5 +1,5 @@
 /**
- * Pedido de recuperação de senha — envia link para o e-mail cadastrado.
+ * Pedido de recuperação de senha — envia link para a página de nova senha.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useState } from "react";
@@ -31,29 +31,30 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
-        <div className="flex justify-center mb-6">
+    <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4 overflow-y-auto overflow-x-hidden">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm min-w-0">
+        <div className="flex justify-center mb-6 sm:mb-8">
           <LogoFull />
         </div>
-        <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5">
+        <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5 min-w-0">
           <div className="text-center">
             <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Esqueceu a senha?</h1>
             <p className="text-sm text-cgray-400 mt-1">
-              Enviaremos um link de redefinição se o e-mail estiver cadastrado.
+              Enviaremos um e-mail com um botão para abrir a página de nova senha.
             </p>
           </div>
 
           {sent ? (
             <div className="space-y-4">
               <p className="text-sm text-cgray-600 dark:text-muted-foreground text-center">
-                Se existir uma conta com esse e-mail, o link já foi enviado. Confira a caixa de entrada e o spam.
+                Se existir uma conta com esse e-mail, a mensagem já saiu. Abra o botão no e-mail (e o spam, se
+                precisar) — não enviamos código neste passo.
               </p>
               {devToken && (
                 <p className="text-xs text-amber-600 dark:text-amber-400 text-center break-all">
                   Modo local:{" "}
                   <Link className="underline" to={`/reset-password?token=${encodeURIComponent(devToken)}`}>
-                    abrir redefinição
+                    abrir página de nova senha
                   </Link>
                 </p>
               )}
@@ -77,16 +78,16 @@ export default function ForgotPassword() {
                   placeholder="seu@email.com"
                   required
                   autoComplete="email"
-                  className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 outline-none"
+                  className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                 />
               </div>
               {error && <p className="text-xs text-cred-main">{error}</p>}
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 disabled:opacity-60"
+                className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
               >
-                {submitting ? "Enviando…" : "Enviar link"}
+                {submitting ? "Enviando…" : "Enviar e-mail"}
               </button>
             </form>
           )}

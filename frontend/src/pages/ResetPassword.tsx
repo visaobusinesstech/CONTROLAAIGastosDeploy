@@ -1,5 +1,6 @@
 /**
- * Define nova senha a partir do token recebido por e-mail.
+ * Página de nova senha — mesmo padrão visual do login.
+ * O token vem do e-mail; a senha nova grava em users.password_hash.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useMemo, useState } from "react";
@@ -42,12 +43,12 @@ export default function ResetPassword() {
   };
 
   return (
-    <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4">
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
-        <div className="flex justify-center mb-6">
+    <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4 overflow-y-auto overflow-x-hidden">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm min-w-0">
+        <div className="flex justify-center mb-6 sm:mb-8">
           <LogoFull />
         </div>
-        <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5">
+        <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5 min-w-0">
           <div className="text-center">
             <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Nova senha</h1>
             <p className="text-sm text-cgray-400 mt-1">Escolha uma senha de pelo menos 6 caracteres.</p>
@@ -56,7 +57,7 @@ export default function ResetPassword() {
           {!token ? (
             <p className="text-sm text-cred-main text-center">
               Link inválido. Solicite um novo em{" "}
-              <Link to="/forgot-password" className="underline">
+              <Link to="/forgot-password" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                 esqueci a senha
               </Link>
               .
@@ -64,7 +65,7 @@ export default function ResetPassword() {
           ) : done ? (
             <div className="space-y-4 text-center">
               <p className="text-sm text-cgray-600 dark:text-muted-foreground">
-                Senha atualizada. Entre novamente com a nova senha.
+                Senha salva no banco. Entre de novo com a nova senha.
               </p>
               <Link
                 to="/login"
@@ -83,11 +84,15 @@ export default function ResetPassword() {
                   <input
                     type={showPw ? "text" : "password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      setError("");
+                    }}
+                    placeholder="••••••"
                     required
                     minLength={6}
                     autoComplete="new-password"
-                    className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground focus:border-cgreen-500 outline-none"
+                    className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                   />
                   <button
                     type="button"
@@ -106,22 +111,35 @@ export default function ResetPassword() {
                 <input
                   type={showPw ? "text" : "password"}
                   value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+                  onChange={(e) => {
+                    setConfirm(e.target.value);
+                    setError("");
+                  }}
+                  placeholder="••••••"
                   required
                   minLength={6}
                   autoComplete="new-password"
-                  className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground focus:border-cgreen-500 outline-none"
+                  className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                 />
               </div>
               {error && <p className="text-xs text-cred-main">{error}</p>}
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 disabled:opacity-60"
+                className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
               >
                 {submitting ? "Salvando…" : "Salvar nova senha"}
               </button>
             </form>
+          )}
+
+          {!done && (
+            <p className="text-center text-sm text-cgray-400">
+              Lembrou a senha?{" "}
+              <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
+                Entrar
+              </Link>
+            </p>
           )}
         </div>
       </motion.div>

@@ -13,7 +13,12 @@ export function getPublicDashboardUrl(): string {
 /** Retorna a URL base do app sem barra final (FRONTEND_URL > APP_URL > default). */
 export function getAppBaseUrl(): string {
   const raw = process.env.FRONTEND_URL?.trim() || process.env.APP_URL?.trim() || DEFAULT_APP_URL;
-  return raw.replace(/\/+$/, "");
+  const cleaned = raw.replace(/\/+$/, "");
+  // Em produção o link do e-mail nunca pode apontar para localhost
+  if (process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/i.test(cleaned)) {
+    return DEFAULT_APP_URL;
+  }
+  return cleaned || DEFAULT_APP_URL;
 }
 
 /** URL de cadastro — REGISTER_URL ou /register na base do app. */

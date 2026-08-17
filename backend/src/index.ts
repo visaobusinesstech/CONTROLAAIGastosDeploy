@@ -109,7 +109,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.12", // OTP/reset via SMTP Gmail (controlaaisistematech) — qualquer destinatário
+      build: "8.13", // Reset: e-mail com botão da página de nova senha; 2FA segue HTML com código
 
     };
 

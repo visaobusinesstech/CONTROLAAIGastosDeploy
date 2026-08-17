@@ -16,6 +16,7 @@ import {
   jsonb, // JSON indexável (mensagens chat, metadata)
   pgEnum, // Enum nativo PostgreSQL
   unique, // Constraint UNIQUE composta
+  uniqueIndex, // Índice UNIQUE (token de reset)
   index, // Índice para performance
 } from "drizzle-orm/pg-core";
 
@@ -173,7 +174,7 @@ export const passwordResetTokens = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
-    index("password_reset_tokens_token_sha256_idx").on(t.tokenSha256), // Lookup pelo hash do link
+    uniqueIndex("password_reset_tokens_token_sha256_uidx").on(t.tokenSha256), // Hash único do link
     index("password_reset_tokens_user_id_idx").on(t.userId),
   ],
 );

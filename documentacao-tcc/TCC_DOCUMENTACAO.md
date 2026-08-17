@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.12 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.13 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -334,11 +334,11 @@ sequenceDiagram
 
 ### 4.7 Recuperação de senha e 2FA por e-mail
 
-1. **Esqueci a senha:** `POST /auth/forgot` (resposta genérica) → `INSERT password_reset_tokens` (SHA-256 do token, 30 min, uso único) → e-mail com link `/reset-password?token=…`.
-2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used`.
+1. **Esqueci a senha:** `POST /auth/forgot` (resposta genérica) → `INSERT password_reset_tokens` (SHA-256 do token, 30 min, uso único) → e-mail HTML (remetente Gmail do sistema) com **botão** para `/reset-password?token=…` — **não envia código**; a pessoa altera a senha na página no padrão do login.
+2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used` + linha em `audit_logs`.
 3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
 4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
-5. E-mails: o mailer envia primeiro via **SMTP Gmail** (`smtp.gmail.com`, conta `controlaaisistematech@gmail.com`) — vale para qualquer destinatário (OTP e “esqueci a senha”). O Resend é tentativa extra; `beth.t@example.com` só entrega para o e-mail da conta Resend. Templates do dashboard Resend **não são usados**. Sem provedor em desenvolvimento, o código aparece no JSON (`devCode`) e no log.
+5. E-mails: SMTP Gmail primeiro (`controlaaisistematech@gmail.com`). **Reset** = HTML com botão da página. **2FA/cadastro** = HTML com código de 6 dígitos (não é página). Resend é extra. Sem provedor em desenvolvimento, o código/link aparece no JSON (`devCode` / `devToken`).
 
 ### 4.8 Auditoria, inativação e LGPD por nível
 
@@ -901,7 +901,7 @@ npm run db:push      # Aplica schema Drizzle no Neon
 npm run db:seed      # Categorias padrão (se vazio)
 npm run db:setup     # push + seed
 npm run db:check     # Testa conexão
-npm run db:migrate:all           # 0001 → 0008 (inclui auth e-mail / 2FA)
+npm run db:migrate:all           # 0001 → 0011 (inclui auth e-mail / 2FA e unique do token de reset)
 npm run db:migrate:auth-email    # Só 0008_auth_email_2fa.sql
 npm run tcc:banco-pdf # PDF completo na raiz: MODELO_BANCO_DADOS_COMPLETO.pdf
 ```
@@ -987,7 +987,7 @@ npm run dev          # http://localhost:5173
 | Banco | Railway PostgreSQL | `DATABASE_URL` |
 
 Migration onboarding: `npm run db:migrate:onboarding` ou `drizzle/0001_onboarding_settings.sql`.  
-Auth e-mail/2FA: `npm run db:migrate:auth-email` (`drizzle/0008_auth_email_2fa.sql`) no Postgres local e no Railway.  
+Auth e-mail/2FA: `npm run db:migrate:auth-email` (`drizzle/0008_auth_email_2fa.sql`) e `0011_password_reset_token_unique.sql` via `db:migrate:all` no Postgres local e no Railway.  
 Auditoria/LGPD/inativação: `npm run db:migrate:audit-lgpd` (`drizzle/0009_audit_lgpd_soft_delete.sql`).
 
 ---
@@ -1095,6 +1095,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.10 | Remove UNIQUE de `users.phone`; cadastro libera o WhatsApp de qualquer conta anterior (11 dígitos) e, se ainda houver conflito, cria a conta sem telefone — nenhum e-mail novo é bloqueado por número já usado |
 | ago/2026 | 8.11 | Mailer: Templates do Resend não entram no fluxo; sanitiza `MAIL_FROM` partido no Railway (`beth.t@` + quebra + `example.com`); se o Resend 403, tenta SMTP; OTP devolve `emailError` em vez de “configure a chave” |
 | ago/2026 | 8.12 | OTP e reset passam a sair pelo SMTP Gmail padrão (`controlaaisistematech@gmail.com`); Resend fica secundário; `/health` build `8.12` |
+| ago/2026 | 8.13 | “Esqueci a senha” envia HTML com botão para `/reset-password` (página no padrão do login; grava `password_hash` + `token_version` + auditoria); 2FA permanece HTML com código; índice UNIQUE do token (`0011`) |
 
 ---
 

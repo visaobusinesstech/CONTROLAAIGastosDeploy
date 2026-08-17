@@ -532,7 +532,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     });
 
     try {
-      await sendPasswordResetEmail(user.email, rawToken);
+      const mail = await sendPasswordResetEmail(user.email, rawToken);
+      if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
     } catch (err) {
       request.log.error({ err }, "forgot email error");
     }
@@ -577,6 +578,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (!updated) {
       return reply.status(400).send({ error: "Invalid or expired reset token" });
     }
+    await writeAuditLog({
+      userId: row.userId,
+      routine: "users.reset_password",
+      action: "update",
+      entity: "users",
+      entityId: row.userId,
+      ipAddress: getClientIp(request),
+      userAgent: getUserAgent(request),
+    });
     return reply.send({ ok: true, message: "Password updated" });
   });
 

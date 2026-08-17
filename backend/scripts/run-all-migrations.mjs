@@ -1,5 +1,5 @@
 /**
- * Aplica todas as migrations incrementais (0001 → 0009) em ordem.
+ * Aplica todas as migrations incrementais (0001 → 0011) em ordem.
  * Doc TCC: TCC_DOCUMENTACAO.md
  */
 import pg from "pg";
@@ -24,6 +24,7 @@ const MIGRATIONS = [
   "0008_auth_email_2fa.sql",
   "0009_audit_lgpd_soft_delete.sql",
   "0010_drop_users_phone_unique.sql",
+  "0011_password_reset_token_unique.sql",
 ];
 
 function normalizeUrl(raw) {
@@ -40,7 +41,10 @@ if (!url) {
   process.exit(1);
 }
 
-const client = new pg.Client({ connectionString: url });
+const client = new pg.Client({
+  connectionString: url,
+  ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false },
+});
 await client.connect();
 
 try {

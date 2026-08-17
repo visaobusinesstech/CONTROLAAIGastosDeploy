@@ -109,7 +109,7 @@ function classifyResendError(status: number, body: string): string {
   return "resend_rejected";
 }
 
-/** Envelope HTML simples com a identidade visual verde do Controla.ai. */
+/** Envelope HTML no padrão visual do login (verde Controla.ai). */
 function wrapHtml(title: string, bodyHtml: string): string {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -222,35 +222,38 @@ export async function sendMail(opts: {
   return { sent: false, skipped: true, via: "none", error: "no_provider" };
 }
 
-/** E-mail com código de 6 dígitos (cadastro, login 2FA, ligar/desligar). */
+/** E-mail com código de 6 dígitos (cadastro, login 2FA, ligar/desligar) — HTML padrão, não é página. */
 export async function sendOtpEmail(to: string, code: string, purpose: string): Promise<MailSendResult> {
   const labels: Record<string, string> = {
     register: "Confirme seu cadastro",
-    login: "Código de verificação",
+    login: "Verificação em 2 etapas",
     enable: "Ativar verificação em 2 etapas",
     disable: "Desativar verificação em 2 etapas",
   };
   const title = labels[purpose] ?? "Código de verificação";
   const html = wrapHtml(
     title,
-    `<p>Use o código abaixo. Ele expira em <strong>${OTP_MINUTES} minutos</strong>.</p>
-     <p style="margin:20px 0;font-size:28px;letter-spacing:8px;font-weight:700;color:#16a34a;">${code}</p>`,
+    `<p>Use o código abaixo no app Controla.ai. Ele expira em <strong>${OTP_MINUTES} minutos</strong>.</p>
+     <div style="margin:20px 0;padding:18px 12px;background:#f4f6f5;border-radius:12px;text-align:center;">
+       <p style="margin:0;font-size:32px;letter-spacing:10px;font-weight:700;color:#16a34a;">${code}</p>
+     </div>
+     <p style="color:#6b7280;font-size:13px;">Não compartilhe este código. Ninguém da equipe pede isso por mensagem.</p>`,
   );
   const text = `${title}\n\nCódigo: ${code}\nValidade: ${OTP_MINUTES} minutos.`;
   return sendMail({ to, subject: `${title} — Controla.ai`, html, text });
 }
 
-/** E-mail com link de redefinição de senha (token opaco na query). */
+/** E-mail de “esqueci a senha”: botão para a página /reset-password (mesmo padrão do login). Sem código. */
 export async function sendPasswordResetEmail(to: string, rawToken: string): Promise<MailSendResult> {
   const url = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
   const html = wrapHtml(
     "Redefinir senha",
-    `<p>Recebemos um pedido para redefinir a senha da sua conta.</p>
-     <p>O link abaixo vale por <strong>${RESET_MINUTES} minutos</strong> e só pode ser usado uma vez.</p>
-     <p style="margin:24px 0;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:12px 20px;border-radius:10px;font-weight:600;">Escolher nova senha</a></p>
-     <p style="color:#6b7280;font-size:12px;word-break:break-all;">${url}</p>`,
+    `<p>Recebemos um pedido para alterar a senha da sua conta.</p>
+     <p>Clique no botão para abrir a <strong>página de nova senha</strong> (o mesmo visual do login). O link vale por <strong>${RESET_MINUTES} minutos</strong> e só pode ser usado uma vez.</p>
+     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:600;font-size:15px;">Abrir página de nova senha</a></p>
+     <p style="color:#6b7280;font-size:12px;word-break:break-all;">Se o botão não abrir: ${url}</p>`,
   );
-  const text = `Redefinir senha Controla.ai\n\nAbra o link (válido ${RESET_MINUTES} min):\n${url}`;
+  const text = `Redefinir senha Controla.ai\n\nAbra a página (válida ${RESET_MINUTES} min):\n${url}`;
   return sendMail({ to, subject: "Redefinir senha — Controla.ai", html, text });
 }
 
