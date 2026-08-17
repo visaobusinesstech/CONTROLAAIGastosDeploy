@@ -14,6 +14,8 @@ import AiChat from "@/pages/AiChat";
 import SettingsPage from "@/pages/Settings";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import NotFound from "@/pages/NotFound";
 import WhatsAppPage from "@/pages/WhatsApp";
 import AiLogsPage from "@/pages/AiLogs";
@@ -56,6 +58,8 @@ const App = () => (
             {/* Rotas públicas — autenticação */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             {/* Rotas protegidas — exigem JWT */}
             <Route element={<RequireAuth />}>

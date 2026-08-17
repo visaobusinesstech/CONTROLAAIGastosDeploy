@@ -12,7 +12,7 @@ export function getHomePathForUser(email: string | undefined | null): string {
 /** Rota pós-login respeitando redirect salvo (ex.: tentou acessar /admin/whatsapp). */
 export function getPostLoginPath(email: string | undefined | null, from?: string | null): string {
   const home = getHomePathForUser(email);
-  if (!from || from === "/login" || from === "/register") return home;
+  if (!from || from === "/login" || from === "/register" || from === "/forgot-password" || from === "/reset-password") return home;
   if (isAdminUser(email) && from.startsWith("/admin")) return from;
   if (!isAdminUser(email) && !from.startsWith("/admin")) return from;
   return home;

@@ -11,6 +11,7 @@ import {
   User,
   Bell,
   Shield,
+  ShieldCheck,
   Palette,
   ChevronRight,
   Smartphone,
@@ -33,7 +34,13 @@ import {
   apiPutBudget,
   apiGetBillingStatus,
   apiPostBillingPortal,
+  enableTwoFactorRequest,
+  disableTwoFactorRequest,
+  verifyTwoFactorRequest,
+  isAuthChallenge,
+  type AuthChallengeResponse,
 } from "@/lib/api";
+import { EmailOtpStep } from "@/components/EmailOtpStep";
 import { BillingPaywall } from "@/components/BillingPaywall";
 import { BillingPlanCards } from "@/components/BillingPlanCards";
 import { CategoryIcon } from "@/lib/category-icons";
@@ -154,6 +161,9 @@ export default function SettingsPage() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [incomeEdit, setIncomeEdit] = useState("");
   const [savingIncome, setSavingIncome] = useState(false);
+  const [twoFaChallenge, setTwoFaChallenge] = useState<AuthChallengeResponse | null>(null);
+  const [twoFaSubmitting, setTwoFaSubmitting] = useState(false);
+  const [twoFaError, setTwoFaError] = useState("");
   const currentMonth = monthKey();
 
   // GET /api/settings — alertas e preferências
@@ -317,6 +327,45 @@ export default function SettingsPage() {
       toast.error(e instanceof Error ? e.message : "Erro ao salvar renda");
     } finally {
       setSavingIncome(false);
+    }
+  };
+
+  const startTwoFactorChange = async (enable: boolean) => {
+    if (!token) return;
+    setTwoFaError("");
+    setTwoFaSubmitting(true);
+    try {
+      const result = enable ? await enableTwoFactorRequest(token) : await disableTwoFactorRequest(token);
+      if (isAuthChallenge(result)) {
+        setTwoFaChallenge(result);
+        return;
+      }
+      toast.success(result.twoFactorEnabled ? "Verificação em 2 etapas ativada." : "Verificação em 2 etapas desativada.");
+      void qc.invalidateQueries({ queryKey: ["settings", token] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível alterar o 2FA.");
+    } finally {
+      setTwoFaSubmitting(false);
+    }
+  };
+
+  const confirmTwoFactorCode = async (code: string) => {
+    if (!twoFaChallenge) return;
+    setTwoFaError("");
+    setTwoFaSubmitting(true);
+    try {
+      const result = await verifyTwoFactorRequest({ challengeId: twoFaChallenge.challengeId, code });
+      if ("twoFactorEnabled" in result) {
+        toast.success(result.twoFactorEnabled ? "Verificação em 2 etapas ativada." : "Verificação em 2 etapas desativada.");
+        setTwoFaChallenge(null);
+        void qc.invalidateQueries({ queryKey: ["settings", token] });
+        return;
+      }
+      setTwoFaError("Código confirmado. Atualize a página se o status não mudar.");
+    } catch (e) {
+      setTwoFaError(e instanceof Error ? e.message : "Código inválido.");
+    } finally {
+      setTwoFaSubmitting(false);
     }
   };
 
@@ -547,6 +596,28 @@ export default function SettingsPage() {
 
       <div className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Segurança</p>
+        </div>
+        <div className="flex w-full items-center gap-3 bg-card px-5 py-3.5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-cgreen-500">
+            <ShieldCheck size={16} className="text-white" />
+          </div>
+          <div className="min-w-0 flex-1 text-left">
+            <p className="text-base font-medium text-foreground">Verificação em 2 etapas</p>
+            <p className="text-sm text-muted-foreground">Código por e-mail após a senha no login</p>
+          </div>
+          <Toggle
+            checked={s?.twoFactorEnabled ?? false}
+            onChange={(v) => {
+              if (twoFaSubmitting) return;
+              void startTwoFactorChange(v);
+            }}
+          />
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <div className="border-b border-border px-5 py-3">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Personalização</p>
         </div>
         <SettingRow
@@ -645,6 +716,23 @@ export default function SettingsPage() {
               Fechar
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(twoFaChallenge)} onOpenChange={(open) => !open && setTwoFaChallenge(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmação por e-mail</DialogTitle>
+          </DialogHeader>
+          {twoFaChallenge && (
+            <EmailOtpStep
+              challenge={twoFaChallenge}
+              submitting={twoFaSubmitting}
+              error={twoFaError}
+              onChangeChallenge={setTwoFaChallenge}
+              onCodeComplete={confirmTwoFactorCode}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

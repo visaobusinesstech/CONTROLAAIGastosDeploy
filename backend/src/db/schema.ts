@@ -1,7 +1,7 @@
 /**
  * Schema do banco — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Tabelas: usuários, transações, categorias, metas, WhatsApp, logs IA, imports.
+ * Tabelas: usuários, transações, categorias, metas, WhatsApp, logs IA, imports, reset de senha e 2FA.
  * ORM: Drizzle — cada export é uma tabela ou enum PostgreSQL.
  */
 import {
@@ -65,6 +65,17 @@ export const consentTypeEnum = pgEnum("consent_type", [
   "data_processing_lgpd",
 ]);
 
+/** Canal do segundo fator — e-mail no produto atual; app/sms previstos no schema */
+export const twoFactorMethodEnum = pgEnum("two_factor_method", ["email", "app", "sms"]);
+
+/** Motivo do desafio OTP enviado por e-mail */
+export const twoFactorPurposeEnum = pgEnum("two_factor_purpose", [
+  "register", // Confirma e-mail no cadastro
+  "login", // 2FA após senha
+  "enable", // Ligar 2FA nas configurações
+  "disable", // Desligar 2FA nas configurações
+]);
+
 // --- TABELA users: contas do sistema (web + auto-criadas via WhatsApp) ---
 
 export const users = pgTable("users", {
@@ -79,6 +90,11 @@ export const users = pgTable("users", {
   trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
   /** Usuários existentes antes do billing — acesso vitalício sem cobrança */
   billingGrandfathered: boolean("billing_grandfathered").notNull().default(false),
+  /** Incrementa no reset de senha — JWTs antigos (claim tv) deixam de valer */
+  tokenVersion: integer("token_version").notNull().default(0),
+  /** E-mail confirmado via código OTP (cadastro em 2 etapas) */
+  emailVerified: boolean("email_verified").notNull().default(false),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), // Data cadastro
 });
 
@@ -91,6 +107,8 @@ export const userSettings = pgTable("user_settings", {
   alertAt80: boolean("alert_at_80").notNull().default(true), // Alerta meta 80%
   alertAt100: boolean("alert_at_100").notNull().default(true), // Alerta meta 100%
   weeklyReport: boolean("weekly_report").notNull().default(false), // Relatório semanal por e-mail
+  /** Login exige código enviado ao e-mail após a senha */
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
   themePreference: text("theme_preference").notNull().default("dark"), // Tema UI
   onboardingCompleted: boolean("onboarding_completed").notNull().default(false), // Rapport inicial feito
   initialBalance: numeric("initial_balance", { precision: 12, scale: 2 }), // Saldo em conta no cadastro
@@ -125,6 +143,62 @@ export const userConsents = pgTable(
     userAgent: text("user_agent"), // Navegador/dispositivo (auditoria LGPD)
   },
   (t) => [unique("user_consents_user_type_version").on(t.userId, t.consentType, t.documentVersion)], // Um aceite por tipo/versão
+);
+
+// --- TABELA password_reset_tokens: links de "esqueci a senha" (uso único, 30 min) ---
+
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(), // PK UUID
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }), // Dono do token
+    tokenSha256: text("token_sha256").notNull(), // Hash SHA-256 — nunca o token puro
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), // Validade de 30 min
+    used: boolean("used").notNull().default(false), // Uso único
+    usedAt: timestamp("used_at", { withTimezone: true }), // Quando foi consumido
+    ipAddress: text("ip_address"), // IP no pedido (auditoria LGPD)
+    userAgent: text("user_agent"), // Navegador no pedido
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("password_reset_tokens_token_sha256_idx").on(t.tokenSha256), // Lookup pelo hash do link
+    index("password_reset_tokens_user_id_idx").on(t.userId),
+  ],
+);
+
+// --- TABELA two_factor_secrets: método 2FA do usuário (e-mail no produto atual) ---
+
+export const twoFactorSecrets = pgTable("two_factor_secrets", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }), // 1:1 com users
+  method: twoFactorMethodEnum("method").notNull().default("email"), // Canal do segundo fator
+  secretBase32: text("secret_base32"), // Reservado para TOTP (app); e-mail não usa
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- TABELA two_factor_challenges: códigos OTP enviados por e-mail ---
+
+export const twoFactorChallenges = pgTable(
+  "two_factor_challenges",
+  {
+    id: uuid("id").defaultRandom().primaryKey(), // challengeId devolvido ao frontend
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    purpose: twoFactorPurposeEnum("purpose").notNull(), // register | login | enable | disable
+    codeHash: text("code_hash").notNull(), // bcrypt do código de 6 dígitos
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(), // +10 min
+    attempts: integer("attempts").notNull().default(0), // Tentativas falhas (máx. 5)
+    consumedAt: timestamp("consumed_at", { withTimezone: true }), // Preenchido após sucesso
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("two_factor_challenges_user_id_idx").on(t.userId)],
 );
 
 // --- TABELA categories: globais (user_id null) + personalizadas ---

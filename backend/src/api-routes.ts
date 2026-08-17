@@ -449,6 +449,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           alertAt80: s.alertAt80,
           alertAt100: s.alertAt100,
           weeklyReport: s.weeklyReport,
+          twoFactorEnabled: s.twoFactorEnabled,
           themePreference: s.themePreference,
           onboardingCompleted: s.onboardingCompleted,
           initialBalance: s.initialBalance != null ? num(s.initialBalance) : null,
@@ -482,6 +483,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
             alertAt80: s.alertAt80,
             alertAt100: s.alertAt100,
             weeklyReport: s.weeklyReport,
+            twoFactorEnabled: s.twoFactorEnabled,
             themePreference: s.themePreference,
           },
         });
@@ -500,6 +502,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
           alertAt80: updated.alertAt80,
           alertAt100: updated.alertAt100,
           weeklyReport: updated.weeklyReport,
+          twoFactorEnabled: updated.twoFactorEnabled,
           themePreference: updated.themePreference,
         },
       });

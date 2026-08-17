@@ -30,6 +30,8 @@ export async function ensureAdminUser(): Promise<void> {
       email,
       passwordHash,
       plan: "premium", // Admin com plano premium para testes completos
+      emailVerified: true,
+      emailVerifiedAt: new Date(),
     })
     .returning({ id: users.id });
 

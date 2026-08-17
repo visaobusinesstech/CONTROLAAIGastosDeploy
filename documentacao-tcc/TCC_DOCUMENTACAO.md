@@ -12,6 +12,7 @@
 
 | Módulo | Pasta / arquivos principais |
 |--------|----------------------------|
+| **Autenticação (JWT, reset, 2FA e-mail)** | `backend/src/auth.ts`, `backend/src/mailer.ts` — login/registro, OTP, `password_reset_tokens` |
 | **Integração WhatsApp (Baileys)** | `backend/whatsapp/` — `client.ts`, `message-handler.ts`, `whatsapp-bubbles.ts`, `user-resolver.ts`, `routes.ts` |
 | **Consultas financeiras** | `backend/api/insights.ts` — respostas a "quanto gastei?", projeções, relatórios e KPIs |
 | **Integração IA com Baileys** | `backend/whatsapp/message-handler.ts` → `backend/api/financial-agent.ts`, `parser.ts`, `openai-client.ts`, `media-processor.ts` |
@@ -154,7 +155,8 @@ controlaaii/
     ├── whatsapp/              ← Módulo Baileys (conexão + mensagens)
     ├── src/                   ← Servidor core (Fastify, auth, banco)
     │   ├── index.ts           ← Boot do servidor
-    │   ├── auth.ts            ← JWT
+    │   ├── auth.ts            ← JWT, reset senha, OTP e-mail, 2FA
+    │   ├── mailer.ts          ← Envio Resend/SMTP (reset + códigos)
     │   ├── api-routes.ts      ← CRUD transações/categorias
     │   ├── extended-routes.ts ← Chat IA, KPIs, metas, imports
     │   ├── goals-service.ts   ← Progresso de metas
@@ -321,10 +323,21 @@ sequenceDiagram
 
 ### 4.2 Login web → dashboard
 
-1. `POST /auth/login` → valida bcrypt → emite JWT (7 dias).
-2. Frontend guarda token → `Authorization: Bearer`.
-3. `GET /api/transactions`, `/api/dashboard/summary` etc. usam `authPreHandler`.
-4. Dashboard agrega receitas/despesas do mês via Drizzle.
+1. `POST /auth/login` → valida bcrypt.
+2. Se o e-mail ainda não foi confirmado, envia código OTP e responde `{ requiresTwoFactor, challengeId }` (sem JWT).
+3. Se `user_settings.two_factor_enabled`, envia código OTP de login (sem JWT). Admin (`admin@admin.com`) pula OTP.
+4. `POST /auth/2fa/verify` com o código de 6 dígitos → JWT (7 dias, claim `tv` = `users.token_version`).
+5. Frontend guarda token → `Authorization: Bearer`.
+6. `GET /api/transactions`, `/api/dashboard/summary` etc. usam `authPreHandler` (rejeita JWT se `tv` divergir após reset de senha).
+7. Dashboard agrega receitas/despesas do mês via Drizzle.
+
+### 4.7 Recuperação de senha e 2FA por e-mail
+
+1. **Esqueci a senha:** `POST /auth/forgot` (resposta genérica) → `INSERT password_reset_tokens` (SHA-256 do token, 30 min, uso único) → e-mail com link `/reset-password?token=…`.
+2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used`.
+3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
+4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
+5. E-mails: `RESEND_API_KEY` (Resend) ou `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS`. Sem provedor em desenvolvimento, o código aparece no JSON (`devCode`) e no log.
 
 ### 4.3 Admin conecta WhatsApp
 
@@ -377,11 +390,14 @@ sequenceDiagram
 ### 5.2 `src/auth.ts` — Autenticação
 
 - **GET `/auth/legal`:** retorna versão e textos dos documentos legais (Termos, Privacidade, LGPD) para a tela de cadastro.
-- **Registro:** exige `documentVersion` + três `consents` (LGPD) → valida Zod → hash bcrypt (10 rounds) → insert `users` + `user_settings` + **`user_consents`** (IP, user-agent, versão) → JWT.
-- **Login:** busca por email → `bcrypt.compare` → JWT.
-- **Middleware `authPreHandler`:** extrai Bearer token → `jwt.verify` → carrega usuário em `request.user`.
+- **Registro:** exige `documentVersion` + três `consents` (LGPD) → valida Zod → hash bcrypt (10 rounds) → insert `users` (`email_verified=false`) + `user_settings` + **`user_consents`** (IP, user-agent, versão) → envia OTP por e-mail (`purpose=register`) → **201** `{ requiresTwoFactor, challengeId }` (JWT só após `POST /auth/2fa/verify`).
+- **Login:** busca por email → `bcrypt.compare` → se e-mail não verificado ou 2FA ligado, envia OTP; senão JWT. Admin pula OTP.
+- **POST `/auth/forgot`:** resposta genérica; grava `password_reset_tokens.token_sha256`; e-mail com link de 30 min.
+- **POST `/auth/reset`:** valida token → nova senha bcrypt → `token_version++`.
+- **POST `/auth/2fa/verify` | `/resend` | `/enable` | `/disable`:** desafios em `two_factor_challenges` (bcrypt do código, 10 min, ≤5 tentativas).
+- **Middleware `authPreHandler`:** extrai Bearer → `jwt.verify` → confere `tv` vs `users.token_version` → carrega `request.user`.
 
-Documentos legais: `backend/src/legal/documents.ts` (versão `LEGAL_DOCUMENT_VERSION`).
+Mailer: `backend/src/mailer.ts`. Documentos legais: `backend/src/legal/documents.ts` (versão `LEGAL_DOCUMENT_VERSION`).
 
 ### 5.3 `src/api-routes.ts` — CRUD principal
 
@@ -530,11 +546,13 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 | Rota | Página | Função |
 |------|--------|--------|
 | `/` | Dashboard | KPIs, gráficos, transações |
-| `/login`, `/register` | Auth | JWT usuário comum; cadastro em 2 etapas (aceite LGPD → formulário) |
+| `/login`, `/register` | Auth | JWT; cadastro LGPD → formulário → código no e-mail |
+| `/forgot-password` | ForgotPassword | Pedido de link de redefinição |
+| `/reset-password` | ResetPassword | Nova senha via token do e-mail |
 | `/admin/login` | AdminLogin | JWT exclusivo admin |
 | `/goals` | Goals | Metas financeiras |
 | `/ai` | AiChat | Chat IA (histórico interno na sidebar) |
-| `/settings` | Settings | Perfil, tema, export CSV |
+| `/settings` | Settings | Perfil, 2FA por e-mail, tema, export CSV |
 | `/admin/whatsapp` | WhatsApp | QR Baileys, modelo OpenAI (admin) |
 | `/admin/ai-logs` | AiLogs | Logs OpenAI (admin) |
 | `*` | NotFound | 404 |
@@ -546,7 +564,7 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 
 **Favicon / PWA:** `frontend/public/favicon.png` (ícone Controla.AI `.ai` em arco verde); referenciado em `frontend/index.html`.
 
-Variável `VITE_API_URL` aponta para o backend (dev: proxy Vite → porta 3333).
+Variável `VITE_API_URL` aponta para o backend (dev: proxy Vite → porta 3333). Em produção: `https://controlaaigastosdeploy.up.railway.app` (também fallback em `api.ts` / middleware Vercel).
 
 ### 8.1 Termos LGPD e consentimento no cadastro
 
@@ -559,7 +577,7 @@ O cadastro web (`/register`) exige aceite legal **antes** do formulário de dado
 3. Os textos são exibidos **um por vez**, com setas laterais minimalistas e indicador de página (1/3); o aceite **não exige** leitura integral — basta marcar o checkbox consolidado.
 4. Um único checkbox consolida os três consentimentos exigidos.
 5. Ao clicar em **Aceitar e continuar**, o usuário avança para o formulário (nome, WhatsApp, e-mail, senha).
-6. No `POST /auth/register`, o backend valida `documentVersion` e `consents[]`, persiste o usuário e grava **três linhas** em `user_consents` (IP, user-agent, data/hora).
+6. No `POST /auth/register`, o backend valida `documentVersion` e `consents[]`, persiste o usuário (`email_verified=false`) e grava **três linhas** em `user_consents` (IP, user-agent, data/hora). Em seguida envia um **código de 6 dígitos** ao e-mail; o JWT só é emitido em `POST /auth/2fa/verify`.
 
 #### Documentos exibidos
 
@@ -590,10 +608,11 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 | Camada | Arquivo |
 |--------|---------|
 | Textos legais | `backend/src/legal/documents.ts` |
-| API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register |
-| Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents` |
-| UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx` |
-| Orquestração | `frontend/src/pages/Register.tsx` |
+| API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register, OTP, reset |
+| Mailer | `backend/src/mailer.ts` — Resend ou SMTP |
+| Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents`, reset/2FA |
+| UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx`, `EmailOtpStep.tsx` |
+| Orquestração | `frontend/src/pages/Register.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` |
 
 #### Responsividade mobile (cadastro e app)
 
@@ -616,6 +635,9 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 erDiagram
   users ||--o| user_settings : tem
   users ||--o{ user_consents : aceita_lgpd
+  users ||--o{ password_reset_tokens : recupera_senha
+  users ||--o| two_factor_secrets : metodo_2fa
+  users ||--o{ two_factor_challenges : otp_email
   users ||--o{ categories : possui
   users ||--o{ transactions : registra
   users ||--o{ goals : define
@@ -677,6 +699,8 @@ erDiagram
 | `ai_log_status` | success, error, pending |
 | `import_status` | pending, processing, completed, failed |
 | `consent_type` | terms_of_use, privacy_policy, data_processing_lgpd |
+| `two_factor_method` | email, app, sms |
+| `two_factor_purpose` | register, login, enable, disable |
 
 ### 9.3 Tabelas — detalhamento
 
@@ -689,6 +713,9 @@ Conta do usuário. Criada via web (email/senha) ou automaticamente via WhatsApp 
 | name | text | Nome exibido |
 | email | text UNIQUE | Login web |
 | password_hash | text | bcrypt |
+| token_version | integer | Incrementa no reset — invalida JWTs antigos (claim `tv`) |
+| email_verified | boolean | Confirmado via OTP no cadastro |
+| email_verified_at | timestamptz | Momento da confirmação |
 | phone | text UNIQUE | Vínculo WhatsApp (55DDD...) |
 | plan | enum | free / pro / premium |
 
@@ -702,6 +729,25 @@ Preferências 1:1 com usuário.
 | onboarding_completed | Rapport inicial concluído |
 | initial_balance | Saldo em conta informado no onboarding |
 | income_recurrence | monthly_fixed \| manual \| weekly — memória do agente |
+| two_factor_enabled | Login exige código por e-mail após a senha |
+
+#### `password_reset_tokens`
+Links de “esqueci a senha”. O token puro vai só no e-mail; o banco guarda **SHA-256**.
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID PK | Identificador |
+| user_id | UUID FK | Conta dona do pedido |
+| token_sha256 | text | Hash do token do link |
+| expires_at | timestamptz | +30 min |
+| used / used_at | bool / timestamptz | Uso único |
+| ip_address / user_agent | text | Auditoria LGPD |
+
+#### `two_factor_secrets`
+Método 2FA 1:1 (`method=email` no produto atual; `app`/`sms` previstos no enum).
+
+#### `two_factor_challenges`
+Códigos OTP de 6 dígitos (bcrypt). `purpose`: register \| login \| enable \| disable. Expira em 10 min; no máximo 5 tentativas.
 
 #### `user_consents`
 Aceites legais no cadastro web (auditoria LGPD). Três registros por usuário na versão corrente dos documentos.
@@ -773,6 +819,9 @@ Artefatos em `documentacao-tcc/` — gerados por `npm run db:export-tcc`:
 | `ARQUITETURA_BANCO_COMPLETA.md` | **Arquitetura MD completa** — Mermaid ER, FK, colunas, PK |
 | `png/arquitetura-banco-diagrama.png` | **2900px** — linhas curtas vizinho-a-vizinho (sem atravessar o diagrama) + hub `users.id` |
 | `png/arquitetura-banco-detalhes.png` | Diagrama simplificado + **tabela completa das 18 FK** |
+| `PNGs modelagens banco dados/` | Pasta oficial dos artefatos de modelagem (PNG + HTML + `ARQUITETURA_BANCO_COMPLETA.md` + `CONEXOES_BANCO_DADOS.md`) |
+| `../TCC_CONTROLAAI_BD_APRESENTACAO_FINAL.pdf` | PDF de apresentação BD — **10 págs** (3 tópicos + arquitetura + modelagem + conexões FK + dicionário); `npm`/`npx tsx scripts/generate-PDF-FINAL.ts` |
+| `MODELO_BANCO_DADOS_COMPLETO.pdf` | Modelagem completa exportada (colunas, FK, amostras) |
 | `png/database-arquitetura-completa.png` | Legado — coluna única 1920px |
 | `png/00-visao-geral.png` | Visão geral dos 5 domínios |
 | `png/grupo-core.png` | users, user_settings, categories, transactions, budgets |
@@ -798,6 +847,8 @@ npm run db:push      # Aplica schema Drizzle no Neon
 npm run db:seed      # Categorias padrão (se vazio)
 npm run db:setup     # push + seed
 npm run db:check     # Testa conexão
+npm run db:migrate:all           # 0001 → 0008 (inclui auth e-mail / 2FA)
+npm run db:migrate:auth-email    # Só 0008_auth_email_2fa.sql
 npm run tcc:banco-pdf # PDF completo na raiz: MODELO_BANCO_DADOS_COMPLETO.pdf
 ```
 
@@ -810,7 +861,9 @@ npm run tcc:banco-pdf # PDF completo na raiz: MODELO_BANCO_DADOS_COMPLETO.pdf
 | Mecanismo | Implementação |
 |-----------|---------------|
 | Senhas | bcrypt, 10 salt rounds |
-| Sessão web | JWT HS256, expira em 7 dias |
+| Sessão web | JWT HS256, expira em 7 dias, claim `tv` (`token_version`) |
+| Reset de senha | Token SHA-256 em `password_reset_tokens`, 30 min, uso único; `token_version++` invalida JWTs |
+| 2FA / confirmação | OTP 6 dígitos por e-mail (`two_factor_challenges`, bcrypt, 10 min, ≤5 tentativas) |
 | Rotas protegidas | `authPreHandler` — Bearer obrigatório |
 | Cadastro LGPD | Aceite obrigatório de 3 documentos; persistido em `user_consents` com IP e user-agent |
 | Admin | Apenas `admin@admin.com` — `adminPreHandler` |
@@ -841,6 +894,9 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_YEARLY` | Não | IDs dos preços (defaults no código) |
 | `STRIPE_PAYMENT_LINK_MONTHLY` / `STRIPE_PAYMENT_LINK_YEARLY` | Não | URLs buy.stripe.com (links diretos de assinatura) |
 | `PUBLIC_DASHBOARD_URL` | Não | URL do painel nas mensagens pós-renda |
+| `RESEND_API_KEY` | Sim (e-mail em prod) | Envio de reset e códigos 2FA (Resend) |
+| `MAIL_FROM` | Não | Remetente (padrão `beth.t@example.com` no Resend) |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Alternativa ao Resend |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
 
@@ -856,6 +912,7 @@ Template pronto para Railway: `backend/VARIAVEIS_RAILWAY_STRIPE.env` (gitignored
 cd backend
 npm install
 npm run db:push
+npm run db:migrate:auth-email
 npm run dev          # tsx watch src/index.ts
 
 cd ../frontend
@@ -867,11 +924,12 @@ npm run dev          # http://localhost:5173
 
 | Componente | Plataforma | Entry |
 |------------|------------|-------|
-| Backend + WhatsApp | Railway | `node dist/src/index.js` |
-| Frontend | Vercel | `https://controlaai-frontend.vercel.app` |
+| Backend + WhatsApp | Railway | `https://controlaaigastosdeploy.up.railway.app` (`node dist/src/index.js`, porta pública 8080) |
+| Frontend | Vercel | `https://controlaai-frontend.vercel.app` — env: `VITE_API_URL` + `BACKEND_URL` = URL Railway acima |
 | Banco | Railway PostgreSQL | `DATABASE_URL` |
 
-Migration onboarding: `npm run db:migrate:onboarding` ou `drizzle/0001_onboarding_settings.sql`.
+Migration onboarding: `npm run db:migrate:onboarding` ou `drizzle/0001_onboarding_settings.sql`.  
+Auth e-mail/2FA: `npm run db:migrate:auth-email` (`drizzle/0008_auth_email_2fa.sql`) no Postgres local e no Railway.
 
 ---
 
@@ -883,7 +941,7 @@ Cada arquivo abaixo possui **comentários em português** no código-fonte (cabe
 
 | Pasta | Arquivos comentados (PT) |
 |-------|--------------------------|
-| `src/` | index, env, auth, api-routes, extended-routes, goals-service, db/index, db/schema, db/ensure-admin, utils/* |
+| `src/` | index, env, auth, **mailer**, api-routes, extended-routes, goals-service, db/index, db/schema, db/ensure-admin, utils/* |
 | `api/` | financial-agent, onboarding-agent, goal-agent, **goal-parser**, app-links, parser, prompts, transaction-service, category-resolver, insights, financial-memory, media-processor, openai-client, runtime-config, logger, **stripe-service**, **stripe-branding**, index |
 | `whatsapp/` | client, message-handler, user-resolver, jid-resolver, routes, session-utils, keep-alive, baileys-log |
 
@@ -895,8 +953,8 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 |-------|----------|
 | Raiz | main.tsx, App.tsx, MAPA-SISTEMA.tsx |
 | `lib/` | api.ts, auth.tsx, routes.ts, admin.ts, utils.ts, chart-colors.ts, category-icons.tsx, mockData.ts |
-| `pages/` | Dashboard.tsx, Goals.tsx, AiChat.tsx, Settings.tsx, Login.tsx, AdminLogin.tsx, Register.tsx, WhatsApp.tsx, AiLogs.tsx, Index.tsx, NotFound.tsx |
-| `components/` | Layout.tsx, DashboardDialogs.tsx, NavLink.tsx, RequireAdmin.tsx, RequireAdminAuth.tsx, ChartPlotArea.tsx, Logo.tsx, AppErrorBoundary.tsx |
+| `pages/` | Dashboard.tsx, Goals.tsx, AiChat.tsx, Settings.tsx, Login.tsx, Register.tsx, ForgotPassword.tsx, ResetPassword.tsx, WhatsApp.tsx, AiLogs.tsx, Index.tsx, NotFound.tsx |
+| `components/` | Layout.tsx, DashboardDialogs.tsx, NavLink.tsx, RequireAdmin.tsx, RequireAdminAuth.tsx, ChartPlotArea.tsx, Logo.tsx, AppErrorBoundary.tsx, RegisterTermsAcceptance.tsx, EmailOtpStep.tsx |
 | `hooks/` | use-capabilities.ts, use-mobile.tsx, use-toast.ts |
 
 > Catálogo exportado em `MAPA-SISTEMA.tsx` (`FRONTEND_APPLICATION_FILES`). Ao criar ou renomear arquivos, adicionar comentários e **atualizar esta seção**.
@@ -964,6 +1022,15 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | jun/2026 | 7.6 | UI planos: `BillingPlanCards` (anual R$ 6,67 × 12, cards estéticos); checkout abre nova guia via Payment Link |
 | ago/2026 | 7.7 | PDFs TCC: `TCC_CONTROLAAI_BD_APRESENTACAO_FINAL.pdf` e `TCC_CONTROLAAI_AUTENTICACAO_E_BANCO.pdf` — **8 páginas** cada; BD com 3 capítulos e capa “ControlaAI TCC — Banco de Dados PostgresSQL (Colunas, Tabelas, Relações e Chaves)”; logo embutida em base64 (sem URL quebrada); scripts `generate-PDF-FINAL.ts` e `generate-AUTENTICACAO-BD.ts` |
 | ago/2026 | 7.8 | Redeploy: backend Railway `https://backend-production-c328.up.railway.app` (substitui URL antiga 404); frontend Vercel com `VITE_API_URL` atualizado; migration `0006` (`trial_ends_at`) aplicada — login `admin@admin.com` OK |
+| ago/2026 | 7.9 | PDF BD: 8 págs · 3 tópicos focados no Controla.AI (papel do banco / Railway+operação / tabelas·relações·dados); sem glossário genérico e sem caixas “explicar ao professor”; `generate-PDF-FINAL.ts` |
+| ago/2026 | 8.1 | PDF BD Tópico 1 (págs. 2–3): **3 parágrafos** contínuos (sem mini-tópicos `.bloco .tit`); texto concreto (WhatsApp, JWT, 16 tabelas, CASCADE/SET NULL, seeds); cards `.grid2` + `.nums` + `.destaque`; total **8 páginas** mantido |
+| ago/2026 | 8.2 | PDF BD Tópico 1 unificado em **1 página** (pág. 2): 3 parágrafos condensados com **negrito** em termos-chave (Railway, Vercel, JWT, tabelas); cards compactos; Tópico 3 repartido em págs. 5–6; **8 páginas** mantidas |
+| ago/2026 | 8.3 | PDF BD: removidos blocos “falar ao professor”; parágrafo de regras Postgres expandido (UNIQUE, UUID, CASCADE, SET NULL, enums em linguagem clara); negrito verde + espaçamento de parágrafos nos Tópicos 2 e 3 |
+| ago/2026 | 8.4 | PDF BD reduzido de **8 para 5 páginas** (capa + T1 + T2 + T3 em 2 págs.): conteúdo consolidado sem espaços vazios embaixo; organização dos 3 tópicos e legibilidade mantidas; `generate-PDF-FINAL.ts` |
+| ago/2026 | 8.5 | PDF BD expandido para **10 páginas**: mantém Tópicos 1–3 (págs. 2–5) e adiciona **Arquitetura** (pág. 6 · `arquitetura-banco-diagrama.png`), **Modelagem** (pág. 7 · `arquitetura-banco-detalhes.png`), **Conexões FK** (pág. 8 · tabela das 18 relações de `CONEXOES_BANCO_DADOS.md`) e **Dicionário de dados** (págs. 9–10 · colunas/PK/FK de `ARQUITETURA_BANCO_COMPLETA.md`); fonte oficial `documentacao-tcc/PNGs modelagens banco dados/`; `generate-PDF-FINAL.ts` |
+| ago/2026 | 8.6 | PDF BD págs. 6–10: textos reescritos — módulos coloridos, exemplo Zap→gasto, dicionário com “para que serve” em cada tabela; removidas caixas “como explicar na banca”; `generate-PDF-FINAL.ts` |
+| ago/2026 | 8.0 | Login Vercel: URL Railway correta `https://controlaaigastosdeploy.up.railway.app` (remove fallback inexistente `…-production…`); `VITE_API_URL` / `BACKEND_URL` em `.env*` e fallbacks `api.ts` / middleware / proxy |
+| ago/2026 | 8.7 | Recuperação de senha + verificação em 2 etapas por e-mail: rotas `/auth/forgot`, `/auth/reset`, `/auth/2fa/*`; cadastro confirma OTP antes do JWT; tabelas `password_reset_tokens`, `two_factor_secrets`, `two_factor_challenges`; colunas `users.token_version`, `email_verified`, `user_settings.two_factor_enabled`; mailer Resend/SMTP (`src/mailer.ts`); UI `/forgot-password`, `/reset-password`, OTP no login/cadastro e toggle em Settings; migration `0008_auth_email_2fa.sql` |
 
 ---
 
@@ -1199,7 +1266,8 @@ Custo estimado por request em `ai_logs.cost_usd`.
 | Arquivo | Funções principais |
 |---------|-------------------|
 | `index.ts` | Boot Fastify, CORS, rotas, WhatsApp |
-| `auth.ts` | register, login, JWT |
+| `auth.ts` | register, login, forgot/reset, OTP 2FA, JWT |
+| `mailer.ts` | `sendOtpEmail`, `sendPasswordResetEmail` |
 | `api-routes.ts` | CRUD REST transações/metas/settings |
 | `extended-routes.ts` | Chat IA, KPIs, admin |
 | `goals-service.ts` | `createGoalForUser`, metas enriquecidas |

@@ -15,8 +15,10 @@
  *   lib/admin.ts          → Constante admin@admin.com e isAdminUser()
  *   lib/routes.ts         → getHomePathForUser() — rota pós-login
  *   pages/Login.tsx       → Login usuário comum (POST /auth/login)
- *   pages/Login.tsx       → Login unificado (usuário + admin ao digitar admin@admin.com)
- *   pages/Register.tsx    → Cadastro (aceite LGPD + POST /auth/register)
+ *   pages/Login.tsx       → Login unificado (usuário + admin ao digitar admin@admin.com) + OTP 2FA
+ *   pages/Register.tsx    → Cadastro (aceite LGPD + formulário + confirmação por e-mail)
+ *   pages/ForgotPassword.tsx → Pedido de link de redefinição
+ *   pages/ResetPassword.tsx  → Nova senha a partir do token do e-mail
  *
  * API E UTILITÁRIOS
  *   lib/api.ts            → Cliente HTTP — todas as chamadas REST ao backend
@@ -29,7 +31,7 @@
  *   pages/Dashboard.tsx   → KPIs, gráficos, transações, filtros, modais
  *   pages/Goals.tsx       → Metas financeiras (GET/POST /api/goals)
  *   pages/AiChat.tsx      → Chat IA (POST /api/ai/chat)
- *   pages/Settings.tsx      → Perfil, notificações, tema, export CSV
+ *   pages/Settings.tsx      → Perfil, 2FA e-mail, notificações, tema, export CSV
  *   pages/Index.tsx         → Placeholder Lovable (não usado em produção)
  *   pages/NotFound.tsx      → Página 404
  *
@@ -46,6 +48,7 @@
  *   components/ChartPlotArea.tsx    → Container de gráficos Recharts
  *   components/Logo.tsx             → LogoSymbol SVG + LogoFull PNG
  *   components/RegisterTermsAcceptance.tsx → Etapa de aceite legal antes do cadastro
+ *   components/EmailOtpStep.tsx → Código de 6 dígitos enviado por e-mail
  *   components/logo/logo-controla.png → Asset wordmark (não TS)
  *
  * HOOKS
@@ -87,6 +90,8 @@ export const FRONTEND_APPLICATION_FILES = [
   "pages/Settings.tsx",
   "pages/Login.tsx",
   "pages/Register.tsx",
+  "pages/ForgotPassword.tsx",
+  "pages/ResetPassword.tsx",
   "pages/WhatsApp.tsx",
   "pages/AiLogs.tsx",
   "pages/Index.tsx",
@@ -100,6 +105,7 @@ export const FRONTEND_APPLICATION_FILES = [
   "components/Logo.tsx",
   "components/AppErrorBoundary.tsx",
   "components/RegisterTermsAcceptance.tsx",
+  "components/EmailOtpStep.tsx",
   "hooks/use-capabilities.ts",
   "hooks/use-mobile.tsx",
   "hooks/use-toast.ts",

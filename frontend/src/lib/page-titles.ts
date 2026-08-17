@@ -12,6 +12,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/admin/ai-logs": "Logs IA",
   "/login": "Login",
   "/register": "Cadastro",
+  "/forgot-password": "Esqueceu a senha",
+  "/reset-password": "Nova senha",
 };
 
 /** Retorna título completo da aba: "Controla.AI | Nome da página". */

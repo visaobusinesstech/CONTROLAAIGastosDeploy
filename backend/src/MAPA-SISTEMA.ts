@@ -8,7 +8,8 @@
  * SERVIDOR CORE (`src/`)
  *   index.ts              → Boot Fastify, CORS, health, WhatsApp, admin
  *   env.ts                → DATABASE_URL, JWT, FRONTEND_URL, Railway/Neon
- *   auth.ts               → Register, login, JWT 7d, authPreHandler, GET /auth/legal
+ *   auth.ts               → Register, login, JWT 7d, reset senha, OTP e-mail, 2FA, authPreHandler
+ *   mailer.ts             → Resend/SMTP — códigos 2FA e link de reset
  *   legal/documents.ts    → Termos, Privacidade e consentimento LGPD (versão)
  *   api-routes.ts         → CRUD transações, categorias, budgets, settings
  *   extended-routes.ts    → Chat IA, KPIs, metas, conversas, admin IA
@@ -67,6 +68,7 @@ export const BACKEND_APPLICATION_FILES = [
   "src/index.ts",
   "src/env.ts",
   "src/auth.ts",
+  "src/mailer.ts",
   "src/legal/documents.ts",
   "src/api-routes.ts",
   "src/extended-routes.ts",

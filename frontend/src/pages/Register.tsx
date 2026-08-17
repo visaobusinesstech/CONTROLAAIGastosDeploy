@@ -10,8 +10,9 @@ import { Eye, EyeOff, Check, ArrowLeft } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { RegisterTermsAcceptance } from "@/components/RegisterTermsAcceptance";
 import { useAuth } from "@/lib/auth";
-import { registerRequest, ApiError, translateApiError, type ConsentType } from "@/lib/api";
+import { registerRequest, verifyTwoFactorRequest, ApiError, translateApiError, isAuthChallenge, type AuthChallengeResponse, type ConsentType } from "@/lib/api";
 import { getHomePathForUser } from "@/lib/routes";
+import { EmailOtpStep } from "@/components/EmailOtpStep";
 
 function formatPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -44,6 +45,7 @@ export default function Register() {
   const [phoneValid, setPhoneValid] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [challenge, setChallenge] = useState<AuthChallengeResponse | null>(null);
 
   if (!loading && token && user) {
     return <Navigate to={getHomePathForUser(user.email)} replace />;
@@ -78,7 +80,7 @@ export default function Register() {
     setError("");
     setSubmitting(true);
     try {
-      const { token: t, user } = await registerRequest({
+      const result = await registerRequest({
         name: name.trim(),
         email: email.trim().toLowerCase(),
         password,
@@ -86,9 +88,13 @@ export default function Register() {
         documentVersion: acceptedTerms.documentVersion,
         consents: acceptedTerms.consents,
       });
-      setSession(t, user);
+      if (isAuthChallenge(result)) {
+        setChallenge(result);
+        return;
+      }
+      setSession(result.token, result.user);
       queryClient.clear();
-      window.location.assign(getHomePathForUser(user.email));
+      window.location.assign(getHomePathForUser(result.user.email));
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 0) {
@@ -107,6 +113,26 @@ export default function Register() {
             : "Não foi possível criar a conta. Inicie o backend e tente novamente.",
         );
       }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleVerifyOtp = async (code: string) => {
+    if (!challenge || code.length !== 6) return;
+    setError("");
+    setSubmitting(true);
+    try {
+      const result = await verifyTwoFactorRequest({ challengeId: challenge.challengeId, code });
+      if (!("token" in result)) {
+        setError("Código confirmado, mas o cadastro não foi concluído. Tente entrar.");
+        return;
+      }
+      setSession(result.token, result.user);
+      queryClient.clear();
+      window.location.assign(getHomePathForUser(result.user.email));
+    } catch (err) {
+      setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível verificar o código.");
     } finally {
       setSubmitting(false);
     }
@@ -139,6 +165,25 @@ export default function Register() {
                     Entrar
                   </Link>
                 </p>
+              </motion.div>
+            ) : challenge ? (
+              <motion.div
+                key="otp"
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }}
+              >
+                <EmailOtpStep
+                  challenge={challenge}
+                  submitting={submitting}
+                  error={error}
+                  onChangeChallenge={setChallenge}
+                  onCodeComplete={handleVerifyOtp}
+                  onBack={() => {
+                    setChallenge(null);
+                    setError("");
+                  }}
+                />
               </motion.div>
             ) : (
               <motion.div
@@ -258,6 +303,10 @@ export default function Register() {
                   Já tem conta?{" "}
                   <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                     Entrar
+                  </Link>
+                  {" · "}
+                  <Link to="/forgot-password" className="text-cgreen-500 font-medium hover:text-cgreen-700">
+                    Esqueceu a senha?
                   </Link>
                 </p>
               </motion.div>

@@ -6,7 +6,7 @@
 
 /** Backend Fastify no Railway (URL pública de fallback). */
 export const PRODUCTION_BACKEND_URL =
-  "https://controlaaigastosdeploy-production.up.railway.app";
+  "https://controlaaigastosdeploy.up.railway.app";
 
 /** Hosts inválidos — evita apontar API para o próprio frontend Vercel. */
 const INVALID_API_HOSTS = /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|localhost|127\.0\.0\.1/i;
@@ -119,6 +119,11 @@ export function translateApiError(message: string): string {
     "Missing required consents": "Aceite todos os termos para continuar.",
     "Invalid consents": "Aceites inválidos. Recarregue a página.",
     "Invalid email or password": "E-mail ou senha incorretos.",
+    "Invalid or expired reset token": "Link de redefinição inválido ou expirado. Solicite outro.",
+    "Invalid or expired code": "Código inválido ou expirado. Solicite um novo.",
+    "Invalid code": "Código incorreto. Tente novamente.",
+    "Too many code attempts": "Muitas tentativas. Solicite um novo código.",
+    "Password updated": "Senha atualizada.",
     "Database unavailable": "Banco de dados indisponível. Tente mais tarde.",
     "API não encontrada — URL do backend incorreta":
       "Servidor da API incorreto. Configure VITE_API_URL com a URL do Railway.",
@@ -158,19 +163,65 @@ export async function registerRequest(body: {
   phone?: string;
   documentVersion: string;
   consents: ConsentType[];
-}): Promise<{ token: string; user: ApiUser }> {
+}): Promise<AuthResult> {
   return apiFetch("/auth/register", { method: "POST", body: JSON.stringify(body) });
 }
 
 export async function loginRequest(body: {
   email: string;
   password: string;
-}): Promise<{ token: string; user: ApiUser }> {
+}): Promise<AuthResult> {
   return apiFetch("/auth/login", { method: "POST", body: JSON.stringify(body) });
 }
 
 export async function meRequest(token: string): Promise<{ user: ApiUser }> {
   return apiFetch("/auth/me", { method: "GET", token });
+}
+
+/** Resposta de desafio OTP (cadastro, login 2FA ou ligar/desligar). */
+export type AuthChallengeResponse = {
+  requiresTwoFactor: true;
+  challengeId: string;
+  purpose: "register" | "login" | "enable" | "disable";
+  emailHint: string;
+  expiresInSeconds: number;
+  emailSent?: boolean;
+  devCode?: string;
+};
+
+export type AuthSessionResponse = { token: string; user: ApiUser };
+export type AuthResult = AuthSessionResponse | AuthChallengeResponse;
+
+/** Distingue login direto de etapa OTP. */
+export function isAuthChallenge(r: { requiresTwoFactor?: boolean }): r is AuthChallengeResponse {
+  return r.requiresTwoFactor === true;
+}
+
+export async function verifyTwoFactorRequest(body: {
+  challengeId: string;
+  code: string;
+}): Promise<AuthSessionResponse | { ok: true; twoFactorEnabled: boolean }> {
+  return apiFetch("/auth/2fa/verify", { method: "POST", body: JSON.stringify(body) });
+}
+
+export async function resendTwoFactorRequest(challengeId: string): Promise<AuthChallengeResponse> {
+  return apiFetch("/auth/2fa/resend", { method: "POST", body: JSON.stringify({ challengeId }) });
+}
+
+export async function enableTwoFactorRequest(token: string): Promise<AuthChallengeResponse | { ok: true; twoFactorEnabled: boolean }> {
+  return apiFetch("/auth/2fa/enable", { method: "POST", token });
+}
+
+export async function disableTwoFactorRequest(token: string): Promise<AuthChallengeResponse | { ok: true; twoFactorEnabled: boolean }> {
+  return apiFetch("/auth/2fa/disable", { method: "POST", token });
+}
+
+export async function forgotPasswordRequest(email: string): Promise<{ ok: boolean; message: string; devToken?: string }> {
+  return apiFetch("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export async function resetPasswordRequest(body: { token: string; password: string }): Promise<{ ok: boolean }> {
+  return apiFetch("/auth/reset", { method: "POST", body: JSON.stringify(body) });
 }
 
 export type ApiCategory = {
@@ -207,6 +258,7 @@ export type ApiSettings = {
   alertAt80: boolean;
   alertAt100: boolean;
   weeklyReport: boolean;
+  twoFactorEnabled?: boolean;
   themePreference: string;
   onboardingCompleted?: boolean;
   initialBalance?: number | null;

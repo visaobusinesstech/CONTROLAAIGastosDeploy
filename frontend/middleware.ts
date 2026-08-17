@@ -2,7 +2,7 @@
  * Proxy Edge — encaminha /auth, /api e /health para o backend (Railway).
  * Evita CORS: o browser chama o mesmo domínio do frontend.
  */
-const PRODUCTION_BACKEND_URL = "https://controlaaigastosdeploy-production.up.railway.app";
+const PRODUCTION_BACKEND_URL = "https://controlaaigastosdeploy.up.railway.app";
 const INVALID_BACKEND = /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app/i;
 
 function resolveBackendUrl(): string {

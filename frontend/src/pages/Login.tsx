@@ -10,9 +10,10 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Shield } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { useAuth } from "@/lib/auth";
-import { loginRequest, ApiError, translateApiError } from "@/lib/api";
+import { loginRequest, verifyTwoFactorRequest, ApiError, translateApiError, isAuthChallenge, type AuthChallengeResponse, type ApiUser } from "@/lib/api";
 import { isAdminUser } from "@/lib/admin";
 import { getPostLoginPath } from "@/lib/routes";
+import { EmailOtpStep } from "@/components/EmailOtpStep";
 
 export default function Login() {
   const queryClient = useQueryClient();
@@ -23,6 +24,7 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [challenge, setChallenge] = useState<AuthChallengeResponse | null>(null);
 
   const isAdminMode = isAdminUser(email.trim());
   const redirectFrom = (location.state as { from?: string } | null)?.from;
@@ -72,18 +74,12 @@ export default function Login() {
     setSubmitting(true);
     try {
       const trimmedEmail = email.trim();
-      const { token: t, user: loggedIn } = await loginRequest({ email: trimmedEmail, password });
-      const admin = isAdminUser(loggedIn.email);
-
-      if (isAdminMode && !admin) {
-        logout();
-        setError("Acesso negado. Somente a conta administrativa pode usar este modo.");
+      const result = await loginRequest({ email: trimmedEmail, password });
+      if (isAuthChallenge(result)) {
+        setChallenge(result);
         return;
       }
-
-      setSession(t, loggedIn);
-      queryClient.clear();
-      window.location.assign(getPostLoginPath(loggedIn.email, redirectFrom));
+      finishSession(result.token, result.user);
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 0) {
@@ -109,6 +105,37 @@ export default function Login() {
     }
   };
 
+  const finishSession = (t: string, loggedIn: ApiUser) => {
+    const admin = isAdminUser(loggedIn.email);
+    if (isAdminMode && !admin) {
+      logout();
+      setError("Acesso negado. Somente a conta administrativa pode usar este modo.");
+      setChallenge(null);
+      return;
+    }
+    setSession(t, loggedIn);
+    queryClient.clear();
+    window.location.assign(getPostLoginPath(loggedIn.email, redirectFrom));
+  };
+
+  const handleVerifyOtp = async (code: string) => {
+    if (!challenge || code.length !== 6) return;
+    setError("");
+    setSubmitting(true);
+    try {
+      const result = await verifyTwoFactorRequest({ challengeId: challenge.challengeId, code });
+      if (!("token" in result)) {
+        setError("Código confirmado, mas o login não foi concluído. Tente entrar de novo.");
+        return;
+      }
+      finishSession(result.token, result.user);
+    } catch (err) {
+      setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível verificar o código.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4 overflow-y-auto overflow-x-hidden">
       <motion.div
@@ -127,8 +154,21 @@ export default function Login() {
               : "border-cgray-200 dark:border-cgray-800"
           }`}
         >
-          <AnimatePresence mode="wait">{header}</AnimatePresence>
+          <AnimatePresence mode="wait">{challenge ? null : header}</AnimatePresence>
 
+          {challenge ? (
+            <EmailOtpStep
+              challenge={challenge}
+              submitting={submitting}
+              error={error}
+              onChangeChallenge={setChallenge}
+              onCodeComplete={handleVerifyOtp}
+              onBack={() => {
+                setChallenge(null);
+                setError("");
+              }}
+            />
+          ) : (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
@@ -170,6 +210,13 @@ export default function Login() {
                   {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
+              {!isAdminMode && (
+                <div className="text-right">
+                  <Link to="/forgot-password" className="text-xs text-cgreen-500 font-medium hover:text-cgreen-700">
+                    Esqueceu a senha?
+                  </Link>
+                </div>
+              )}
             </div>
 
             {error && <p className="text-xs text-cred-main">{error}</p>}
@@ -186,7 +233,9 @@ export default function Login() {
               {submitting ? "Entrando…" : isAdminMode ? "Entrar como administrador" : "Entrar"}
             </button>
           </form>
+          )}
 
+          {!challenge && (
           <AnimatePresence mode="wait">
             {isAdminMode ? (
               <motion.p
@@ -213,6 +262,7 @@ export default function Login() {
               </motion.p>
             )}
           </AnimatePresence>
+          )}
         </div>
       </motion.div>
     </div>

@@ -10,7 +10,7 @@ function backendBase(): string {
   const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? "").trim();
   const invalid = /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app/i;
   if (raw && !invalid.test(raw)) return raw.replace(/\/+$/, "");
-  return "https://controlaaigastosdeploy-production.up.railway.app";
+  return "https://controlaaigastosdeploy.up.railway.app";
 }
 
 export default async function handler(request: Request): Promise<Response> {
