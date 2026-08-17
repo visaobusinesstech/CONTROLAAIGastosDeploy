@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.9 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.10 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -1091,6 +1091,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.7 | Recuperação de senha + verificação em 2 etapas por e-mail: rotas `/auth/forgot`, `/auth/reset`, `/auth/2fa/*`; cadastro confirma OTP antes do JWT; tabelas `password_reset_tokens`, `two_factor_secrets`, `two_factor_challenges`; colunas `users.token_version`, `email_verified`, `user_settings.two_factor_enabled`; mailer Resend/SMTP (`src/mailer.ts`); UI `/forgot-password`, `/reset-password`, OTP no login/cadastro e toggle em Settings; migration `0008_auth_email_2fa.sql` |
 | ago/2026 | 8.8 | Governança: `audit_logs` (inclusão/alteração/inativação por rotina, data/hora e usuário); cadastros inativam (`is_active`) em vez de excluir; `lgpd_sensitive_fields` mascara PII por nível (`user`/`viewer`/`operator`/`admin`); painel Auditoria, LGPD e Assinantes; migration `0009_audit_lgpd_soft_delete.sql` |
 | ago/2026 | 8.9 | Cadastro web: WhatsApp opcional; o mesmo número deixa o cadastro antigo (não bloqueia com “já cadastrado”); busca de telefone só por variantes canônicas (sem sufixo de 10 dígitos) |
+| ago/2026 | 8.10 | Remove UNIQUE de `users.phone`; cadastro libera o WhatsApp de qualquer conta anterior (11 dígitos) e, se ainda houver conflito, cria a conta sem telefone — nenhum e-mail novo é bloqueado por número já usado |
 
 ---
 

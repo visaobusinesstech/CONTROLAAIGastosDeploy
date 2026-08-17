@@ -37,6 +37,14 @@ import {
   shouldExposeDevCode,
 } from "./mailer.js"; // E-mails transacionais
 
+/** Detecta violação UNIQUE do Postgres (23505) na coluna indicada. */
+function isUniqueViolation(err: unknown, column: string): boolean {
+  const e = err as { code?: string; constraint?: string; message?: string };
+  const blob = `${e.code ?? ""} ${e.constraint ?? ""} ${e.message ?? ""} ${String(err)}`;
+  if (e.code !== "23505" && !/unique|duplicate key/i.test(blob)) return false;
+  return new RegExp(column, "i").test(blob);
+}
+
 const SALT_ROUNDS = 10; // Custo bcrypt — equilíbrio segurança/performance
 const OTP_MAX_ATTEMPTS = 5; // Tentativas por desafio de e-mail
 const OTP_TTL_MS = OTP_MINUTES * 60 * 1000; // 10 minutos
@@ -342,18 +350,18 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const trialEndsAt = isAdminEmail(email.toLowerCase()) ? null : defaultTrialEndsAt();
     const clientIp = getClientIp(request); // IP para auditoria LGPD
     const clientUserAgent = getUserAgent(request);
-    let row: PublicUser & { tokenVersion: number };
-    try {
-      [row] = await db
+
+    const insertUser = async (phoneValue: string | null) =>
+      db
         .insert(users)
         .values({
           name,
-          email: email.toLowerCase(), // Normaliza e-mail para busca case-insensitive
+          email: email.toLowerCase(),
           passwordHash,
-          phone: phoneNorm,
+          phone: phoneValue,
           trialEndsAt,
           billingGrandfathered: false,
-          emailVerified: false, // Só vira true após o código do e-mail
+          emailVerified: false,
           tokenVersion: 0,
           accessLevel: isAdminEmail(email.toLowerCase()) ? "admin" : "user",
           isActive: true,
@@ -369,6 +377,24 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           accessLevel: users.accessLevel,
           isActive: users.isActive,
         });
+
+    let row: PublicUser & { tokenVersion: number };
+    try {
+      try {
+        [row] = await insertUser(phoneNorm);
+      } catch (err) {
+        if (phoneNorm && isUniqueViolation(err, "phone")) {
+          await releasePhoneFromOtherUsers(phoneNorm);
+          try {
+            [row] = await insertUser(phoneNorm);
+          } catch (retryErr) {
+            request.log.warn({ err: retryErr }, "cadastro segue sem WhatsApp após conflito de telefone");
+            [row] = await insertUser(null);
+          }
+        } else {
+          throw err;
+        }
+      }
 
       await db.insert(userSettings).values({ userId: row.id }).onConflictDoNothing(); // Settings padrão
 
@@ -392,6 +418,9 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
         userAgent: clientUserAgent,
       });
     } catch (err) {
+      if (isUniqueViolation(err, "email")) {
+        return reply.status(409).send({ error: "Email already registered" });
+      }
       request.log.error({ err }, "register insert error");
       return reply.status(503).send({ error: "Database unavailable" });
     }

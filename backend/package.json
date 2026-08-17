@@ -29,6 +29,7 @@
     "db:migrate:consents": "node scripts/run-user-consents-migration.mjs",
     "db:migrate:auth-email": "node scripts/run-auth-email-migration.mjs",
     "db:migrate:audit-lgpd": "node scripts/run-audit-lgpd-migration.mjs",
+    "db:migrate:phone-unique": "node scripts/run-phone-unique-migration.mjs",
     "db:migrate:all": "node scripts/run-all-migrations.mjs",
     "db:migrate:income-type": "node scripts/run-income-type-migration.mjs",
     "db:export-tcc": "node scripts/export-tcc-database.mjs",

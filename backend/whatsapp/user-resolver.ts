@@ -4,7 +4,7 @@
  * account_id = users.id (não há tabela accounts separada).
  */
 
-import { eq, or, sql, inArray } from "drizzle-orm"; // Operadores SQL e OR dinâmico
+import { and, eq, or, sql, inArray } from "drizzle-orm"; // Operadores SQL e OR dinâmico
 import { db } from "../src/db/index.js"; // Cliente PostgreSQL
 import { users } from "../src/db/schema.js"; // Tabela de contas
 import { expandPhoneVariants, normalizePhone } from "../src/utils/phone.js"; // Variantes BR com/sem 9
@@ -111,16 +111,40 @@ export async function findUsersByCanonicalPhone(
     .where(inArray(users.phone, keys));
 }
 
-/** Libera o WhatsApp de outros cadastros para o novo usuário assumir o número. */
+/** Libera o WhatsApp de qualquer outro cadastro (mesmo DDD+número, qualquer formatação). */
 export async function releasePhoneFromOtherUsers(phone: string, exceptUserId?: string): Promise<string[]> {
-  const owners = await findUsersByCanonicalPhone(phone);
-  const released: string[] = [];
-  for (const owner of owners) {
-    if (exceptUserId && owner.id === exceptUserId) continue;
-    await db.update(users).set({ phone: null }).where(eq(users.id, owner.id));
-    released.push(owner.email);
+  const canonical = normalizePhone(phone);
+  const keys = expandPhoneVariants(phone);
+  const suffix11 = (canonical ?? phone.replace(/\D/g, "")).slice(-11);
+  const released = new Set<string>();
+
+  const notSelf = exceptUserId ? sql`${users.id} <> ${exceptUserId}` : sql`true`;
+
+  if (keys.length > 0) {
+    const rows = await db
+      .update(users)
+      .set({ phone: null })
+      .where(and(inArray(users.phone, keys), notSelf))
+      .returning({ email: users.email });
+    for (const row of rows) released.add(row.email);
   }
-  return released;
+
+  if (suffix11.length >= 10) {
+    const rows = await db
+      .update(users)
+      .set({ phone: null })
+      .where(
+        and(
+          sql`${users.phone} IS NOT NULL`,
+          sql`right(regexp_replace(${users.phone}, '[^0-9]', '', 'g'), 11) = ${suffix11}`,
+          notSelf,
+        ),
+      )
+      .returning({ email: users.email });
+    for (const row of rows) released.add(row.email);
+  }
+
+  return [...released];
 }
 
 /** Verifica se telefone já está cadastrado (usado no registro web). */

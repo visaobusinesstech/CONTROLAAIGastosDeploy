@@ -79,15 +79,25 @@ export default function Register() {
     }
     setError("");
     setSubmitting(true);
+    const payload = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      phone: digitsOnly(phone) || undefined,
+      documentVersion: acceptedTerms.documentVersion,
+      consents: acceptedTerms.consents,
+    };
     try {
-      const result = await registerRequest({
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-        phone: digitsOnly(phone) || undefined,
-        documentVersion: acceptedTerms.documentVersion,
-        consents: acceptedTerms.consents,
-      });
+      let result;
+      try {
+        result = await registerRequest(payload);
+      } catch (firstErr) {
+        const phoneBlocked =
+          firstErr instanceof ApiError &&
+          (firstErr.message === "Phone already registered" || firstErr.message === "Phone already in use");
+        if (!phoneBlocked || !payload.phone) throw firstErr;
+        result = await registerRequest({ ...payload, phone: undefined });
+      }
       if (isAuthChallenge(result)) {
         setChallenge(result);
         return;

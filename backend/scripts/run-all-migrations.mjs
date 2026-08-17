@@ -23,6 +23,7 @@ const MIGRATIONS = [
   "0007_user_consents.sql",
   "0008_auth_email_2fa.sql",
   "0009_audit_lgpd_soft_delete.sql",
+  "0010_drop_users_phone_unique.sql",
 ];
 
 function normalizeUrl(raw) {

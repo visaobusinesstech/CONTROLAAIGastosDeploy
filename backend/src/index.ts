@@ -109,6 +109,8 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
+      build: "8.10", // Confirma deploy do cadastro sem bloqueio de WhatsApp
+
     };
 
   });

@@ -89,7 +89,7 @@ export const users = pgTable("users", {
   name: text("name").notNull(), // Nome exibido
   email: text("email").notNull().unique(), // Login web — UNIQUE
   passwordHash: text("password_hash").notNull(), // bcrypt — nunca texto plano
-  phone: text("phone").unique(), // Vínculo WhatsApp (55DDD...) — UNIQUE nullable
+  phone: text("phone"), // Vínculo WhatsApp — um número por conta via liberação no cadastro (sem UNIQUE que bloqueia)
   plan: planEnum("plan").notNull().default("free"), // Plano atual
   stripeCustomerId: text("stripe_customer_id"), // ID Stripe Customer
   /** Fim do trial gratuito de 30 dias (novos usuários pós-billing) */
