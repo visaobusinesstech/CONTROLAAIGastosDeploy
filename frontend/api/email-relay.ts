@@ -1,20 +1,21 @@
 /**
- * Relay de e-mail — Vercel (HTTPS → Gmail SMTP ou Resend API).
+ * Relay de e-mail — Vercel (HTTPS).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Vercel: só EMAIL_SMTP_RELAY_SECRET. Railway manda smtp/resend no body.
+ * Vercel: só EMAIL_SMTP_RELAY_SECRET. Railway manda resend/smtp no body.
+ * Resend primeiro (HTTPS ~2s); SMTP Gmail só se Resend falhar (com close forçado).
  */
-import { createTransport } from "nodemailer"; // Gmail SMTP no Vercel
-import dns from "node:dns"; // IPv4 primeiro
+import { createTransport, type Transporter } from "nodemailer";
+import dns from "node:dns";
 
 dns.setDefaultResultOrder("ipv4first");
 
 export const config = {
   runtime: "nodejs",
-  maxDuration: 30, // Hobby — não esperar 60s se SMTP travar
+  maxDuration: 30,
 };
 
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com";
-const SMTP_RACE_MS = 10_000; // Teto por tentativa — evita FUNCTION_INVOCATION_TIMEOUT
+const SMTP_RACE_MS = 8_000;
 
 type RelayBody = {
   to?: string;
@@ -75,17 +76,45 @@ function authorize(req: Request): boolean {
   return (req.headers.get("x-relay-secret") ?? "") === secret;
 }
 
-/** Corta operação que não responde — nodemailer às vezes ignora connectionTimeout. */
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error(`${label}_timeout_${ms}ms`)), ms);
-    }),
-  ]);
+/** sendMail com timeout + close — evita FUNCTION_INVOCATION_TIMEOUT no Vercel. */
+async function sendMailWithTimeout(
+  transport: Transporter,
+  mail: { from: string; to: string; subject: string; html: string; text: string },
+  ms: number,
+  label: string,
+): Promise<{ messageId?: string }> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      try {
+        transport.close();
+      } catch {
+        /* ignora */
+      }
+      reject(new Error(`${label}_timeout_${ms}ms`));
+    }, ms);
+    transport
+      .sendMail(mail)
+      .then((info) => {
+        clearTimeout(timer);
+        try {
+          transport.close();
+        } catch {
+          /* ignora */
+        }
+        resolve({ messageId: info.messageId });
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        try {
+          transport.close();
+        } catch {
+          /* ignora */
+        }
+        reject(err);
+      });
+  });
 }
 
-/** Gmail SMTP — 587 primeiro (Vercel costuma falhar menos que 465). */
 async function sendViaSmtp(opts: {
   to: string;
   subject: string;
@@ -95,10 +124,7 @@ async function sendViaSmtp(opts: {
   pass: string;
   from: string;
 }): Promise<{ messageId?: string }> {
-  const attempts: Array<{ port: number; secure: boolean }> = [
-    { port: 587, secure: false },
-    { port: 465, secure: true },
-  ];
+  const attempts: Array<{ port: number; secure: boolean }> = [{ port: 587, secure: false }];
   let lastErr: unknown;
   for (const cfg of attempts) {
     const transport = createTransport({
@@ -111,34 +137,20 @@ async function sendViaSmtp(opts: {
       socketTimeout: SMTP_RACE_MS,
     });
     try {
-      const info = await withTimeout(
-        transport.sendMail({
-          from: opts.from,
-          to: opts.to,
-          subject: opts.subject,
-          html: opts.html,
-          text: opts.text,
-        }),
+      return await sendMailWithTimeout(
+        transport,
+        { from: opts.from, to: opts.to, subject: opts.subject, html: opts.html, text: opts.text },
         SMTP_RACE_MS,
         `smtp_${cfg.port}`,
       );
-      transport.close();
-      console.info(`[email-relay] SMTP OK ${cfg.port} → ${opts.to}`);
-      return { messageId: info.messageId };
     } catch (err) {
       lastErr = err;
       console.error(`[email-relay] SMTP ${cfg.port}:`, err);
-      try {
-        transport.close();
-      } catch {
-        /* ignora */
-      }
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("smtp_failed");
 }
 
-/** Resend API — HTTPS, confiável no Vercel. */
 async function sendViaResend(opts: {
   to: string;
   subject: string;
@@ -164,14 +176,13 @@ async function sendViaResend(opts: {
   });
   if (!res.ok) {
     const body = await res.text();
-    throw new Error(`resend_${res.status}:${body.slice(0, 120)}`);
+    throw new Error(`resend_${res.status}:${body.slice(0, 160)}`);
   }
   const data = (await res.json()) as { id?: string };
-  console.info(`[email-relay] Resend OK → ${opts.to} id=${data.id ?? "?"}`);
+  console.info(`[email-relay] Resend OK → ${opts.to}`);
   return { id: data.id };
 }
 
-/** POST /relay/send → função /api/email-relay */
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
@@ -194,21 +205,9 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const smtpErrors: string[] = [];
+  const errors: string[] = [];
 
-  if (pass) {
-    try {
-      const info = await sendViaSmtp({ to, subject, html, text, user, pass, from });
-      return Response.json({ sent: true, via: "smtp", messageId: info.messageId ?? null });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      smtpErrors.push(msg.slice(0, 120));
-      console.error("[email-relay] SMTP esgotado:", msg);
-    }
-  } else {
-    smtpErrors.push("no_smtp_pass");
-  }
-
+  // 1) Resend HTTPS — rápido e confiável no Vercel
   if (resendKey) {
     try {
       const info = await sendViaResend({
@@ -222,17 +221,24 @@ export default async function handler(req: Request): Promise<Response> {
       return Response.json({ sent: true, via: "resend", messageId: info.id ?? null });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      smtpErrors.push(msg.slice(0, 120));
-      console.error("[email-relay] Resend falhou:", msg);
+      errors.push(msg.slice(0, 160));
+      console.error("[email-relay] Resend:", msg);
     }
   }
 
-  return Response.json(
-    {
-      sent: false,
-      error: "relay_all_failed",
-      detail: smtpErrors.join(" | ").slice(0, 300),
-    },
-    { status: 502 },
-  );
+  // 2) Gmail SMTP — fallback (pode falhar em IPs de datacenter)
+  if (pass) {
+    try {
+      const info = await sendViaSmtp({ to, subject, html, text, user, pass, from });
+      return Response.json({ sent: true, via: "smtp", messageId: info.messageId ?? null });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(msg.slice(0, 160));
+      console.error("[email-relay] SMTP:", msg);
+    }
+  } else {
+    errors.push("no_smtp_pass");
+  }
+
+  return Response.json({ sent: false, error: "relay_all_failed", detail: errors.join(" | ") }, { status: 502 });
 }

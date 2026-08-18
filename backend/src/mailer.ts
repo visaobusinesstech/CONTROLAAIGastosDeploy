@@ -307,29 +307,22 @@ async function sendViaResend(opts: {
   return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
 }
 
-/** Relay Vercel → Resend direto (Railway HTTPS) → SMTP local (dev). */
+/** Resend (HTTPS) → relay Vercel → SMTP local (dev). */
 export async function sendMail(opts: {
   to: string;
   subject: string;
   html: string;
   text: string;
 }): Promise<MailSendResult> {
-  const relayResult = await sendViaRelay(opts);
-  if (relayResult?.sent) return relayResult;
-
   try {
     const resendResult = await sendViaResend(opts);
     if (resendResult.sent) return resendResult;
-    if (relayResult && !resendResult.sent && resendResult.error !== "no_provider") {
-      console.error("[mail] relay e Resend falharam:", relayResult.error, resendResult.error);
-    }
-    if (resendResult.error && resendResult.error !== "no_provider") {
-      if (relayResult) return relayResult;
-      return resendResult;
-    }
   } catch (err) {
     console.error("[mail] Resend rede:", err);
   }
+
+  const relayResult = await sendViaRelay(opts);
+  if (relayResult?.sent) return relayResult;
 
   if (smtpPass()) {
     const smtpResult = await sendViaSmtp(opts);
