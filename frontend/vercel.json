@@ -1,7 +1,7 @@
 {
   "rewrites": [
     { "source": "/auth/:path*", "destination": "/api/backend-proxy/auth/:path*" },
-    { "source": "/relay/send", "destination": "/api/email-relay" },
+    { "source": "/relay/send", "destination": "/api/relay/send" },
     { "source": "/api/:path*", "destination": "/api/backend-proxy/api/:path*" },
     { "source": "/health", "destination": "/api/backend-proxy/health" },
     { "source": "/login", "destination": "/index.html" },

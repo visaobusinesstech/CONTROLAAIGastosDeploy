@@ -14,7 +14,7 @@ const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
 const MAIL_CHANNEL_MS = 12_000; // Tempo por tentativa de porta (465 depois 587)
-const RELAY_TIMEOUT_MS = 28_000; // Teto do fetch ao relay Vercel (SMTP 10s + Resend 12s)
+const RELAY_TIMEOUT_MS = 15_000; // Relay Edge Resend (~2s)
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
@@ -24,7 +24,7 @@ export type MailSendResult = {
   error?: string;
 };
 
-const RESEND_TEST_FROM = "Controla.ai <onboarding@resend.dev>"; // Resend sem domínio verificado
+const RESEND_DEFAULT_FROM = "Controla.ai <noreply@controlaai.com>"; // controlaai.com no Resend
 
 /** Tira quebra de linha do Railway no cabeçalho From. */
 function compactFromHeader(raw: string): string {
@@ -39,13 +39,12 @@ function compactFromHeader(raw: string): string {
 /** Remetente do Resend — ignora example.com (placeholder). */
 function resendFrom(): string {
   const raw = process.env.MAIL_FROM?.trim();
-  if (!raw) return RESEND_TEST_FROM;
+  if (!raw) return RESEND_DEFAULT_FROM;
   const from = compactFromHeader(raw);
   const email = from.match(/<([^>]+)>/)?.[1] ?? from;
   const domain = email.split("@")[1]?.toLowerCase() ?? "";
   if (!domain || domain === "example.com") {
-    console.warn("[mail] MAIL_FROM inválido. Usando onboarding.resend.dev.");
-    return RESEND_TEST_FROM;
+    return "Controla.ai <noreply@controlaai.com>"; // Domínio verificado no Resend
   }
   return from;
 }
@@ -133,7 +132,7 @@ export function shouldExposeDevCode(): boolean {
   return !hasRelay && !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
 }
 
-/** POST para o worker Vercel — credenciais Gmail saem do Railway (Vercel só valida o secret). */
+/** POST para relay Edge no Vercel — só Resend HTTPS (sem SMTP). */
 async function sendViaRelay(opts: {
   to: string;
   subject: string;
@@ -142,14 +141,12 @@ async function sendViaRelay(opts: {
 }): Promise<MailSendResult | null> {
   const url = relayUrl();
   const secret = relaySecret();
+  const resendKey = stripEnv(process.env.RESEND_API_KEY);
   if (!url || !secret) return null;
-  const pass = smtpPass();
-  if (!pass) {
-    console.error("[mail] relay configurado mas SMTP_PASS ausente no Railway");
-    return { sent: false, skipped: false, via: "relay", error: "relay_missing_smtp" };
+  if (!resendKey) {
+    console.error("[mail] relay configurado mas RESEND_API_KEY ausente no Railway");
+    return { sent: false, skipped: false, via: "relay", error: "relay_missing_resend" };
   }
-  const user = smtpUser();
-  const from = smtpFrom();
   console.info(`[mail] relay → ${opts.to} via ${url}`);
   try {
     const res = await fetch(url, {
@@ -163,10 +160,7 @@ async function sendViaRelay(opts: {
         subject: opts.subject,
         html: opts.html,
         text: opts.text,
-        smtpUser: user,
-        smtpPass: pass,
-        from,
-        resendApiKey: stripEnv(process.env.RESEND_API_KEY),
+        resendApiKey: resendKey,
         resendFrom: resendFrom(),
       }),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
