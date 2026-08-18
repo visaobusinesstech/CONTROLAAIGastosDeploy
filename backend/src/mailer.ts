@@ -14,7 +14,7 @@ const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
 const MAIL_CHANNEL_MS = 12_000; // Tempo por tentativa de porta (465 depois 587)
-const RELAY_TIMEOUT_MS = 25_000; // Teto do fetch ao relay Vercel
+const RELAY_TIMEOUT_MS = 28_000; // Teto do fetch ao relay Vercel (SMTP 10s + Resend 12s)
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
@@ -24,7 +24,7 @@ export type MailSendResult = {
   error?: string;
 };
 
-const RESEND_TEST_FROM = "Controla.ai <beth.t@example.com>"; // From de teste do Resend
+const RESEND_TEST_FROM = "Controla.ai <onboarding@resend.dev>"; // Resend sem domínio verificado
 
 /** Tira quebra de linha do Railway no cabeçalho From. */
 function compactFromHeader(raw: string): string {
@@ -166,6 +166,8 @@ async function sendViaRelay(opts: {
         smtpUser: user,
         smtpPass: pass,
         from,
+        resendApiKey: stripEnv(process.env.RESEND_API_KEY),
+        resendFrom: resendFrom(),
       }),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
     });
@@ -305,7 +307,7 @@ async function sendViaResend(opts: {
   return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
 }
 
-/** Relay Vercel (prod) → SMTP local (dev) → Resend (fallback). */
+/** Relay Vercel → Resend direto (Railway HTTPS) → SMTP local (dev). */
 export async function sendMail(opts: {
   to: string;
   subject: string;
@@ -314,27 +316,31 @@ export async function sendMail(opts: {
 }): Promise<MailSendResult> {
   const relayResult = await sendViaRelay(opts);
   if (relayResult?.sent) return relayResult;
-  if (relayResult && relayUrl() && relaySecret()) {
-    return relayResult;
+
+  try {
+    const resendResult = await sendViaResend(opts);
+    if (resendResult.sent) return resendResult;
+    if (relayResult && !resendResult.sent && resendResult.error !== "no_provider") {
+      console.error("[mail] relay e Resend falharam:", relayResult.error, resendResult.error);
+    }
+    if (resendResult.error && resendResult.error !== "no_provider") {
+      if (relayResult) return relayResult;
+      return resendResult;
+    }
+  } catch (err) {
+    console.error("[mail] Resend rede:", err);
   }
 
   if (smtpPass()) {
     const smtpResult = await sendViaSmtp(opts);
     if (smtpResult?.sent) return smtpResult;
+    if (relayResult) return relayResult;
     if (smtpResult) return smtpResult;
   }
 
-  try {
-    const resendResult = await sendViaResend(opts);
-    if (resendResult.sent) return resendResult;
-    if (resendResult.error && resendResult.error !== "no_provider") return resendResult;
-  } catch (err) {
-    console.error("[mail] Resend rede:", err);
-  }
+  if (relayResult) return relayResult;
 
   console.warn(`[mail] Sem provedor — e-mail NÃO enviado para ${opts.to}`);
-  console.warn(`[mail] Assunto: ${opts.subject}`);
-  console.warn(`[mail] ${opts.text}`);
   return { sent: false, skipped: true, via: "none", error: "no_provider" };
 }
 

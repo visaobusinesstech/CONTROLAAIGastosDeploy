@@ -1108,6 +1108,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.18.1 | Relay: credenciais Gmail (`smtpUser`, `smtpPass`, `from`) só no Railway — Vercel exige apenas `EMAIL_SMTP_RELAY_SECRET` |
 | ago/2026 | 8.18.2 | Fix deploy Vercel: remove regex inválida em `vercel.json` (lookahead); `/api/email-relay` tem prioridade sobre rewrite |
 | ago/2026 | 8.18.3 | Relay exposto em `/relay/send` (rewrite → `api/email-relay`); `/api/email-relay` caía no proxy backend (502) |
+| ago/2026 | 8.18.4 | Relay: timeout SMTP 10s + fallback Resend no worker; Railway tenta Resend HTTPS se relay falhar |
 
 ---
 
