@@ -110,7 +110,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.18.2", // Fix vercel.json — regex lookahead quebrava deploy
+      build: "8.18.3", // Relay em /relay/send — /api/email-relay caía no proxy
       mail: mailHealthSnapshot(),
 
     };

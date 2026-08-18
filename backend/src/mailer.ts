@@ -1,7 +1,7 @@
 /**
  * Envio de e-mails transacionais — reset de senha e códigos 2FA.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Produção (Railway): POST HTTPS → relay Vercel (/api/email-relay) → Gmail SMTP.
+ * Produção (Railway): POST HTTPS → relay Vercel (/relay/send) → Gmail SMTP.
  * Local: SMTP direto ou Resend.
  */
 import { createTransport } from "nodemailer"; // SMTP Gmail local
@@ -79,9 +79,18 @@ function smtpFrom(): string {
   return `Controla.ai <${smtpUser()}>`;
 }
 
-/** URL do relay Vercel — Railway usa HTTPS (porta 443), não SMTP direto. */
+/** URL do relay Vercel — /relay/send (fora do proxy /api/*). */
 function relayUrl(): string {
-  return stripEnv(process.env.EMAIL_SMTP_RELAY_URL).replace(/\/+$/, "");
+  let url = stripEnv(process.env.EMAIL_SMTP_RELAY_URL).replace(/\/+$/, "");
+  // /api/email-relay era capturado pelo proxy → backend inexistente (502)
+  if (url.endsWith("/api/email-relay")) {
+    url = url.replace(/\/api\/email-relay$/, "/relay/send");
+  }
+  if (!url) {
+    const front = stripEnv(process.env.FRONTEND_URL).replace(/\/+$/, "");
+    if (front) url = `${front}/relay/send`;
+  }
+  return url;
 }
 
 /** Secret compartilhado Railway ↔ Vercel. */

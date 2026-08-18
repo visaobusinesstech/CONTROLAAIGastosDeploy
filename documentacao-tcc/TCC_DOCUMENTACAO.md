@@ -956,7 +956,7 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `MAIL_FROM` | Não | Remetente Resend (padrão `beth.t@example.com` — modo teste) |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Gmail local ou credenciais no **relay Vercel** (`SMTP_PASS` no projeto frontend Vercel) |
 | `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
-| `EMAIL_SMTP_RELAY_URL` | Sim (Railway) | URL HTTPS do worker, ex.: `https://controlaai-frontend.vercel.app/api/email-relay` |
+| `EMAIL_SMTP_RELAY_URL` | Sim (Railway) | `https://controlaai-frontend.vercel.app/relay/send` (não use `/api/email-relay` — cai no proxy) |
 | `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret; **no Vercel só esta variável** — `SMTP_*` ficam só no Railway e vão no body do POST |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
@@ -1107,6 +1107,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.18 | Relay SMTP no Vercel (`frontend/api/email-relay.ts`): Railway POSTa HTTPS (porta 443); worker envia Gmail com `await`; login/OTP respondem antes do e-mail; `/health.mail.relay` |
 | ago/2026 | 8.18.1 | Relay: credenciais Gmail (`smtpUser`, `smtpPass`, `from`) só no Railway — Vercel exige apenas `EMAIL_SMTP_RELAY_SECRET` |
 | ago/2026 | 8.18.2 | Fix deploy Vercel: remove regex inválida em `vercel.json` (lookahead); `/api/email-relay` tem prioridade sobre rewrite |
+| ago/2026 | 8.18.3 | Relay exposto em `/relay/send` (rewrite → `api/email-relay`); `/api/email-relay` caía no proxy backend (502) |
 
 ---
 
