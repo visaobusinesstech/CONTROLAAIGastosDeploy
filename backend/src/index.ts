@@ -110,7 +110,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.17", // SMTP Gmail na request (465/587); e-mail do login pré-preenche esqueci a senha
+      build: "8.17.1", // Fix tsc: transport.close() é void no nodemailer
       mail: mailHealthSnapshot(),
 
     };

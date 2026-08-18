@@ -128,12 +128,16 @@ async function sendViaSmtp(opts: {
         text: opts.text,
       });
       console.info(`[mail] SMTP OK porta ${cfg.port} id=${info.messageId ?? "?"}`);
-      await transport.close();
+      transport.close();
       return { sent: true, skipped: false, via: "smtp" };
     } catch (err) {
       lastErr = err;
       console.error(`[mail] SMTP porta ${cfg.port} falhou:`, err);
-      await transport.close().catch(() => undefined);
+      try {
+        transport.close();
+      } catch {
+        /* ignora falha ao fechar socket */
+      }
     }
   }
   console.error("[mail] SMTP esgotou 465 e 587:", lastErr);
