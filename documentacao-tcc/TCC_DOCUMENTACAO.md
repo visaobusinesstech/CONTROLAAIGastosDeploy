@@ -1106,6 +1106,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.17.1 | Fix build Railway: `transport.close()` do nodemailer é `void` (sem `.catch`) |
 | ago/2026 | 8.18 | Relay SMTP no Vercel (`frontend/api/email-relay.ts`): Railway POSTa HTTPS (porta 443); worker envia Gmail com `await`; login/OTP respondem antes do e-mail; `/health.mail.relay` |
 | ago/2026 | 8.18.1 | Relay: credenciais Gmail (`smtpUser`, `smtpPass`, `from`) só no Railway — Vercel exige apenas `EMAIL_SMTP_RELAY_SECRET` |
+| ago/2026 | 8.18.2 | Fix deploy Vercel: remove regex inválida em `vercel.json` (lookahead); `/api/email-relay` tem prioridade sobre rewrite |
 
 ---
 
