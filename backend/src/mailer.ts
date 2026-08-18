@@ -10,10 +10,8 @@ import { getAppBaseUrl } from "../api/app-links.js"; // FRONTEND_URL para links 
 const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
 
-const DEFAULT_SMTP_HOST = "smtp.gmail.com"; // Host Gmail
-const DEFAULT_SMTP_PORT = 587; // STARTTLS
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
-const MAIL_CHANNEL_MS = 20_000; // Envio Gmail real leva ~5–8s; 5s abortava envio válido
+const MAIL_CHANNEL_MS = 20_000; // Envio Gmail real leva ~5–8s
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
@@ -51,16 +49,24 @@ function resendFrom(): string {
   return from;
 }
 
+/** Remove aspas/espaços que o Railway às vezes grava na variável. */
+function stripEnv(raw: string | undefined): string {
+  return (raw ?? "").trim().replace(/^['"]+|['"]+$/g, "");
+}
+
 /** Usuário SMTP — a senha de app é da conta com um "a" (controlai…), não controlaa…. */
 function smtpUser(): string {
-  const raw = process.env.SMTP_USER?.trim() || DEFAULT_SMTP_USER;
-  if (/^controlaaisistematech@gmail\.com$/i.test(raw)) return DEFAULT_SMTP_USER;
+  let raw = stripEnv(process.env.SMTP_USER) || DEFAULT_SMTP_USER;
+  const angled = raw.match(/<([^>]+)>/);
+  if (angled) raw = angled[1];
+  raw = raw.replace(/\s+/g, "").toLowerCase();
+  if (raw === "controlaaisistematech@gmail.com") return DEFAULT_SMTP_USER;
   return raw;
 }
 
 /** Senha de app — só via SMTP_PASS no Railway (nunca no git). */
 function smtpPass(): string {
-  return (process.env.SMTP_PASS ?? "").replace(/\s+/g, "");
+  return stripEnv(process.env.SMTP_PASS).replace(/\s+/g, "");
 }
 
 /** Remetente SMTP — Gmail exige o mesmo endereço autenticado. */
@@ -84,14 +90,12 @@ function getSmtpTransport(): Transporter | null {
   const pass = smtpPass();
   if (!pass) return null;
   if (smtpTransport) return smtpTransport;
-  const host = process.env.SMTP_HOST?.trim() || DEFAULT_SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT ?? String(DEFAULT_SMTP_PORT));
+  const user = smtpUser();
+  console.info(`[mail] SMTP Gmail user=${user}`);
   smtpTransport = createTransport({
-    host,
-    port,
-    secure: port === 465, // SSL direto só na 465
-    auth: { user: smtpUser(), pass },
-    connectionTimeout: MAIL_CHANNEL_MS, // Evita "Entrando…" infinito se a porta 587 travar
+    service: "gmail", // Host/porta oficiais; ignora SMTP_HOST errado no Railway
+    auth: { user, pass },
+    connectionTimeout: MAIL_CHANNEL_MS,
     greetingTimeout: MAIL_CHANNEL_MS,
     socketTimeout: MAIL_CHANNEL_MS,
   });
@@ -193,41 +197,31 @@ async function sendViaResend(opts: {
   return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
 }
 
-/** Gmail primeiro (qualquer destinatário); Resend só se o SMTP falhar ou não houver senha. */
+/** Gmail quando há senha de app; Resend só se SMTP não estiver configurado. */
 export async function sendMail(opts: {
   to: string;
   subject: string;
   html: string;
   text: string;
 }): Promise<MailSendResult> {
-  let smtpAttempted = false;
   if (smtpPass()) {
-    smtpAttempted = true;
     try {
       const smtpResult = await sendViaSmtp(opts);
       if (smtpResult?.sent) return smtpResult;
     } catch (err) {
-      console.error("[mail] SMTP falhou, tentando Resend:", err);
+      console.error("[mail] SMTP falhou:", err);
+      smtpTransport = null;
+      return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
     }
+    return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
   }
 
   try {
     const resendResult = await sendViaResend(opts);
     if (resendResult.sent) return resendResult;
-    if (resendResult.error && resendResult.error !== "no_provider") {
-      return {
-        sent: false,
-        skipped: false,
-        via: smtpAttempted ? "smtp" : "resend",
-        error: smtpAttempted ? "smtp_failed" : resendResult.error,
-      };
-    }
+    if (resendResult.error && resendResult.error !== "no_provider") return resendResult;
   } catch (err) {
     console.error("[mail] Resend rede:", err);
-  }
-
-  if (smtpAttempted) {
-    return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
   }
 
   console.warn(`[mail] Sem provedor — e-mail NÃO enviado para ${opts.to}`);

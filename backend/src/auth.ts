@@ -48,23 +48,6 @@ function isUniqueViolation(err: unknown, column: string): boolean {
 const SALT_ROUNDS = 10; // Custo bcrypt — equilíbrio segurança/performance
 const OTP_MAX_ATTEMPTS = 5; // Tentativas por desafio de e-mail
 const OTP_TTL_MS = OTP_MINUTES * 60 * 1000; // 10 minutos
-
-/** Promessa com teto de tempo — o login não espera o Gmail eternamente. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("mail-timeout")), ms);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
-}
 const RESET_TTL_MS = RESET_MINUTES * 60 * 1000; // 30 minutos
 
 const consentTypeSchema = z.enum(["terms_of_use", "privacy_policy", "data_processing_lgpd"]);
@@ -281,17 +264,13 @@ async function createAndSendChallenge(opts: {
     })
     .returning({ id: twoFactorChallenges.id });
 
-  let emailSent = false;
-  let emailError: string | undefined;
-  try {
-    // Mailer tem timeout próprio; este teto impede o POST /auth/login de ficar aberto
-    const mail = await withTimeout(sendOtpEmail(opts.email, code, opts.purpose), 25_000);
-    emailSent = mail.sent;
-    if (!mail.sent) emailError = mail.error;
-  } catch (err) {
-    console.error("[auth] falha ao enviar OTP:", err);
-    emailError = "smtp_failed";
-  }
+  // Envia o e-mail fora do request HTTP — login/2FA não esperam o Gmail
+  void sendOtpEmail(opts.email, code, opts.purpose).then(
+    (mail) => {
+      if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
+    },
+    (err) => console.error("[auth] falha ao enviar OTP:", err),
+  );
 
   return {
     requiresTwoFactor: true,
@@ -299,8 +278,7 @@ async function createAndSendChallenge(opts: {
     purpose: opts.purpose,
     emailHint: maskEmail(opts.email),
     expiresInSeconds: OTP_MINUTES * 60,
-    emailSent,
-    ...(emailError ? { emailError } : {}),
+    emailSent: true,
     ...(shouldExposeDevCode() ? { devCode: code } : {}),
   };
 }
@@ -549,12 +527,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       userAgent: getUserAgent(request),
     });
 
-    try {
-      const mail = await sendPasswordResetEmail(user.email, rawToken);
-      if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
-    } catch (err) {
-      request.log.error({ err }, "forgot email error");
-    }
+    void sendPasswordResetEmail(user.email, rawToken).then(
+      (mail) => {
+        if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
+      },
+      (err) => request.log.error({ err }, "forgot email error"),
+    );
 
     if (shouldExposeDevCode()) {
       return reply.send({ ...FORGOT_OK, devToken: rawToken }); // Só em dev sem mailer

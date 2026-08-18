@@ -109,7 +109,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.15", // SMTP Gmail: controlaisistematech (um "a") — senha de app autentica
+      build: "8.16", // OTP em background; SMTP Gmail sem esperar o login
 
     };
 

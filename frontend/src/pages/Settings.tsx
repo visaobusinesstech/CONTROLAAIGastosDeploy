@@ -162,6 +162,7 @@ export default function SettingsPage() {
   const [incomeEdit, setIncomeEdit] = useState("");
   const [savingIncome, setSavingIncome] = useState(false);
   const [twoFaChallenge, setTwoFaChallenge] = useState<AuthChallengeResponse | null>(null);
+  const [twoFaWaiting, setTwoFaWaiting] = useState(false); // Abre o modal na hora do clique
   const [twoFaSubmitting, setTwoFaSubmitting] = useState(false);
   const [twoFaError, setTwoFaError] = useState("");
   const currentMonth = monthKey();
@@ -333,16 +334,20 @@ export default function SettingsPage() {
   const startTwoFactorChange = async (enable: boolean) => {
     if (!token) return;
     setTwoFaError("");
+    setTwoFaWaiting(true); // Modal abre sem esperar o Gmail
     setTwoFaSubmitting(true);
     try {
       const result = enable ? await enableTwoFactorRequest(token) : await disableTwoFactorRequest(token);
       if (isAuthChallenge(result)) {
         setTwoFaChallenge(result);
+        setTwoFaWaiting(false);
         return;
       }
+      setTwoFaWaiting(false);
       toast.success(result.twoFactorEnabled ? "Verificação em 2 etapas ativada." : "Verificação em 2 etapas desativada.");
       void qc.invalidateQueries({ queryKey: ["settings", token] });
     } catch (e) {
+      setTwoFaWaiting(false);
       toast.error(e instanceof Error ? e.message : "Não foi possível alterar o 2FA.");
     } finally {
       setTwoFaSubmitting(false);
@@ -719,17 +724,31 @@ export default function SettingsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(twoFaChallenge)} onOpenChange={(open) => !open && setTwoFaChallenge(null)}>
+      <Dialog
+        open={Boolean(twoFaChallenge) || twoFaWaiting}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTwoFaChallenge(null);
+            setTwoFaWaiting(false);
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmação por e-mail</DialogTitle>
           </DialogHeader>
+          {twoFaWaiting && !twoFaChallenge && (
+            <p className="text-sm text-muted-foreground">Enviando o código para o seu e-mail…</p>
+          )}
           {twoFaChallenge && (
             <EmailOtpStep
               challenge={twoFaChallenge}
               submitting={twoFaSubmitting}
               error={twoFaError}
-              onChangeChallenge={setTwoFaChallenge}
+              onChangeChallenge={(next) => {
+                setTwoFaChallenge(next);
+                setTwoFaWaiting(false);
+              }}
               onCodeComplete={confirmTwoFactorCode}
             />
           )}

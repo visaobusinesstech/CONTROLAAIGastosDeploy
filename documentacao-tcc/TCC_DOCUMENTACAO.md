@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.15 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.16 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -338,7 +338,7 @@ sequenceDiagram
 2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used` + linha em `audit_logs`.
 3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
 4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
-5. E-mails: SMTP Gmail primeiro (`controlaisistematech@gmail.com` — um “a”; a senha de app dessa conta Google). Cada canal com timeout de 5s (teto 12s) para o login não ficar em “Entrando…”. **Reset** = HTML com botão da página. **2FA/cadastro** = HTML com código de 6 dígitos (não é página). Resend é extra. Sem provedor em desenvolvimento, o código/link aparece no JSON (`devCode` / `devToken`).
+5. E-mails: SMTP Gmail (`controlaisistematech@gmail.com`). O código OTP é gravado no banco e o HTTP responde na hora; o Gmail envia em paralelo (login/2FA não esperam). **Reset** = HTML com botão da página. **2FA/cadastro** = HTML com código de 6 dígitos.
 
 ### 4.8 Auditoria, inativação e LGPD por nível
 
@@ -1098,6 +1098,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.13 | “Esqueci a senha” envia HTML com botão para `/reset-password` (página no padrão do login; grava `password_hash` + `token_version` + auditoria); 2FA permanece HTML com código; índice UNIQUE do token (`0011`) |
 | ago/2026 | 8.14 | Login não fica em “Entrando…”: SMTP/Resend com timeout de 5s e teto de 12s no OTP; frontend aborta fetch em 20s |
 | ago/2026 | 8.15 | SMTP Gmail usa `controlaisistematech@gmail.com` (um “a”); `controlaaisistematech@…` no Railway é corrigido no mailer |
+| ago/2026 | 8.16 | OTP/reset disparam o Gmail em background (login e modal 2FA abrem na hora); SMTP não espera Resend; senha/usuário com aspas do Railway são limpos |
 
 ---
 
