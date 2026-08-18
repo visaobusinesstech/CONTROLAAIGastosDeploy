@@ -180,6 +180,11 @@ export default function Login() {
                 onChange={(e) => {
                   setEmail(e.target.value);
                   setError("");
+                  try {
+                    sessionStorage.setItem("controlaai.lastEmail", e.target.value.trim().toLowerCase());
+                  } catch {
+                    /* ignore */
+                  }
                 }}
                 placeholder={isAdminMode ? "admin@admin.com" : "seu@email.com"}
                 required
@@ -212,7 +217,14 @@ export default function Login() {
               </div>
               {!isAdminMode && (
                 <div className="text-right">
-                  <Link to="/forgot-password" className="text-xs text-cgreen-500 font-medium hover:text-cgreen-700">
+                  <Link
+                    to={
+                      email.trim()
+                        ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
+                        : "/forgot-password"
+                    }
+                    className="text-xs text-cgreen-500 font-medium hover:text-cgreen-700"
+                  >
                     Esqueceu a senha?
                   </Link>
                 </div>

@@ -264,13 +264,8 @@ async function createAndSendChallenge(opts: {
     })
     .returning({ id: twoFactorChallenges.id });
 
-  // Envia o e-mail fora do request HTTP — login/2FA não esperam o Gmail
-  void sendOtpEmail(opts.email, code, opts.purpose).then(
-    (mail) => {
-      if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
-    },
-    (err) => console.error("[auth] falha ao enviar OTP:", err),
-  );
+  const mail = await sendOtpEmail(opts.email, code, opts.purpose);
+  if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
 
   return {
     requiresTwoFactor: true,
@@ -278,7 +273,8 @@ async function createAndSendChallenge(opts: {
     purpose: opts.purpose,
     emailHint: maskEmail(opts.email),
     expiresInSeconds: OTP_MINUTES * 60,
-    emailSent: true,
+    emailSent: mail.sent,
+    ...(mail.sent ? {} : { emailError: mail.error ?? "smtp_failed" }),
     ...(shouldExposeDevCode() ? { devCode: code } : {}),
   };
 }
@@ -527,12 +523,12 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       userAgent: getUserAgent(request),
     });
 
-    void sendPasswordResetEmail(user.email, rawToken).then(
-      (mail) => {
-        if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
-      },
-      (err) => request.log.error({ err }, "forgot email error"),
-    );
+    try {
+      const mail = await sendPasswordResetEmail(user.email, rawToken);
+      if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
+    } catch (err) {
+      request.log.error({ err }, "forgot email error");
+    }
 
     if (shouldExposeDevCode()) {
       return reply.send({ ...FORGOT_OK, devToken: rawToken }); // Só em dev sem mailer

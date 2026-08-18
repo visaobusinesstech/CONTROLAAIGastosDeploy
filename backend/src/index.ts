@@ -27,6 +27,7 @@ import { db, verifyDatabaseConnection } from "./db/index.js"; // Cliente Drizzle
 import { maskDatabaseUrl, getDatabaseUrl, isLocalDatabaseUrl, isRailwayRuntime } from "./env.js"; // URL do banco com senha mascarada nos logs
 
 import { registerAuthRoutes } from "./auth.js"; // Rotas /auth/register, /auth/login, /auth/me
+import { mailHealthSnapshot } from "./mailer.js"; // SMTP configurado (sem senha)
 
 import { registerApiRoutes } from "./api-routes.js"; // CRUD transações, categorias, dashboard
 
@@ -109,7 +110,8 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.16", // OTP em background; SMTP Gmail sem esperar o login
+      build: "8.17", // SMTP Gmail na request (465/587); e-mail do login pré-preenche esqueci a senha
+      mail: mailHealthSnapshot(),
 
     };
 

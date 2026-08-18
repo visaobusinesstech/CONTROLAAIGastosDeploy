@@ -1,17 +1,18 @@
 /**
  * Envio de e-mails transacionais — reset de senha e códigos 2FA.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Caminho principal: SMTP Gmail (qualquer destinatário).
- * Resend fica como tentativa extra; beth.t@example.com só entrega para a conta Resend.
+ * SMTP Gmail na request HTTP (não em background) — no Railway o envio solto era descartado.
  */
-import { createTransport, type Transporter } from "nodemailer"; // SMTP genérico (Gmail)
+import { createTransport } from "nodemailer"; // SMTP Gmail
+import dns from "node:dns"; // IPv4 primeiro — smtp.gmail.com em IPv6 falha em alguns hosts
 import { getAppBaseUrl } from "../api/app-links.js"; // FRONTEND_URL para links do reset
+
+dns.setDefaultResultOrder("ipv4first");
 
 const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
-
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
-const MAIL_CHANNEL_MS = 20_000; // Envio Gmail real leva ~5–8s
+const MAIL_CHANNEL_MS = 12_000; // Tempo por tentativa de porta (465 depois 587)
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
@@ -20,8 +21,6 @@ export type MailSendResult = {
   via?: "resend" | "smtp" | "none";
   error?: string;
 };
-
-let smtpTransport: Transporter | null = null; // Reusa a conexão SMTP no processo
 
 const RESEND_TEST_FROM = "Controla.ai <beth.t@example.com>"; // From de teste do Resend
 
@@ -78,6 +77,14 @@ function smtpFrom(): string {
   return `Controla.ai <${smtpUser()}>`;
 }
 
+/** Snapshot para /health — não inclui senha. */
+export function mailHealthSnapshot(): { smtp: boolean; smtpUser: string } {
+  const user = smtpUser();
+  const [local, domain] = user.split("@");
+  const hint = local && domain ? `${local.slice(0, 4)}***@${domain}` : "unset";
+  return { smtp: Boolean(smtpPass()), smtpUser: hint };
+}
+
 /** True quando não há Resend nem SMTP — OTP pode ir no JSON (só fora de produção). */
 export function shouldExposeDevCode(): boolean {
   const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
@@ -85,21 +92,52 @@ export function shouldExposeDevCode(): boolean {
   return !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
 }
 
-/** Cria (ou reusa) o transporter Gmail. */
-function getSmtpTransport(): Transporter | null {
+/** Envia pelo Gmail: SSL 465 e, se falhar, STARTTLS 587. Sem cache de conexão morta. */
+async function sendViaSmtp(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<MailSendResult | null> {
   const pass = smtpPass();
   if (!pass) return null;
-  if (smtpTransport) return smtpTransport;
   const user = smtpUser();
-  console.info(`[mail] SMTP Gmail user=${user}`);
-  smtpTransport = createTransport({
-    service: "gmail", // Host/porta oficiais; ignora SMTP_HOST errado no Railway
-    auth: { user, pass },
-    connectionTimeout: MAIL_CHANNEL_MS,
-    greetingTimeout: MAIL_CHANNEL_MS,
-    socketTimeout: MAIL_CHANNEL_MS,
-  });
-  return smtpTransport;
+  const from = smtpFrom();
+  console.info(`[mail] SMTP → ${opts.to} from=${from} user=${user}`);
+  const attempts: Array<{ port: number; secure: boolean }> = [
+    { port: 465, secure: true },
+    { port: 587, secure: false },
+  ];
+  let lastErr: unknown;
+  for (const cfg of attempts) {
+    const transport = createTransport({
+      host: "smtp.gmail.com",
+      port: cfg.port,
+      secure: cfg.secure,
+      auth: { user, pass },
+      connectionTimeout: MAIL_CHANNEL_MS,
+      greetingTimeout: MAIL_CHANNEL_MS,
+      socketTimeout: MAIL_CHANNEL_MS,
+    });
+    try {
+      const info = await transport.sendMail({
+        from,
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+        text: opts.text,
+      });
+      console.info(`[mail] SMTP OK porta ${cfg.port} id=${info.messageId ?? "?"}`);
+      await transport.close();
+      return { sent: true, skipped: false, via: "smtp" };
+    } catch (err) {
+      lastErr = err;
+      console.error(`[mail] SMTP porta ${cfg.port} falhou:`, err);
+      await transport.close().catch(() => undefined);
+    }
+  }
+  console.error("[mail] SMTP esgotou 465 e 587:", lastErr);
+  return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
 }
 
 /** Classifica o corpo do Resend sem vazar a chave. */
@@ -143,30 +181,6 @@ function wrapHtml(title: string, bodyHtml: string): string {
 </html>`;
 }
 
-/** Envia pelo Gmail (Nodemailer) com timeout curto. */
-async function sendViaSmtp(opts: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<MailSendResult | null> {
-  const smtp = getSmtpTransport();
-  if (!smtp) return null;
-  try {
-    await smtp.sendMail({
-      from: smtpFrom(),
-      to: opts.to,
-      subject: opts.subject,
-      html: opts.html,
-      text: opts.text,
-    });
-    return { sent: true, skipped: false, via: "smtp" };
-  } catch (err) {
-    smtpTransport = null; // Não reutiliza conexão morta
-    throw err;
-  }
-}
-
 /** Tenta Resend (domínio próprio ou só o e-mail da conta). */
 async function sendViaResend(opts: {
   to: string;
@@ -205,15 +219,9 @@ export async function sendMail(opts: {
   text: string;
 }): Promise<MailSendResult> {
   if (smtpPass()) {
-    try {
-      const smtpResult = await sendViaSmtp(opts);
-      if (smtpResult?.sent) return smtpResult;
-    } catch (err) {
-      console.error("[mail] SMTP falhou:", err);
-      smtpTransport = null;
-      return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
-    }
-    return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
+    const smtpResult = await sendViaSmtp(opts);
+    if (smtpResult?.sent) return smtpResult;
+    return smtpResult ?? { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
   }
 
   try {

@@ -3,13 +3,25 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LogoFull } from "@/components/Logo";
 import { ApiError, forgotPasswordRequest, translateApiError } from "@/lib/api";
 
+/** E-mail já digitado no login/cadastro (query ou sessionStorage). */
+function initialEmail(query: string | null): string {
+  const fromQuery = query?.trim() ?? "";
+  if (fromQuery) return fromQuery;
+  try {
+    return sessionStorage.getItem("controlaai.lastEmail")?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export default function ForgotPassword() {
-  const [email, setEmail] = useState("");
+  const [params] = useSearchParams();
+  const [email, setEmail] = useState(() => initialEmail(params.get("email")));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -20,7 +32,13 @@ export default function ForgotPassword() {
     setError("");
     setSubmitting(true);
     try {
-      const res = await forgotPasswordRequest(email.trim().toLowerCase());
+      const normalized = email.trim().toLowerCase();
+      try {
+        sessionStorage.setItem("controlaai.lastEmail", normalized);
+      } catch {
+        /* ignore */
+      }
+      const res = await forgotPasswordRequest(normalized);
       setSent(true);
       setDevToken(res.devToken ?? null);
     } catch (err) {

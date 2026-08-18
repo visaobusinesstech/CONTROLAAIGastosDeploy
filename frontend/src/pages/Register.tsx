@@ -264,7 +264,14 @@ export default function Register() {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        try {
+                          sessionStorage.setItem("controlaai.lastEmail", e.target.value.trim().toLowerCase());
+                        } catch {
+                          /* ignore */
+                        }
+                      }}
                       placeholder="seu@email.com"
                       required
                       autoComplete="email"
@@ -314,7 +321,14 @@ export default function Register() {
                     Entrar
                   </Link>
                   {" · "}
-                  <Link to="/forgot-password" className="text-cgreen-500 font-medium hover:text-cgreen-700">
+                  <Link
+                    to={
+                      email.trim()
+                        ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
+                        : "/forgot-password"
+                    }
+                    className="text-cgreen-500 font-medium hover:text-cgreen-700"
+                  >
                     Esqueceu a senha?
                   </Link>
                 </p>
