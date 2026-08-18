@@ -124,7 +124,7 @@ export function shouldExposeDevCode(): boolean {
   return !hasRelay && !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
 }
 
-/** POST para o worker Vercel — contorna bloqueio SMTP do Railway. */
+/** POST para o worker Vercel — credenciais Gmail saem do Railway (Vercel só valida o secret). */
 async function sendViaRelay(opts: {
   to: string;
   subject: string;
@@ -134,6 +134,13 @@ async function sendViaRelay(opts: {
   const url = relayUrl();
   const secret = relaySecret();
   if (!url || !secret) return null;
+  const pass = smtpPass();
+  if (!pass) {
+    console.error("[mail] relay configurado mas SMTP_PASS ausente no Railway");
+    return { sent: false, skipped: false, via: "relay", error: "relay_missing_smtp" };
+  }
+  const user = smtpUser();
+  const from = smtpFrom();
   console.info(`[mail] relay → ${opts.to} via ${url}`);
   try {
     const res = await fetch(url, {
@@ -147,6 +154,9 @@ async function sendViaRelay(opts: {
         subject: opts.subject,
         html: opts.html,
         text: opts.text,
+        smtpUser: user,
+        smtpPass: pass,
+        from,
       }),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
     });

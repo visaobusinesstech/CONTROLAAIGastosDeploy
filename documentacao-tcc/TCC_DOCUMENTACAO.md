@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.18 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.18.1 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -633,7 +633,7 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 | Textos legais | `backend/src/legal/documents.ts` |
 | API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register, OTP, reset |
 | Mailer | `backend/src/mailer.ts` — relay Vercel HTTPS → Gmail; SMTP local em dev; Resend extra |
-| Relay Vercel | `frontend/api/email-relay.ts` — nodemailer Gmail; auth `EMAIL_SMTP_RELAY_SECRET` |
+| Relay Vercel | `frontend/api/email-relay.ts` — nodemailer Gmail; só `EMAIL_SMTP_RELAY_SECRET` no Vercel; credenciais no body (Railway) |
 | Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents`, reset/2FA |
 | UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx`, `EmailOtpStep.tsx` |
 | Orquestração | `frontend/src/pages/Register.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` |
@@ -957,7 +957,7 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Gmail local ou credenciais no **relay Vercel** (`SMTP_PASS` no projeto frontend Vercel) |
 | `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
 | `EMAIL_SMTP_RELAY_URL` | Sim (Railway) | URL HTTPS do worker, ex.: `https://controlaai-frontend.vercel.app/api/email-relay` |
-| `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret nos dois ambientes (Bearer no POST) |
+| `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret; **no Vercel só esta variável** — `SMTP_*` ficam só no Railway e vão no body do POST |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
 
@@ -1105,6 +1105,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.17 | SMTP Gmail volta a ser `await` na request (465 → 587); `/forgot-password` pré-preenche o e-mail do login; `/health.mail` mostra se SMTP está ligado |
 | ago/2026 | 8.17.1 | Fix build Railway: `transport.close()` do nodemailer é `void` (sem `.catch`) |
 | ago/2026 | 8.18 | Relay SMTP no Vercel (`frontend/api/email-relay.ts`): Railway POSTa HTTPS (porta 443); worker envia Gmail com `await`; login/OTP respondem antes do e-mail; `/health.mail.relay` |
+| ago/2026 | 8.18.1 | Relay: credenciais Gmail (`smtpUser`, `smtpPass`, `from`) só no Railway — Vercel exige apenas `EMAIL_SMTP_RELAY_SECRET` |
 
 ---
 

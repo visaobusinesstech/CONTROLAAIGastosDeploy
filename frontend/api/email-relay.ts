@@ -1,7 +1,7 @@
 /**
  * Relay SMTP Gmail — Vercel (HTTPS → Gmail 465/587).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Railway bloqueia SMTP; o backend POSTa aqui com EMAIL_SMTP_RELAY_SECRET.
+ * Só precisa de EMAIL_SMTP_RELAY_SECRET no Vercel; credenciais Gmail vêm no body (Railway).
  * O envio é await antes da resposta (requisito Vercel serverless).
  */
 import { createTransport } from "nodemailer"; // SMTP Gmail no Vercel
@@ -15,7 +15,7 @@ export const config = {
   maxDuration: 60,
 };
 
-const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
+const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Fallback se Railway não mandar user
 const MAIL_CHANNEL_MS = 15_000; // Tempo por tentativa de porta
 
 type RelayBody = {
@@ -23,6 +23,9 @@ type RelayBody = {
   subject?: string;
   html?: string;
   text?: string;
+  smtpUser?: string;
+  smtpPass?: string;
+  from?: string;
 };
 
 /** Remove aspas/espaços que o painel às vezes grava na variável. */
@@ -30,31 +33,26 @@ function stripEnv(raw: string | undefined): string {
   return (raw ?? "").trim().replace(/^['"]+|['"]+$/g, "");
 }
 
-/** Usuário SMTP — senha de app é da conta controlai… (um "a"). */
-function smtpUser(): string {
-  let raw = stripEnv(process.env.SMTP_USER) || DEFAULT_SMTP_USER;
-  const angled = raw.match(/<([^>]+)>/);
-  if (angled) raw = angled[1];
-  raw = raw.replace(/\s+/g, "").toLowerCase();
-  if (raw === "controlaaisistematech@gmail.com") return DEFAULT_SMTP_USER;
-  return raw;
+/** Normaliza e-mail SMTP — corrige controlaa… (dois "a") para controlai…. */
+function normalizeSmtpUser(raw: string | undefined): string {
+  let user = stripEnv(raw) || DEFAULT_SMTP_USER;
+  const angled = user.match(/<([^>]+)>/);
+  if (angled) user = angled[1];
+  user = user.replace(/\s+/g, "").toLowerCase();
+  if (user === "controlaaisistematech@gmail.com") return DEFAULT_SMTP_USER;
+  return user;
 }
 
-/** Senha de app Gmail — SMTP_PASS no Vercel. */
-function smtpPass(): string {
-  return stripEnv(process.env.SMTP_PASS).replace(/\s+/g, "");
-}
-
-/** Remetente — Gmail exige o mesmo endereço autenticado. */
-function smtpFrom(): string {
-  const explicit = process.env.MAIL_FROM_SMTP?.trim();
+/** Remetente — usa from do body ou monta a partir do user autenticado. */
+function resolveFrom(body: RelayBody, user: string): string {
+  const explicit = body.from?.trim();
   if (explicit) {
     return explicit.replace(/controlaaisistematech@gmail\.com/gi, DEFAULT_SMTP_USER);
   }
-  return `Controla.ai <${smtpUser()}>`;
+  return `Controla.ai <${user}>`;
 }
 
-/** Lê JSON do body (Request Web ou objeto legado). */
+/** Lê JSON do body da request. */
 async function readBody(req: Request): Promise<RelayBody> {
   try {
     return (await req.json()) as RelayBody;
@@ -63,7 +61,7 @@ async function readBody(req: Request): Promise<RelayBody> {
   }
 }
 
-/** Valida Bearer ou header X-Relay-Secret. */
+/** Valida Bearer ou header X-Relay-Secret — única env obrigatória no Vercel. */
 function authorize(req: Request): boolean {
   const secret = stripEnv(process.env.EMAIL_SMTP_RELAY_SECRET);
   if (!secret) return false;
@@ -79,11 +77,10 @@ async function sendViaSmtp(opts: {
   subject: string;
   html: string;
   text: string;
+  user: string;
+  pass: string;
+  from: string;
 }): Promise<{ messageId?: string }> {
-  const pass = smtpPass();
-  if (!pass) throw new Error("SMTP_PASS not configured on relay");
-  const user = smtpUser();
-  const from = smtpFrom();
   const attempts: Array<{ port: number; secure: boolean }> = [
     { port: 465, secure: true },
     { port: 587, secure: false },
@@ -94,14 +91,14 @@ async function sendViaSmtp(opts: {
       host: "smtp.gmail.com",
       port: cfg.port,
       secure: cfg.secure,
-      auth: { user, pass },
+      auth: { user: opts.user, pass: opts.pass },
       connectionTimeout: MAIL_CHANNEL_MS,
       greetingTimeout: MAIL_CHANNEL_MS,
       socketTimeout: MAIL_CHANNEL_MS,
     });
     try {
       const info = await transport.sendMail({
-        from,
+        from: opts.from,
         to: opts.to,
         subject: opts.subject,
         html: opts.html,
@@ -123,7 +120,7 @@ async function sendViaSmtp(opts: {
   throw lastErr instanceof Error ? lastErr : new Error("SMTP failed on 465 and 587");
 }
 
-/** POST /api/email-relay — só o backend Railway com secret válido. */
+/** POST /api/email-relay — credenciais Gmail vêm do Railway no body (HTTPS). */
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
@@ -137,12 +134,19 @@ export default async function handler(req: Request): Promise<Response> {
   const subject = body.subject?.trim();
   const html = body.html ?? "";
   const text = body.text ?? "";
+  const pass = stripEnv(body.smtpPass).replace(/\s+/g, "");
+  const user = normalizeSmtpUser(body.smtpUser);
+  const from = resolveFrom(body, user);
+
   if (!to || !subject || (!html && !text)) {
     return Response.json({ error: "Invalid payload: to, subject, html|text required" }, { status: 400 });
   }
+  if (!pass) {
+    return Response.json({ error: "smtpPass required in body (configure SMTP_PASS no Railway)" }, { status: 400 });
+  }
 
   try {
-    const info = await sendViaSmtp({ to, subject, html, text });
+    const info = await sendViaSmtp({ to, subject, html, text, user, pass, from });
     return Response.json({ sent: true, via: "smtp", messageId: info.messageId ?? null });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
