@@ -1,9 +1,10 @@
 /**
  * Envio de e-mails transacionais — reset de senha e códigos 2FA.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * SMTP Gmail na request HTTP (não em background) — no Railway o envio solto era descartado.
+ * Produção (Railway): POST HTTPS → relay Vercel (/api/email-relay) → Gmail SMTP.
+ * Local: SMTP direto ou Resend.
  */
-import { createTransport } from "nodemailer"; // SMTP Gmail
+import { createTransport } from "nodemailer"; // SMTP Gmail local
 import dns from "node:dns"; // IPv4 primeiro — smtp.gmail.com em IPv6 falha em alguns hosts
 import { getAppBaseUrl } from "../api/app-links.js"; // FRONTEND_URL para links do reset
 
@@ -13,12 +14,13 @@ const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
 const MAIL_CHANNEL_MS = 12_000; // Tempo por tentativa de porta (465 depois 587)
+const RELAY_TIMEOUT_MS = 25_000; // Teto do fetch ao relay Vercel
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
   sent: boolean;
   skipped: boolean;
-  via?: "resend" | "smtp" | "none";
+  via?: "relay" | "resend" | "smtp" | "none";
   error?: string;
 };
 
@@ -77,22 +79,91 @@ function smtpFrom(): string {
   return `Controla.ai <${smtpUser()}>`;
 }
 
-/** Snapshot para /health — não inclui senha. */
-export function mailHealthSnapshot(): { smtp: boolean; smtpUser: string } {
+/** URL do relay Vercel — Railway usa HTTPS (porta 443), não SMTP direto. */
+function relayUrl(): string {
+  return stripEnv(process.env.EMAIL_SMTP_RELAY_URL).replace(/\/+$/, "");
+}
+
+/** Secret compartilhado Railway ↔ Vercel. */
+function relaySecret(): string {
+  return stripEnv(process.env.EMAIL_SMTP_RELAY_SECRET);
+}
+
+/** Snapshot para /health — não inclui senha nem secret. */
+export function mailHealthSnapshot(): {
+  smtp: boolean;
+  smtpUser: string;
+  relay: boolean;
+  relayUrl: string | null;
+} {
   const user = smtpUser();
   const [local, domain] = user.split("@");
   const hint = local && domain ? `${local.slice(0, 4)}***@${domain}` : "unset";
-  return { smtp: Boolean(smtpPass()), smtpUser: hint };
+  const url = relayUrl();
+  let relayHost: string | null = null;
+  if (url) {
+    try {
+      relayHost = new URL(url).host;
+    } catch {
+      relayHost = "invalid";
+    }
+  }
+  return {
+    smtp: Boolean(smtpPass()),
+    smtpUser: hint,
+    relay: Boolean(url && relaySecret()),
+    relayUrl: relayHost,
+  };
 }
 
-/** True quando não há Resend nem SMTP — OTP pode ir no JSON (só fora de produção). */
+/** True quando não há relay, Resend nem SMTP — OTP pode ir no JSON (só fora de produção). */
 export function shouldExposeDevCode(): boolean {
+  const hasRelay = Boolean(relayUrl() && relaySecret());
   const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
   const hasSmtp = Boolean(smtpPass());
-  return !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
+  return !hasRelay && !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
 }
 
-/** Envia pelo Gmail: SSL 465 e, se falhar, STARTTLS 587. Sem cache de conexão morta. */
+/** POST para o worker Vercel — contorna bloqueio SMTP do Railway. */
+async function sendViaRelay(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<MailSendResult | null> {
+  const url = relayUrl();
+  const secret = relaySecret();
+  if (!url || !secret) return null;
+  console.info(`[mail] relay → ${opts.to} via ${url}`);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+        text: opts.text,
+      }),
+      signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
+    });
+    const body = (await res.json().catch(() => ({}))) as { sent?: boolean; messageId?: string; error?: string };
+    if (res.ok && body.sent) {
+      console.info(`[mail] relay OK id=${body.messageId ?? "?"}`);
+      return { sent: true, skipped: false, via: "relay" };
+    }
+    console.error(`[mail] relay ${res.status}:`, JSON.stringify(body).slice(0, 300));
+    return { sent: false, skipped: false, via: "relay", error: body.error ?? "relay_failed" };
+  } catch (err) {
+    console.error("[mail] relay rede:", err);
+    return { sent: false, skipped: false, via: "relay", error: "relay_unreachable" };
+  }
+}
+
+/** Envia pelo Gmail local: SSL 465 e, se falhar, STARTTLS 587. */
 async function sendViaSmtp(opts: {
   to: string;
   subject: string;
@@ -103,7 +174,7 @@ async function sendViaSmtp(opts: {
   if (!pass) return null;
   const user = smtpUser();
   const from = smtpFrom();
-  console.info(`[mail] SMTP → ${opts.to} from=${from} user=${user}`);
+  console.info(`[mail] SMTP direto → ${opts.to} from=${from} user=${user}`);
   const attempts: Array<{ port: number; secure: boolean }> = [
     { port: 465, secure: true },
     { port: 587, secure: false },
@@ -207,7 +278,7 @@ async function sendViaResend(opts: {
       html: opts.html,
       text: opts.text,
     }),
-    signal: AbortSignal.timeout(MAIL_CHANNEL_MS), // Não segura o /auth/login
+    signal: AbortSignal.timeout(MAIL_CHANNEL_MS),
   });
   if (res.ok) return { sent: true, skipped: false, via: "resend" };
   const body = await res.text();
@@ -215,17 +286,23 @@ async function sendViaResend(opts: {
   return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
 }
 
-/** Gmail quando há senha de app; Resend só se SMTP não estiver configurado. */
+/** Relay Vercel (prod) → SMTP local (dev) → Resend (fallback). */
 export async function sendMail(opts: {
   to: string;
   subject: string;
   html: string;
   text: string;
 }): Promise<MailSendResult> {
+  const relayResult = await sendViaRelay(opts);
+  if (relayResult?.sent) return relayResult;
+  if (relayResult && relayUrl() && relaySecret()) {
+    return relayResult;
+  }
+
   if (smtpPass()) {
     const smtpResult = await sendViaSmtp(opts);
     if (smtpResult?.sent) return smtpResult;
-    return smtpResult ?? { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
+    if (smtpResult) return smtpResult;
   }
 
   try {

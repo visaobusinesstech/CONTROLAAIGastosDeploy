@@ -35,6 +35,7 @@ import {
   sendOtpEmail,
   sendPasswordResetEmail,
   shouldExposeDevCode,
+  type MailSendResult,
 } from "./mailer.js"; // E-mails transacionais
 
 /** Detecta violação UNIQUE do Postgres (23505) na coluna indicada. */
@@ -221,23 +222,27 @@ function allowForgotAttempt(key: string, max: number): boolean {
   return true;
 }
 
-/** Cria desafio OTP, envia e-mail e devolve payload para o frontend. */
-async function createAndSendChallenge(opts: {
-  userId: string;
-  email: string;
-  purpose: OtpPurpose;
-  ip: string | null;
-  userAgent: string | null;
-}): Promise<{
+/** Payload JSON do desafio OTP para o frontend. */
+type ChallengePayload = {
   requiresTwoFactor: true;
   challengeId: string;
   purpose: OtpPurpose;
   emailHint: string;
   expiresInSeconds: number;
   emailSent: boolean;
+  emailPending?: boolean;
   emailError?: string;
   devCode?: string;
-}> {
+};
+
+/** Grava desafio OTP no banco (sem enviar e-mail ainda). */
+async function prepareChallenge(opts: {
+  userId: string;
+  email: string;
+  purpose: OtpPurpose;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<{ challengeId: string; code: string }> {
   // Invalida desafios abertos do mesmo propósito (só o último código vale)
   await db
     .update(twoFactorChallenges)
@@ -264,19 +269,57 @@ async function createAndSendChallenge(opts: {
     })
     .returning({ id: twoFactorChallenges.id });
 
-  const mail = await sendOtpEmail(opts.email, code, opts.purpose);
-  if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
+  return { challengeId: row.id, code };
+}
 
+/** Monta JSON do desafio a partir do resultado do envio. */
+function buildChallengePayload(
+  opts: { challengeId: string; purpose: OtpPurpose; email: string; code: string },
+  mail: MailSendResult | null,
+  pending = false,
+): ChallengePayload {
+  const emailSent = Boolean(mail?.sent);
   return {
     requiresTwoFactor: true,
-    challengeId: row.id,
+    challengeId: opts.challengeId,
     purpose: opts.purpose,
     emailHint: maskEmail(opts.email),
     expiresInSeconds: OTP_MINUTES * 60,
-    emailSent: mail.sent,
-    ...(mail.sent ? {} : { emailError: mail.error ?? "smtp_failed" }),
-    ...(shouldExposeDevCode() ? { devCode: code } : {}),
+    emailSent,
+    ...(pending && !emailSent ? { emailPending: true } : {}),
+    ...(emailSent ? {} : { emailError: mail?.error ?? "smtp_failed" }),
+    ...(shouldExposeDevCode() ? { devCode: opts.code } : {}),
   };
+}
+
+/** Resultado interno removido — usa MailSendResult de mailer.ts. */
+async function createAndSendChallenge(opts: {
+  userId: string;
+  email: string;
+  purpose: OtpPurpose;
+  ip: string | null;
+  userAgent: string | null;
+  reply?: FastifyReply;
+  statusCode?: number;
+}): Promise<ChallengePayload> {
+  const prepared = await prepareChallenge(opts);
+  const base = {
+    challengeId: prepared.challengeId,
+    purpose: opts.purpose,
+    email: opts.email,
+    code: prepared.code,
+  };
+
+  if (opts.reply) {
+    opts.reply.status(opts.statusCode ?? 200).send(buildChallengePayload(base, null, true));
+    const mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
+    if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
+    return buildChallengePayload(base, mail);
+  }
+
+  const mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
+  if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
+  return buildChallengePayload(base, mail);
 }
 
 /** Lê se o 2FA está ligado nas preferências (default false). */
@@ -423,14 +466,16 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     }
 
     // Cadastro em 2 etapas: JWT só depois do código no e-mail
-    const challenge = await createAndSendChallenge({
+    await createAndSendChallenge({
       userId: row.id,
       email: row.email,
       purpose: "register",
       ip: clientIp,
       userAgent: clientUserAgent,
+      reply,
+      statusCode: 201,
     });
-    return reply.status(201).send(challenge);
+    return;
   });
 
   app.post("/auth/login", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -467,26 +512,28 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     // E-mail ainda não confirmado — reenvia código de cadastro (admin pula)
     if (!user.emailVerified && !isAdminEmail(user.email)) {
-      const challenge = await createAndSendChallenge({
+      await createAndSendChallenge({
         userId: user.id,
         email: user.email,
         purpose: "register",
         ip,
         userAgent: ua,
+        reply,
       });
-      return reply.send(challenge);
+      return;
     }
 
     // 2FA ligado nas configurações — senha ok, JWT ainda não
     if (!isAdminEmail(user.email) && (await isTwoFactorEnabled(user.id))) {
-      const challenge = await createAndSendChallenge({
+      await createAndSendChallenge({
         userId: user.id,
         email: user.email,
         purpose: "login",
         ip,
         userAgent: ua,
+        reply,
       });
-      return reply.send(challenge);
+      return;
     }
 
     return reply.send(issueSession(user));
@@ -523,17 +570,19 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       userAgent: getUserAgent(request),
     });
 
+    if (shouldExposeDevCode()) {
+      reply.send({ ...FORGOT_OK, devToken: rawToken });
+    } else {
+      reply.send(FORGOT_OK);
+    }
+
     try {
       const mail = await sendPasswordResetEmail(user.email, rawToken);
       if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
     } catch (err) {
       request.log.error({ err }, "forgot email error");
     }
-
-    if (shouldExposeDevCode()) {
-      return reply.send({ ...FORGOT_OK, devToken: rawToken }); // Só em dev sem mailer
-    }
-    return reply.send(FORGOT_OK);
+    return;
   });
 
   /** Confirma nova senha a partir do token do e-mail. */
@@ -680,14 +729,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: "Invalid or expired code" });
     }
 
-    const next = await createAndSendChallenge({
+    await createAndSendChallenge({
       userId: user.id,
       email: user.email,
       purpose: challenge.purpose as OtpPurpose,
       ip: getClientIp(request),
       userAgent: getUserAgent(request),
+      reply,
     });
-    return reply.send(next);
+    return;
   });
 
   /** Inicia ligar 2FA — envia código para o e-mail da conta logada. */
@@ -697,14 +747,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (await isTwoFactorEnabled(u.id)) {
       return reply.send({ ok: true, twoFactorEnabled: true });
     }
-    const challenge = await createAndSendChallenge({
+    await createAndSendChallenge({
       userId: u.id,
       email: u.email,
       purpose: "enable",
       ip: getClientIp(request),
       userAgent: getUserAgent(request),
+      reply,
     });
-    return reply.send(challenge);
+    return;
   });
 
   /** Inicia desligar 2FA — exige código no e-mail. */
@@ -714,14 +765,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     if (!(await isTwoFactorEnabled(u.id))) {
       return reply.send({ ok: true, twoFactorEnabled: false });
     }
-    const challenge = await createAndSendChallenge({
+    await createAndSendChallenge({
       userId: u.id,
       email: u.email,
       purpose: "disable",
       ip: getClientIp(request),
       userAgent: getUserAgent(request),
+      reply,
     });
-    return reply.send(challenge);
+    return;
   });
 
   app.get("/auth/me", { preHandler: authPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => {

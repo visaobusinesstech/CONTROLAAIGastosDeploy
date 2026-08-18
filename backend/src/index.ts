@@ -110,7 +110,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.17.1", // Fix tsc: transport.close() é void no nodemailer
+      build: "8.18", // Relay SMTP via Vercel (/api/email-relay)
       mail: mailHealthSnapshot(),
 
     };

@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.17 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.18 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -338,7 +338,7 @@ sequenceDiagram
 2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used` + linha em `audit_logs`.
 3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
 4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
-5. E-mails: SMTP Gmail (`controlaisistematech@gmail.com`) **dentro do request** (portas 465 e 587). O envio em background no Railway era descartado e o e-mail não saía. **Reset** = HTML com botão da página; o campo de e-mail em `/forgot-password` vem preenchido do login. **2FA/cadastro** = HTML com código de 6 dígitos.
+5. E-mails: **Railway bloqueia SMTP (465/587)** — o backend POSTa HTTPS para o worker **`frontend/api/email-relay.ts`** no Vercel (`EMAIL_SMTP_RELAY_URL`), que envia via Gmail SMTP com `await` antes da resposta. Login/OTP respondem na hora (`reply.send` + envio depois). **Reset** = HTML com botão da página; **2FA/cadastro** = HTML com código de 6 dígitos.
 
 ### 4.8 Auditoria, inativação e LGPD por nível
 
@@ -632,7 +632,8 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 |--------|---------|
 | Textos legais | `backend/src/legal/documents.ts` |
 | API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register, OTP, reset |
-| Mailer | `backend/src/mailer.ts` — SMTP Gmail primeiro; Resend extra |
+| Mailer | `backend/src/mailer.ts` — relay Vercel HTTPS → Gmail; SMTP local em dev; Resend extra |
+| Relay Vercel | `frontend/api/email-relay.ts` — nodemailer Gmail; auth `EMAIL_SMTP_RELAY_SECRET` |
 | Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents`, reset/2FA |
 | UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx`, `EmailOtpStep.tsx` |
 | Orquestração | `frontend/src/pages/Register.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` |
@@ -953,8 +954,10 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `PUBLIC_DASHBOARD_URL` | Não | URL do painel nas mensagens pós-renda |
 | `RESEND_API_KEY` | Não | Tentativa extra (sem domínio verificado, só entrega para o e-mail da conta Resend) |
 | `MAIL_FROM` | Não | Remetente Resend (padrão `beth.t@example.com` — modo teste) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Padrão: Gmail `smtp.gmail.com` + `controlaisistematech@gmail.com` (um “a”). `SMTP_PASS` = senha de app dessa conta |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Gmail local ou credenciais no **relay Vercel** (`SMTP_PASS` no projeto frontend Vercel) |
 | `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
+| `EMAIL_SMTP_RELAY_URL` | Sim (Railway) | URL HTTPS do worker, ex.: `https://controlaai-frontend.vercel.app/api/email-relay` |
+| `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret nos dois ambientes (Bearer no POST) |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
 
@@ -1101,6 +1104,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.16 | OTP/reset disparam o Gmail em background (login e modal 2FA abrem na hora); SMTP não espera Resend; senha/usuário com aspas do Railway são limpos |
 | ago/2026 | 8.17 | SMTP Gmail volta a ser `await` na request (465 → 587); `/forgot-password` pré-preenche o e-mail do login; `/health.mail` mostra se SMTP está ligado |
 | ago/2026 | 8.17.1 | Fix build Railway: `transport.close()` do nodemailer é `void` (sem `.catch`) |
+| ago/2026 | 8.18 | Relay SMTP no Vercel (`frontend/api/email-relay.ts`): Railway POSTa HTTPS (porta 443); worker envia Gmail com `await`; login/OTP respondem antes do e-mail; `/health.mail.relay` |
 
 ---
 
@@ -1337,7 +1341,7 @@ Custo estimado por request em `ai_logs.cost_usd`.
 |---------|-------------------|
 | `index.ts` | Boot Fastify, CORS, rotas, WhatsApp |
 | `auth.ts` | register, login, forgot/reset, OTP 2FA, JWT |
-| `mailer.ts` | `sendOtpEmail`, `sendPasswordResetEmail` — SMTP Gmail (qualquer destinatário); Resend extra |
+| `mailer.ts` | `sendOtpEmail`, `sendPasswordResetEmail` — relay Vercel HTTPS → Gmail; SMTP local; Resend extra |
 | `api-routes.ts` | CRUD REST transações/metas/settings |
 | `extended-routes.ts` | Chat IA, KPIs, admin |
 | `goals-service.ts` | `createGoalForUser`, metas enriquecidas |
