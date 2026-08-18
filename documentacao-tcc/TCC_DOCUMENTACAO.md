@@ -633,7 +633,7 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 | Textos legais | `backend/src/legal/documents.ts` |
 | API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register, OTP, reset |
 | Mailer | `backend/src/mailer.ts` — relay Vercel HTTPS → Gmail; SMTP local em dev; Resend extra |
-| Relay Vercel | `frontend/api/email-relay.ts` — nodemailer Gmail; só `EMAIL_SMTP_RELAY_SECRET` no Vercel; credenciais no body (Railway) |
+| Relay Vercel | `frontend/api/relay/send.ts` — Edge Resend HTTPS; só `EMAIL_SMTP_RELAY_SECRET` no Vercel |
 | Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents`, reset/2FA |
 | UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx`, `EmailOtpStep.tsx` |
 | Orquestração | `frontend/src/pages/Register.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` |
