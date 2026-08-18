@@ -1100,6 +1100,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.15 | SMTP Gmail usa `controlaisistematech@gmail.com` (um “a”); `controlaaisistematech@…` no Railway é corrigido no mailer |
 | ago/2026 | 8.16 | OTP/reset disparam o Gmail em background (login e modal 2FA abrem na hora); SMTP não espera Resend; senha/usuário com aspas do Railway são limpos |
 | ago/2026 | 8.17 | SMTP Gmail volta a ser `await` na request (465 → 587); `/forgot-password` pré-preenche o e-mail do login; `/health.mail` mostra se SMTP está ligado |
+| ago/2026 | 8.17.1 | Fix build Railway: `transport.close()` do nodemailer é `void` (sem `.catch`) |
 
 ---
 
