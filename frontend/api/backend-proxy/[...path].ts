@@ -14,29 +14,20 @@ const DEFAULT_BACKEND_URL = "https://controlaai-backend-production.up.railway.ap
 const INVALID_BACKEND =
   /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|controlaaigastosdeploy\.up\.railway\.app|backend-production-c328\.up\.railway\.app|localhost|127\.0\.0\.1/i;
 
-function backendBase(): string | null {
-  const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? DEFAULT_BACKEND_URL)
+function backendBase(): string {
+  const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? "")
     .trim()
     .replace(/\/+$/, "");
-  if (!raw || INVALID_BACKEND.test(raw)) {
-    if (!INVALID_BACKEND.test(DEFAULT_BACKEND_URL)) return DEFAULT_BACKEND_URL;
-    return null;
+  if (!raw || INVALID_BACKEND.test(raw)) return DEFAULT_BACKEND_URL;
+  const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
+  if (!normalized.includes("controlaai-backend-production.up.railway.app")) {
+    return DEFAULT_BACKEND_URL;
   }
-  if (!/^https?:\/\//i.test(raw)) return `https://${raw.replace(/^\/+/, "")}`;
-  return raw;
+  return normalized;
 }
 
 export default async function handler(request: Request): Promise<Response> {
   const backend = backendBase();
-  if (!backend) {
-    return Response.json(
-      {
-        error:
-          "BACKEND_URL não configurado no Vercel. Defina a URL pública do backend (Railway).",
-      },
-      { status: 503 },
-    );
-  }
 
   const incoming = new URL(request.url);
   const prefix = "/api/backend-proxy";
