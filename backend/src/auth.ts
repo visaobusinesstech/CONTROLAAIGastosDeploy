@@ -33,10 +33,10 @@ import {
   OTP_MINUTES,
   RESET_MINUTES,
   sendOtpEmail,
-  sendPasswordResetOtpEmail,
+  sendPasswordResetEmail,
   shouldExposeDevCode,
   type MailSendResult,
-} from "./mailer.js"; // E-mails só em 2FA opt-in ou esqueci senha
+} from "./mailer.js"; // E-mails: 2FA opt-in ou link de esqueci senha
 
 /** Detecta violação UNIQUE do Postgres (23505) na coluna indicada. */
 function isUniqueViolation(err: unknown, column: string): boolean {
@@ -311,27 +311,7 @@ async function createAndSendChallenge(opts: {
     code: prepared.code,
   };
 
-  let mail: MailSendResult;
-
-  // Esqueci senha: grava token no banco e manda código + link /reset-password
-  if (opts.purpose === "password_reset") {
-    const rawToken = randomBytes(32).toString("hex");
-    await db
-      .update(passwordResetTokens)
-      .set({ used: true, usedAt: new Date() })
-      .where(and(eq(passwordResetTokens.userId, opts.userId), eq(passwordResetTokens.used, false)));
-    await db.insert(passwordResetTokens).values({
-      userId: opts.userId,
-      tokenSha256: sha256Hex(rawToken),
-      expiresAt: new Date(Date.now() + RESET_TTL_MS),
-      ipAddress: opts.ip,
-      userAgent: opts.userAgent,
-    });
-    mail = await sendPasswordResetOtpEmail(opts.email, prepared.code, rawToken);
-  } else {
-    mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
-  }
-
+  const mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
   if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
 
   const payload = buildChallengePayload(base, mail);
@@ -353,7 +333,7 @@ async function isTwoFactorEnabled(userId: string): Promise<boolean> {
 /** Resposta genérica do forgot — nunca revela se o e-mail existe. */
 const FORGOT_OK = {
   ok: true as const,
-  message: "If the email exists, a verification code was sent.",
+  message: "If the email exists, a reset link was sent.",
 };
 
 /** Registra rotas /auth/* no Fastify. */
@@ -537,7 +517,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(issueSession(user));
   });
 
-  /** Pedido de reset — envia OTP (2 etapas); sempre 200 para não enumerar contas. */
+  /** Pedido de reset — e-mail só com link (sem OTP); sempre 200 para não enumerar contas. */
   app.post("/auth/forgot", async (request: FastifyRequest, reply: FastifyReply) => {
     const parsed = forgotBody.safeParse(request.body);
     if (!parsed.success) {
@@ -546,7 +526,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const email = parsed.data.email.toLowerCase();
     const ip = getClientIp(request) ?? "unknown";
     if (!allowForgotAttempt(`e:${email}`, 3) || !allowForgotAttempt(`ip:${ip}`, 10)) {
-      return reply.send(FORGOT_OK); // Mesma resposta mesmo sob rate limit
+      return reply.send(FORGOT_OK);
     }
 
     const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.email, email));
@@ -554,16 +534,29 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(FORGOT_OK);
     }
 
-    // Verificação em 2 etapas: código por e-mail antes de liberar token de nova senha
-    await createAndSendChallenge({
+    const rawToken = randomBytes(32).toString("hex");
+    await db
+      .update(passwordResetTokens)
+      .set({ used: true, usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.userId, user.id), eq(passwordResetTokens.used, false)));
+    await db.insert(passwordResetTokens).values({
       userId: user.id,
-      email: user.email,
-      purpose: "password_reset",
-      ip: getClientIp(request),
+      tokenSha256: sha256Hex(rawToken),
+      expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      ipAddress: getClientIp(request),
       userAgent: getUserAgent(request),
-      reply,
     });
-    return;
+
+    const mail = await sendPasswordResetEmail(user.email, rawToken);
+    if (!mail.sent) {
+      console.error("[auth] reset e-mail não enviado:", mail.error, mail.via);
+      return reply.send({
+        ...FORGOT_OK,
+        emailSent: false,
+        emailError: mail.error ?? "smtp_failed",
+      });
+    }
+    return reply.send({ ...FORGOT_OK, emailSent: true });
   });
 
   /** Confirma nova senha a partir do token do e-mail. */

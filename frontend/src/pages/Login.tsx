@@ -4,7 +4,7 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useMemo, useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import { Eye, EyeOff, Shield } from "lucide-react";
@@ -18,6 +18,7 @@ import { EmailOtpStep } from "@/components/EmailOtpStep";
 export default function Login() {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { setSession, logout, token, user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,6 +26,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [challenge, setChallenge] = useState<AuthChallengeResponse | null>(null);
+  const justReset = searchParams.get("reset") === "1";
 
   const isAdminMode = isAdminUser(email.trim());
   const redirectFrom = (location.state as { from?: string } | null)?.from;
@@ -156,6 +158,15 @@ export default function Login() {
           }`}
         >
           <AnimatePresence mode="wait">{challenge ? null : header}</AnimatePresence>
+
+          {justReset && !challenge && (
+            <div
+              role="status"
+              className="rounded-xl px-4 py-3 text-sm bg-cgreen-50 dark:bg-cgreen-950/30 text-cgreen-800 dark:text-cgreen-200 border border-cgreen-200 dark:border-cgreen-800"
+            >
+              Senha redefinida com sucesso. Entre com a nova senha.
+            </div>
+          )}
 
           {challenge ? (
             <EmailOtpStep

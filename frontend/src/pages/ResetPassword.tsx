@@ -1,16 +1,16 @@
 /**
- * Página de nova senha — mesmo padrão visual do login.
- * O token vem do e-mail; a senha nova grava em users.password_hash.
+ * Página de nova senha — token do e-mail; após salvar redireciona ao login.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { ApiError, resetPasswordRequest, translateApiError } from "@/lib/api";
 
 export default function ResetPassword() {
+  const navigate = useNavigate();
   const [params] = useSearchParams();
   const token = useMemo(() => params.get("token")?.trim() ?? "", [params]);
   const [password, setPassword] = useState("");
@@ -19,6 +19,14 @@ export default function ResetPassword() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!done) return;
+    const t = window.setTimeout(() => {
+      navigate("/login?reset=1", { replace: true });
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [done, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,11 +72,14 @@ export default function ResetPassword() {
             </p>
           ) : done ? (
             <div className="space-y-4 text-center">
-              <p className="text-sm text-cgray-600 dark:text-muted-foreground">
-                Senha salva no banco. Entre de novo com a nova senha.
-              </p>
+              <div
+                role="status"
+                className="rounded-xl px-4 py-3 text-sm bg-cgreen-50 dark:bg-cgreen-950/30 text-cgreen-800 dark:text-cgreen-200 border border-cgreen-200 dark:border-cgreen-800"
+              >
+                Senha atualizada! Redirecionando para o login…
+              </div>
               <Link
-                to="/login"
+                to="/login?reset=1"
                 className="block w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium leading-[44px] hover:bg-cgreen-700"
               >
                 Ir para o login
@@ -128,7 +139,7 @@ export default function ResetPassword() {
                 disabled={submitting}
                 className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
               >
-                {submitting ? "Salvando…" : "Salvar nova senha"}
+                {submitting ? "Salvando…" : "Redefinir senha"}
               </button>
             </form>
           )}

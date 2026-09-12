@@ -335,7 +335,7 @@ sequenceDiagram
 
 ### 4.7 Recuperação de senha e 2FA por e-mail
 
-1. **Esqueci a senha (2 etapas + link):** `POST /auth/forgot` → OTP + token em `password_reset_tokens` → e-mail com código e botão `/reset-password?token=…` → usuário digita OTP (`POST /auth/2fa/verify` libera novo `resetToken`) **ou** abre o link → `POST /auth/reset` (hash + `token_version++` + audit).
+1. **Esqueci a senha (link por e-mail):** `POST /auth/forgot` (Vercel Node `/api/auth/forgot` ou backend) → token em `password_reset_tokens` → e-mail HTML com botão `/reset-password?token=…` (sem OTP) → `POST /auth/reset` grava `password_hash` + `token_version++` → UI redireciona ao login.
 2. **Cadastro/login padrão:** gravam no banco e emitem JWT **sem** enviar e-mail. `email_verified=true` no insert do cadastro.
 3. **2FA opt-in:** Configurações → `POST /auth/2fa/enable` → OTP → `user_settings.two_factor_enabled=true`. Nos logins seguintes, senha ok dispara OTP (`purpose=login`) antes do JWT.
 4. E-mails: local prioriza SMTP Gmail (`SMTP_*` / `MAIL_FROM_SMTP`); produção Railway usa relay Vercel e/ou SMTP conforme variáveis.
@@ -571,9 +571,8 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 |------|--------|--------|
 | `/` | Dashboard | KPIs, gráficos, transações |
 | `/login`, `/register` | Auth | JWT direto no banco; OTP só se 2FA ligado |
-| `/forgot-password` | ForgotPassword | OTP por e-mail → `/reset-password` |
-| `/forgot-password` | ForgotPassword | Pedido de link de redefinição |
-| `/reset-password` | ResetPassword | Nova senha via token do e-mail |
+| `/forgot-password` | ForgotPassword | Envia link por e-mail → alerta “confira a caixa de entrada” |
+| `/reset-password` | ResetPassword | Nova senha via token do e-mail → redireciona ao login |
 | `/admin/login` | AdminLogin | JWT exclusivo admin |
 | `/goals` | Goals | Metas financeiras |
 | `/ai` | AiChat | Chat IA (histórico interno na sidebar) |
@@ -592,7 +591,7 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 
 **Favicon / PWA:** `frontend/public/favicon.png` (ícone Controla.AI `.ai` em arco verde); referenciado em `frontend/index.html`.
 
-Em **dev**, base vazia → proxy Vite → `localhost:3333`. Em **produção**, base vazia → same-origin no Vercel (`/auth`, `/api`, `/health`) → `middleware.ts` / `api/backend-proxy` encaminham para `BACKEND_URL` (URL pública do Railway). `VITE_API_URL` só se quiser chamar o Railway direto (opcional); URLs antigas (`controlaaigastosdeploy`, `backend-production-c328`) são rejeitadas.
+Em **dev**, base vazia → proxy Vite → `localhost:3333`. Em **produção**, base vazia → same-origin no Vercel. **Esqueci senha / reset** usam funções Node `frontend/api/auth/forgot.ts` e `reset.ts` (Postgres `DATABASE_URL` + Gmail `SMTP_*` na Vercel — não dependem do Railway). Demais rotas `/auth/*` e `/api/*` → middleware/proxy → `BACKEND_URL`.
 
 ### 8.1 Termos LGPD e consentimento no cadastro
 
@@ -1121,6 +1120,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.22 | E-mail só Gmail: remove Resend; relay Vercel Node (`/relay/send`) recebe SMTP_* no body; secret compartilhado `EMAIL_SMTP_RELAY_SECRET` |
 | set/2026 | 8.23 | Produção: API same-origin + `BACKEND_URL` no Vercel (remove fallback Railway morto `controlaaigastosdeploy`); proxy rejeita URLs inválidas com 503 |
 | set/2026 | 8.24 | Esqueci senha: e-mail com OTP + link `/reset-password`; aguarda SMTP/relay antes do JSON; `railway.toml` na raiz do monorepo; relay Vercel aceita SMTP_* do env |
+| set/2026 | 8.25 | Esqueci senha sem OTP: link no e-mail; rotas Vercel `/api/auth/forgot`+`reset` (Postgres+SMTP); alerta “confira a caixa de entrada”; após reset → login |
 
 ---
 

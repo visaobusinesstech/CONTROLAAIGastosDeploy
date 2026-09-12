@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/auth/forgot", "destination": "/api/auth/forgot" },
+    { "source": "/auth/reset", "destination": "/api/auth/reset" },
     { "source": "/auth/:path*", "destination": "/api/backend-proxy/auth/:path*" },
     { "source": "/relay/send", "destination": "/api/relay/send" },
     { "source": "/api/:path*", "destination": "/api/backend-proxy/api/:path*" },

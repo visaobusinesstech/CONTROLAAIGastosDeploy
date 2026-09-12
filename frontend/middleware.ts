@@ -1,6 +1,6 @@
 /**
- * Proxy Edge — encaminha /auth, /api e /health para o backend (Railway).
- * Evita CORS: o browser chama o mesmo domínio do frontend.
+ * Proxy Edge — encaminha /auth (exceto forgot/reset), /api e /health ao Railway.
+ * Forgot/reset ficam nas funções Node Vercel (/api/auth/*) — e-mail rápido sem backend.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
@@ -16,8 +16,16 @@ function resolveBackendUrl(): string | null {
 }
 
 export const config = {
-  // Não interceptar /api/backend-proxy nem /api/relay (funções Vercel)
-  matcher: ["/auth/:path*", "/health", "/api/((?!backend-proxy|relay).*)"],
+  // forgot/reset → funções Vercel; demais auth/api → Railway
+  matcher: [
+    "/auth/login",
+    "/auth/register",
+    "/auth/me",
+    "/auth/legal",
+    "/auth/2fa/:path*",
+    "/health",
+    "/api/((?!backend-proxy|relay|auth).*)",
+  ],
 };
 
 export default async function middleware(request: Request): Promise<Response> {

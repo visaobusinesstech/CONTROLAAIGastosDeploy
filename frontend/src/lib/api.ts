@@ -210,10 +210,7 @@ export function isAuthChallenge(r: { requiresTwoFactor?: boolean }): r is AuthCh
 
 export async function forgotPasswordRequest(
   email: string,
-): Promise<
-  | AuthChallengeResponse
-  | { ok: boolean; message: string }
-> {
+): Promise<{ ok: boolean; message: string; emailSent?: boolean; emailError?: string }> {
   return apiFetch("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) });
 }
 

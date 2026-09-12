@@ -298,39 +298,16 @@ export async function sendOtpEmail(to: string, code: string, purpose: string): P
 }
 
 /**
- * Esqueci senha — código OTP + link direto para /reset-password (token no banco).
- * O usuário pode digitar o código no app ou abrir o botão do e-mail.
+ * E-mail legado / backend — só link de reset (sem OTP).
  */
-export async function sendPasswordResetOtpEmail(
-  to: string,
-  code: string,
-  rawToken: string,
-): Promise<MailSendResult> {
-  const url = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
-  const title = "Redefinir senha";
-  const html = wrapHtml(
-    title,
-    `<p>Recebemos um pedido para alterar a senha da sua conta Controla.ai.</p>
-     <p>Use o código de <strong>${OTP_MINUTES} minutos</strong> na tela do app:</p>
-     <div style="margin:20px 0;padding:18px 12px;background:#f4f6f5;border-radius:12px;text-align:center;">
-       <p style="margin:0;font-size:32px;letter-spacing:10px;font-weight:700;color:#16a34a;">${code}</p>
-     </div>
-     <p>Ou abra direto a <strong>página de nova senha</strong> (válida por <strong>${RESET_MINUTES} minutos</strong>):</p>
-     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:600;font-size:15px;">Abrir página de nova senha</a></p>
-     <p style="color:#6b7280;font-size:12px;word-break:break-all;">Se o botão não abrir: ${url}</p>`,
-  );
-  const text = `${title} — Controla.ai\n\nCódigo: ${code} (válido ${OTP_MINUTES} min)\n\nOu abra a página de nova senha:\n${url}\n\nLink válido por ${RESET_MINUTES} minutos.`;
-  return sendMail({ to, subject: `${title} — Controla.ai`, html, text });
-}
-
-/** E-mail só com link de reset (compat / reenvio). */
 export async function sendPasswordResetEmail(to: string, rawToken: string): Promise<MailSendResult> {
   const url = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
   const html = wrapHtml(
     "Redefinir senha",
     `<p>Recebemos um pedido para alterar a senha da sua conta.</p>
-     <p>Clique no botão para abrir a <strong>página de nova senha</strong>. O link vale por <strong>${RESET_MINUTES} minutos</strong>.</p>
-     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:600;font-size:15px;">Abrir página de nova senha</a></p>`,
+     <p>Clique no botão para abrir a página de nova senha no Controla.ai. O link vale por <strong>${RESET_MINUTES} minutos</strong>.</p>
+     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:600;font-size:15px;">Redefinir minha senha</a></p>
+     <p style="color:#6b7280;font-size:12px;word-break:break-all;">Se o botão não abrir: ${url}</p>`,
   );
   const text = `Redefinir senha Controla.ai\n\nAbra: ${url}`;
   return sendMail({ to, subject: "Redefinir senha — Controla.ai", html, text });

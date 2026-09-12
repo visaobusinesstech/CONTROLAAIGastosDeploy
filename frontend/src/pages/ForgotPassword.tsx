@@ -1,20 +1,12 @@
 /**
- * Pedido de recuperação de senha — verificação em 2 etapas (OTP) e depois nova senha.
+ * Pedido de recuperação de senha — e-mail com link (sem OTP).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { LogoFull } from "@/components/Logo";
-import { EmailOtpStep } from "@/components/EmailOtpStep";
-import {
-  ApiError,
-  forgotPasswordRequest,
-  isAuthChallenge,
-  translateApiError,
-  verifyTwoFactorRequest,
-  type AuthChallengeResponse,
-} from "@/lib/api";
+import { ApiError, forgotPasswordRequest, translateApiError } from "@/lib/api";
 
 /** E-mail já digitado no login/cadastro (query ou sessionStorage). */
 function initialEmail(query: string | null): string {
@@ -28,17 +20,17 @@ function initialEmail(query: string | null): string {
 }
 
 export default function ForgotPassword() {
-  const navigate = useNavigate();
   const [params] = useSearchParams();
   const [email, setEmail] = useState(() => initialEmail(params.get("email")));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [challenge, setChallenge] = useState<AuthChallengeResponse | null>(null);
-  const [genericSent, setGenericSent] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [emailFailed, setEmailFailed] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setEmailFailed(false);
     setSubmitting(true);
     try {
       const normalized = email.trim().toLowerCase();
@@ -48,33 +40,14 @@ export default function ForgotPassword() {
         /* ignore */
       }
       const res = await forgotPasswordRequest(normalized);
-      if (isAuthChallenge(res)) {
-        setChallenge(res);
+      if ("emailSent" in res && res.emailSent === false) {
+        setEmailFailed(true);
+        setSent(true);
         return;
       }
-      setError("");
-      setChallenge(null);
-      setGenericSent(true);
+      setSent(true);
     } catch (err) {
-      setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível enviar o código.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleVerifyOtp = async (code: string) => {
-    if (!challenge || code.length !== 6) return;
-    setError("");
-    setSubmitting(true);
-    try {
-      const result = await verifyTwoFactorRequest({ challengeId: challenge.challengeId, code });
-      if ("resetToken" in result && typeof result.resetToken === "string") {
-        navigate(`/reset-password?token=${encodeURIComponent(result.resetToken)}`, { replace: true });
-        return;
-      }
-      setError("Código ok, mas não foi possível liberar a nova senha. Tente de novo.");
-    } catch (err) {
-      setError(err instanceof ApiError ? translateApiError(err.message) : "Código inválido.");
+      setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível enviar o e-mail.");
     } finally {
       setSubmitting(false);
     }
@@ -87,24 +60,36 @@ export default function ForgotPassword() {
           <LogoFull />
         </div>
         <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5 min-w-0">
-          {challenge ? (
-            <EmailOtpStep
-              challenge={challenge}
-              submitting={submitting}
-              error={error}
-              onChangeChallenge={setChallenge}
-              onCodeComplete={handleVerifyOtp}
-              onBack={() => {
-                setChallenge(null);
-                setError("");
-              }}
-            />
-          ) : genericSent ? (
+          {sent ? (
             <div className="space-y-4">
+              <div
+                role="status"
+                className={`rounded-xl px-4 py-3 text-sm ${
+                  emailFailed
+                    ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800"
+                    : "bg-cgreen-50 dark:bg-cgreen-950/30 text-cgreen-800 dark:text-cgreen-200 border border-cgreen-200 dark:border-cgreen-800"
+                }`}
+              >
+                {emailFailed ? (
+                  <>
+                    Não conseguimos enviar o e-mail agora. Tente de novo em instantes ou confira se o endereço está
+                    correto.
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-semibold">Confira sua caixa de entrada</strong>
+                    <span className="block mt-1">
+                      O e-mail de redefinição de senha do Controla.ai chegou (ou chegará em poucos segundos). Abra o
+                      botão do e-mail para escolher a nova senha. Verifique também o Spam.
+                    </span>
+                  </>
+                )}
+              </div>
               <div className="text-center">
                 <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Verifique seu e-mail</h1>
                 <p className="text-sm text-cgray-400 mt-1">
-                  Se existir uma conta com esse e-mail, enviamos um código de verificação.
+                  Se existir uma conta com <span className="text-cgray-600 dark:text-foreground">{email.trim()}</span>,
+                  enviamos o link de redefinição.
                 </p>
               </div>
               <Link
@@ -113,13 +98,25 @@ export default function ForgotPassword() {
               >
                 Voltar ao login
               </Link>
+              {emailFailed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSent(false);
+                    setEmailFailed(false);
+                  }}
+                  className="w-full text-sm text-cgreen-500 font-medium"
+                >
+                  Tentar novamente
+                </button>
+              )}
             </div>
           ) : (
             <>
               <div className="text-center">
                 <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Esqueceu a senha?</h1>
                 <p className="text-sm text-cgray-400 mt-1">
-                  Enviaremos um código de 6 dígitos por e-mail (verificação em 2 etapas) antes de liberar a nova senha.
+                  Enviaremos um e-mail com um botão para abrir a página de nova senha no Controla.ai.
                 </p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -143,20 +140,18 @@ export default function ForgotPassword() {
                   disabled={submitting}
                   className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
                 >
-                  {submitting ? "Enviando…" : "Enviar código"}
+                  {submitting ? "Enviando…" : "Enviar link de redefinição"}
                 </button>
               </form>
             </>
           )}
 
-          {!challenge && (
-            <p className="text-center text-sm text-cgray-400">
-              Lembrou a senha?{" "}
-              <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
-                Entrar
-              </Link>
-            </p>
-          )}
+          <p className="text-center text-sm text-cgray-400">
+            Lembrou a senha?{" "}
+            <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
+              Entrar
+            </Link>
+          </p>
         </div>
       </motion.div>
     </div>

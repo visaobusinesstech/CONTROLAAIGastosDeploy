@@ -116,7 +116,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.24", // Forgot: e-mail com OTP + link /reset-password; Railway monorepo root
+      build: "8.25", // Forgot link-only + Vercel /api/auth/forgot|reset
 
       mail: mailHealthSnapshot(),
 
