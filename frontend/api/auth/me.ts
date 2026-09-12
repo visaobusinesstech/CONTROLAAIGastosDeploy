@@ -1,32 +1,55 @@
 /**
- * GET /auth/me → /api/auth/me
+ * GET /api/auth/me — imports estáticos (mesmo padrão do relay).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import jwt from "jsonwebtoken";
+import postgres from "postgres";
 
 export const config = { runtime: "nodejs", maxDuration: 10 };
 
-function json(res: VercelResponse, status: number, body: unknown): void {
-  res.status(status).setHeader("Content-Type", "application/json").send(JSON.stringify(body));
+const JWT_SECRET =
+  (process.env.JWT_SECRET ?? "").trim() ||
+  "controlaai-tcc-unicesumar-2026-davi-leonardo-gustavo-long-secret-key";
+
+const DATABASE_URL =
+  (process.env.DATABASE_URL ?? "").trim() ||
+  "postgresql://postgres:qxjDdGqZDVqJpXLsHibuGZVElCrxrcAc@maglev.proxy.rlwy.net:29404/railway?sslmode=require";
+
+let sql: ReturnType<typeof postgres> | null = null;
+
+function getDb() {
+  if (sql) return sql;
+  const url = DATABASE_URL.replace(/[?&]sslmode=[^&]*/gi, "").replace(/\?$/, "");
+  sql = postgres(url, {
+    max: 1,
+    connect_timeout: 10,
+    prepare: false,
+    ssl: { rejectUnauthorized: false },
+  });
+  return sql;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     if (req.method !== "GET") {
-      json(res, 405, { error: "Method not allowed" });
+      res.status(405).json({ error: "Method not allowed" });
       return;
     }
-    const { getSql } = await import("./db");
-    const { issueSession, verifyBearer } = await import("./session");
-
-    const auth = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
-    const payload = await verifyBearer(auth);
-    if (!payload?.sub) {
-      json(res, 401, { error: "Unauthorized" });
+    const auth = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+    if (!auth.startsWith("Bearer ")) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    let payload: { sub: string; email: string; tv?: number };
+    try {
+      payload = jwt.verify(auth.slice(7), JWT_SECRET) as { sub: string; email: string; tv?: number };
+    } catch {
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const db = await getSql();
+    const db = getDb();
     const rows = await db<
       {
         id: string;
@@ -45,19 +68,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     `;
     const user = rows[0];
     if (!user || user.is_active === false) {
-      json(res, 401, { error: "Unauthorized" });
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
     if (payload.tv != null && user.token_version != null && payload.tv !== user.token_version) {
-      json(res, 401, { error: "Unauthorized" });
+      res.status(401).json({ error: "Unauthorized" });
       return;
     }
 
-    const session = await issueSession(user);
-    json(res, 200, { user: session.user });
+    res.status(200).json({
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        plan: user.plan,
+        createdAt: new Date(user.created_at).toISOString(),
+        accessLevel: user.access_level ?? "user",
+        isActive: user.is_active !== false,
+      },
+    });
   } catch (err) {
     console.error("[api/auth/me]", err);
-    const msg = err instanceof Error ? err.message : String(err);
-    json(res, 500, { error: "Me failed", detail: msg.slice(0, 240) });
+    res.status(500).json({ error: "Me failed", detail: err instanceof Error ? err.message : String(err) });
   }
 }

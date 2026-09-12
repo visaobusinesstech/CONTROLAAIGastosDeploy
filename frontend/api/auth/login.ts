@@ -1,36 +1,56 @@
 /**
- * POST /auth/login → /api/auth/login
+ * POST /api/auth/login — estilo relay (imports estáticos que já funcionam na Vercel).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import postgres from "postgres";
 
-export const config = { runtime: "nodejs", maxDuration: 15 };
+export const config = {
+  runtime: "nodejs",
+  maxDuration: 15,
+};
 
-function json(res: VercelResponse, status: number, body: unknown): void {
-  res.status(status).setHeader("Content-Type", "application/json").send(JSON.stringify(body));
+const JWT_SECRET =
+  (process.env.JWT_SECRET ?? "").trim() ||
+  "controlaai-tcc-unicesumar-2026-davi-leonardo-gustavo-long-secret-key";
+
+const DATABASE_URL =
+  (process.env.DATABASE_URL ?? "").trim() ||
+  "postgresql://postgres:qxjDdGqZDVqJpXLsHibuGZVElCrxrcAc@maglev.proxy.rlwy.net:29404/railway?sslmode=require";
+
+let sql: ReturnType<typeof postgres> | null = null;
+
+function getDb() {
+  if (sql) return sql;
+  const url = DATABASE_URL.replace(/[?&]sslmode=[^&]*/gi, "").replace(/\?$/, "");
+  sql = postgres(url, {
+    max: 1,
+    connect_timeout: 10,
+    idle_timeout: 5,
+    prepare: false,
+    ssl: { rejectUnauthorized: false },
+  });
+  return sql;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
     if (req.method !== "POST") {
-      json(res, 405, { error: "Method not allowed" });
+      res.status(405).json({ error: "Method not allowed" });
       return;
     }
-
-    const bcryptMod = await import("bcryptjs");
-    const bcrypt = (bcryptMod as { default?: typeof bcryptMod }).default ?? bcryptMod;
-    const { getSql } = await import("./db");
-    const { issueSession } = await import("./session");
 
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
     if (!email || !password) {
-      json(res, 400, { error: "Invalid input" });
+      res.status(400).json({ error: "Invalid input" });
       return;
     }
 
-    const db = await getSql();
+    const db = getDb();
     const rows = await db<
       {
         id: string;
@@ -50,16 +70,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     `;
     const user = rows[0];
     if (!user) {
-      json(res, 401, { error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid email or password" });
       return;
     }
+
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) {
-      json(res, 401, { error: "Invalid email or password" });
+      res.status(401).json({ error: "Invalid email or password" });
       return;
     }
     if (user.is_active === false) {
-      json(res, 403, { error: "Account inactive" });
+      res.status(403).json({ error: "Account inactive" });
       return;
     }
 
@@ -67,14 +88,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       SELECT two_factor_enabled FROM user_settings WHERE user_id = ${user.id}::uuid LIMIT 1
     `;
     if (Boolean(settings[0]?.two_factor_enabled) && email !== "admin@admin.com") {
-      json(res, 503, { error: "Two-factor login requires backend. Desative o 2FA ou aguarde o Railway." });
+      res.status(503).json({ error: "Two-factor login requires backend online." });
       return;
     }
 
-    json(res, 200, await issueSession(user));
+    const tv = user.token_version ?? 0;
+    const token = jwt.sign({ sub: user.id, email: user.email, tv }, JWT_SECRET, { expiresIn: "7d" });
+    res.status(200).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        plan: user.plan,
+        createdAt: new Date(user.created_at).toISOString(),
+        accessLevel: user.access_level ?? "user",
+        isActive: user.is_active !== false,
+      },
+    });
   } catch (err) {
     console.error("[api/auth/login]", err);
-    const msg = err instanceof Error ? err.message : String(err);
-    json(res, 500, { error: "Login failed", detail: msg.slice(0, 240) });
+    res.status(500).json({
+      error: "Login failed",
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 }
