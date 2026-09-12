@@ -3,10 +3,10 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import dns from "node:dns";
+import { resolveMailFrom, resolveSmtpPass, resolveSmtpUser } from "./_env";
 
 dns.setDefaultResultOrder("ipv4first");
 
-const DEFAULT_USER = "controlaisistematech@gmail.com";
 const RESET_MINUTES = 30;
 const PRODUCTION_APP = "https://controlaai-frontend.vercel.app";
 
@@ -15,14 +15,14 @@ function strip(raw: string | undefined): string {
 }
 
 function smtpUser(): string {
-  let raw = strip(process.env.SMTP_USER) || DEFAULT_USER;
+  let raw = resolveSmtpUser();
   const angled = raw.match(/<([^>]+)>/);
   if (angled) raw = angled[1];
   return raw.replace(/\s+/g, "").toLowerCase();
 }
 
 function smtpPass(): string {
-  return strip(process.env.SMTP_PASS).replace(/\s+/g, "");
+  return resolveSmtpPass();
 }
 
 function appBase(): string {
@@ -68,7 +68,7 @@ export async function sendResetLinkEmail(
   const pass = smtpPass();
   if (!pass) return { sent: false, error: "smtp_missing" };
   const user = smtpUser();
-  const from = strip(process.env.MAIL_FROM_SMTP) || `Controla.ai <${user}>`;
+  const from = resolveMailFrom();
   const url = `${appBase()}/reset-password?token=${encodeURIComponent(rawToken)}`;
   const { html, text, subject } = buildResetEmailHtml(url);
 

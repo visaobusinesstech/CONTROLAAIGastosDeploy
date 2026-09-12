@@ -20,15 +20,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    if (!process.env.DATABASE_URL?.trim()) {
-      json(res, 503, { error: "DATABASE_URL não configurado na Vercel." });
-      return;
-    }
-    if (!process.env.SMTP_PASS?.trim()) {
-      json(res, 503, { error: "SMTP_PASS não configurado na Vercel." });
-      return;
-    }
-
     const { getSql } = await import("./_db");
     const { sendResetLinkEmail } = await import("./_mail");
 

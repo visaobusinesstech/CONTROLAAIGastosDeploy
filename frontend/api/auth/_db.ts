@@ -2,15 +2,16 @@
  * Cliente Postgres para rotas Vercel auth.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
+import { resolveDatabaseUrl } from "./_env";
 
 type SqlClient = ReturnType<typeof import("postgres").default>;
 
 let sql: SqlClient | null = null;
 
-/** URL pública do Postgres (Railway) — obrigatória na Vercel. */
+/** URL pública do Postgres (Railway) — env ou fallback TCC. */
 export async function getSql(): Promise<SqlClient> {
   if (sql) return sql;
-  const raw = (process.env.DATABASE_URL ?? "").trim();
+  const raw = resolveDatabaseUrl();
   if (!raw) throw new Error("DATABASE_URL missing on Vercel");
 
   const mod = await import("postgres");

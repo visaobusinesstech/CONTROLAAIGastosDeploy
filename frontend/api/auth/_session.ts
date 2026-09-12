@@ -3,11 +3,10 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
-const FALLBACK_JWT =
-  "controlaai-tcc-unicesumar-2026-davi-leonardo-gustavo-long-secret-key";
+import { resolveJwtSecret } from "./_env";
 
 export function getJwtSecret(): string {
-  return (process.env.JWT_SECRET ?? "").trim() || FALLBACK_JWT;
+  return resolveJwtSecret();
 }
 
 export type PublicUser = {

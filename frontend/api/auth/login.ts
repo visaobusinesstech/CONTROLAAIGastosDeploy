@@ -17,14 +17,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    if (!process.env.DATABASE_URL?.trim()) {
-      json(res, 503, {
-        error: "DATABASE_URL não configurado na Vercel.",
-        hint: "Settings → Environment Variables → DATABASE_URL (Postgres público) + Redeploy",
-      });
-      return;
-    }
-
     const bcryptMod = await import("bcryptjs");
     const bcrypt = (bcryptMod as { default?: typeof bcryptMod }).default ?? bcryptMod;
     const { getSql } = await import("./_db");
