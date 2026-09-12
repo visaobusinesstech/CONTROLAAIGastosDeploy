@@ -1128,6 +1128,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.30 | Fix build Vercel TS: remove `mail/env/db/session/diag` mortos; imports relativos com `.js`; `isActive` sem comparação `true`/`false` inválida |
 | set/2026 | 8.31 | Middleware exclui `/api/settings` do proxy Railway (rewrite → `user-settings` na Vercel) |
 | set/2026 | 8.32 | Admin sem bloqueio falso: RequireAdmin/Staff usam sessão (`admin@admin.com` / accessLevel); capabilities com fallback se Railway 502 |
+| set/2026 | 8.33 | Backend Railway novo `controlaai-backend-production.up.railway.app`; proxy Vercel com fallback DEFAULT_BACKEND_URL (WhatsApp/API) |
 
 ---
 

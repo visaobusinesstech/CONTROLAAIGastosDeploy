@@ -4,12 +4,21 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
+/** Backend Railway atual (CONTROLAAi-backend). Override via BACKEND_URL no Vercel. */
+const DEFAULT_BACKEND_URL = "https://controlaai-backend-production.up.railway.app";
+
 const INVALID_BACKEND =
   /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|controlaaigastosdeploy\.up\.railway\.app|backend-production-c328\.up\.railway\.app|localhost|127\.0\.0\.1/i;
 
 function resolveBackendUrl(): string | null {
-  const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? "").trim().replace(/\/+$/, "");
-  if (!raw || INVALID_BACKEND.test(raw)) return null;
+  const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? DEFAULT_BACKEND_URL)
+    .trim()
+    .replace(/\/+$/, "");
+  if (!raw || INVALID_BACKEND.test(raw)) {
+    // Env morta/inválida → fallback do backend novo
+    if (!INVALID_BACKEND.test(DEFAULT_BACKEND_URL)) return DEFAULT_BACKEND_URL;
+    return null;
+  }
   if (!/^https?:\/\//i.test(raw)) return `https://${raw.replace(/^\/+/, "")}`;
   return raw;
 }
