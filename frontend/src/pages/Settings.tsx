@@ -38,6 +38,8 @@ import {
   disableTwoFactorRequest,
   verifyTwoFactorRequest,
   isAuthChallenge,
+  ApiError,
+  translateApiError,
   type AuthChallengeResponse,
 } from "@/lib/api";
 import { EmailOtpStep } from "@/components/EmailOtpStep";
@@ -348,7 +350,13 @@ export default function SettingsPage() {
       void qc.invalidateQueries({ queryKey: ["settings", token] });
     } catch (e) {
       setTwoFaWaiting(false);
-      toast.error(e instanceof Error ? e.message : "Não foi possível alterar o 2FA.");
+      const msg =
+        e instanceof ApiError
+          ? translateApiError(e.message) || e.message || "Servidor indisponível. Tente de novo."
+          : e instanceof Error
+            ? e.message
+            : "Não foi possível alterar o 2FA.";
+      toast.error(msg || "Não foi possível alterar o 2FA.");
     } finally {
       setTwoFaSubmitting(false);
     }
@@ -368,7 +376,13 @@ export default function SettingsPage() {
       }
       setTwoFaError("Código confirmado. Atualize a página se o status não mudar.");
     } catch (e) {
-      setTwoFaError(e instanceof Error ? e.message : "Código inválido.");
+      const msg =
+        e instanceof ApiError
+          ? translateApiError(e.message) || e.message || "Código inválido."
+          : e instanceof Error
+            ? e.message
+            : "Código inválido.";
+      setTwoFaError(msg || "Código inválido.");
     } finally {
       setTwoFaSubmitting(false);
     }

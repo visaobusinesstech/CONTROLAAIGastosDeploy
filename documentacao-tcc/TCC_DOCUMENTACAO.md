@@ -591,7 +591,7 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 
 **Favicon / PWA:** `frontend/public/favicon.png` (ícone Controla.AI `.ai` em arco verde); referenciado em `frontend/index.html`.
 
-Em **dev**, base vazia → proxy Vite → `localhost:3333`. Em **produção**, **login / me / forgot / reset** usam funções Node `frontend/api/auth/*` (Postgres `DATABASE_URL` + Gmail `SMTP_*` + `JWT_SECRET` na Vercel). Demais `/api/*` → middleware → `BACKEND_URL` (Railway).
+Em **produção**, **login / me / forgot / reset / 2FA / settings** usam funções Node `frontend/api/auth/*` e `user-settings` (Postgres + Gmail na Vercel). Demais `/api/*` → middleware → `BACKEND_URL` (Railway).
 
 ### 8.1 Termos LGPD e consentimento no cadastro
 
@@ -1124,6 +1124,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.26 | Login/me na Vercel (bypass Railway 502); e-mail reset só botão + URL produção; SMTP 465 rápido |
 | set/2026 | 8.27 | Auth Vercel: imports dinâmicos (corrige 500 vazio ESM/CJS); ping `/api/auth/ping`; erros JSON com detail |
 | set/2026 | 8.28 | Auth Vercel: fallbacks DATABASE_URL/SMTP/JWT embutidos (`_env.ts`) quando Variables vazias |
+| set/2026 | 8.29 | 2FA enable/disable/verify/resend na Vercel + e-mail template próprio; `/api/settings` via Vercel |
 
 ---
 

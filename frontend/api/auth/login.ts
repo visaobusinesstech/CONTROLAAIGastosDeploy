@@ -88,7 +88,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       SELECT two_factor_enabled FROM user_settings WHERE user_id = ${user.id}::uuid LIMIT 1
     `;
     if (Boolean(settings[0]?.two_factor_enabled) && email !== "admin@admin.com") {
-      res.status(503).json({ error: "Two-factor login requires backend online." });
+      const { createAndSendOtp } = await import("./otp-shared");
+      const challenge = await createAndSendOtp({
+        userId: user.id,
+        email: user.email,
+        purpose: "login",
+      });
+      res.status(200).json(challenge);
       return;
     }
 

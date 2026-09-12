@@ -18,9 +18,8 @@ export const config = {
   matcher: [
     "/auth/register",
     "/auth/legal",
-    "/auth/2fa/:path*",
     "/health",
-    "/api/((?!backend-proxy|relay|auth).*)",
+    "/api/((?!backend-proxy|relay|auth|user-settings|settings).*)",
   ],
 };
 
