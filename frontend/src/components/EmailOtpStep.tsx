@@ -51,7 +51,7 @@ const PURPOSE_COPY: Record<string, { title: string; hint: string }> = {
   },
   password_reset: {
     title: "Código para redefinir senha",
-    hint: "Digite o código de 6 dígitos enviado ao seu e-mail para continuar.",
+    hint: "Digite o código do e-mail — ou abra o botão “Abrir página de nova senha” no mesmo e-mail.",
   },
 };
 

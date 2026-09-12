@@ -33,6 +33,7 @@ import {
   OTP_MINUTES,
   RESET_MINUTES,
   sendOtpEmail,
+  sendPasswordResetOtpEmail,
   shouldExposeDevCode,
   type MailSendResult,
 } from "./mailer.js"; // E-mails só em 2FA opt-in ou esqueci senha
@@ -292,7 +293,7 @@ function buildChallengePayload(
   };
 }
 
-/** Resultado interno removido — usa MailSendResult de mailer.ts. */
+/** Cria OTP, envia e-mail e responde (aguarda SMTP/relay antes do JSON). */
 async function createAndSendChallenge(opts: {
   userId: string;
   email: string;
@@ -310,16 +311,34 @@ async function createAndSendChallenge(opts: {
     code: prepared.code,
   };
 
-  if (opts.reply) {
-    opts.reply.status(opts.statusCode ?? 200).send(buildChallengePayload(base, null, true));
-    const mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
-    if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
-    return buildChallengePayload(base, mail);
+  let mail: MailSendResult;
+
+  // Esqueci senha: grava token no banco e manda código + link /reset-password
+  if (opts.purpose === "password_reset") {
+    const rawToken = randomBytes(32).toString("hex");
+    await db
+      .update(passwordResetTokens)
+      .set({ used: true, usedAt: new Date() })
+      .where(and(eq(passwordResetTokens.userId, opts.userId), eq(passwordResetTokens.used, false)));
+    await db.insert(passwordResetTokens).values({
+      userId: opts.userId,
+      tokenSha256: sha256Hex(rawToken),
+      expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      ipAddress: opts.ip,
+      userAgent: opts.userAgent,
+    });
+    mail = await sendPasswordResetOtpEmail(opts.email, prepared.code, rawToken);
+  } else {
+    mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
   }
 
-  const mail = await sendOtpEmail(opts.email, prepared.code, opts.purpose);
   if (!mail.sent) console.error("[auth] OTP não enviado:", mail.error, mail.via);
-  return buildChallengePayload(base, mail);
+
+  const payload = buildChallengePayload(base, mail);
+  if (opts.reply) {
+    opts.reply.status(opts.statusCode ?? 200).send(payload);
+  }
+  return payload;
 }
 
 /** Lê se o 2FA está ligado nas preferências (default false). */

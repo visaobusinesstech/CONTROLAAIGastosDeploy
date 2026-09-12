@@ -335,7 +335,7 @@ sequenceDiagram
 
 ### 4.7 Recuperação de senha e 2FA por e-mail
 
-1. **Esqueci a senha (2 etapas):** `POST /auth/forgot` → OTP por e-mail (`purpose=password_reset`) → `POST /auth/2fa/verify` libera `resetToken` → página `/reset-password` → `POST /auth/reset` (hash + `token_version++` + audit).
+1. **Esqueci a senha (2 etapas + link):** `POST /auth/forgot` → OTP + token em `password_reset_tokens` → e-mail com código e botão `/reset-password?token=…` → usuário digita OTP (`POST /auth/2fa/verify` libera novo `resetToken`) **ou** abre o link → `POST /auth/reset` (hash + `token_version++` + audit).
 2. **Cadastro/login padrão:** gravam no banco e emitem JWT **sem** enviar e-mail. `email_verified=true` no insert do cadastro.
 3. **2FA opt-in:** Configurações → `POST /auth/2fa/enable` → OTP → `user_settings.two_factor_enabled=true`. Nos logins seguintes, senha ok dispara OTP (`purpose=login`) antes do JWT.
 4. E-mails: local prioriza SMTP Gmail (`SMTP_*` / `MAIL_FROM_SMTP`); produção Railway usa relay Vercel e/ou SMTP conforme variáveis.
@@ -1120,6 +1120,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.21 | Redis Railway (`REDIS_URL` / `REDIS_PASSWORD`) via `src/redis.ts` + ping em `/health`; ioredis |
 | set/2026 | 8.22 | E-mail só Gmail: remove Resend; relay Vercel Node (`/relay/send`) recebe SMTP_* no body; secret compartilhado `EMAIL_SMTP_RELAY_SECRET` |
 | set/2026 | 8.23 | Produção: API same-origin + `BACKEND_URL` no Vercel (remove fallback Railway morto `controlaaigastosdeploy`); proxy rejeita URLs inválidas com 503 |
+| set/2026 | 8.24 | Esqueci senha: e-mail com OTP + link `/reset-password`; aguarda SMTP/relay antes do JSON; `railway.toml` na raiz do monorepo; relay Vercel aceita SMTP_* do env |
 
 ---
 

@@ -54,11 +54,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const subject = body.subject?.trim();
   const html = body.html ?? "";
   const text = body.text ?? "";
-  const smtpUser = stripEnv(body.smtpUser).replace(/\s+/g, "").toLowerCase();
-  const smtpPass = stripEnv(body.smtpPass).replace(/\s+/g, "");
-  const from = stripEnv(body.from) || `Controla.ai <${smtpUser}>`;
-  const host = stripEnv(body.smtpHost) || "smtp.gmail.com";
-  const port = Number(body.smtpPort) || 587;
+  // Credenciais: body (Railway) ou env na Vercel (fallback)
+  const smtpUser =
+    stripEnv(body.smtpUser).replace(/\s+/g, "").toLowerCase() ||
+    stripEnv(process.env.SMTP_USER).replace(/\s+/g, "").toLowerCase() ||
+    "controlaisistematech@gmail.com";
+  const smtpPass =
+    stripEnv(body.smtpPass).replace(/\s+/g, "") || stripEnv(process.env.SMTP_PASS).replace(/\s+/g, "");
+  const from =
+    stripEnv(body.from) ||
+    stripEnv(process.env.MAIL_FROM_SMTP) ||
+    `Controla.ai <${smtpUser}>`;
+  const host = stripEnv(body.smtpHost) || stripEnv(process.env.SMTP_HOST) || "smtp.gmail.com";
+  const port = Number(body.smtpPort) || Number(process.env.SMTP_PORT) || 587;
 
   if (!to || !subject || (!html && !text)) {
     res.status(400).json({ error: "Invalid payload" });

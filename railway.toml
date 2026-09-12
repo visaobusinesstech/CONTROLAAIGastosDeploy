@@ -1,0 +1,12 @@
+# Deploy Railway a partir da raiz do monorepo (Root Directory = /).
+# Se o serviço já tiver Root Directory = backend, usa backend/railway.toml.
+[build]
+builder = "nixpacks"
+buildCommand = "npm install --prefix backend --include=dev && npm run build --prefix backend"
+
+[deploy]
+startCommand = "npm start --prefix backend"
+healthcheckPath = "/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
