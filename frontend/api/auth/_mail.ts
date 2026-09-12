@@ -1,15 +1,13 @@
 /**
- * Envio rápido Gmail SMTP (Vercel Node) — e-mail de reset só com botão.
+ * Envio Gmail SMTP — import dinâmico.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { createTransport } from "nodemailer";
 import dns from "node:dns";
 
 dns.setDefaultResultOrder("ipv4first");
 
 const DEFAULT_USER = "controlaisistematech@gmail.com";
 const RESET_MINUTES = 30;
-/** Sempre o domínio de produção no botão do e-mail (nunca localhost). */
 const PRODUCTION_APP = "https://controlaai-frontend.vercel.app";
 
 function strip(raw: string | undefined): string {
@@ -27,7 +25,6 @@ function smtpPass(): string {
   return strip(process.env.SMTP_PASS).replace(/\s+/g, "");
 }
 
-/** Base do link do e-mail — só produção (ignora FRONTEND_URL local). */
 function appBase(): string {
   const raw = strip(process.env.VITE_APP_URL) || strip(process.env.PUBLIC_APP_URL) || PRODUCTION_APP;
   const cleaned = raw.replace(/\/+$/, "");
@@ -35,8 +32,7 @@ function appBase(): string {
   return cleaned;
 }
 
-/** HTML do e-mail — só botão (sem URL em texto). */
-export function buildResetEmailHtml(url: string): { html: string; text: string; subject: string } {
+function buildResetEmailHtml(url: string): { html: string; text: string; subject: string } {
   const subject = "Redefinir senha — Controla.ai";
   const html = `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -60,12 +56,14 @@ export function buildResetEmailHtml(url: string): { html: string; text: string; 
   </table>
 </body>
 </html>`;
-  const text = `Redefinir senha — Controla.ai\n\nAbra o botão no e-mail HTML ou acesse o Controla.ai.\nVálido por ${RESET_MINUTES} minutos.`;
+  const text = `Redefinir senha — Controla.ai. Use o botão no e-mail. Válido ${RESET_MINUTES} min.`;
   return { html, text, subject };
 }
 
-/** Envia via Gmail SSL 465 (rápido; sem tentar 587 se 465 ok). */
-export async function sendResetLinkEmail(to: string, rawToken: string): Promise<{ sent: boolean; error?: string; ms?: number }> {
+export async function sendResetLinkEmail(
+  to: string,
+  rawToken: string,
+): Promise<{ sent: boolean; error?: string; ms?: number }> {
   const started = Date.now();
   const pass = smtpPass();
   if (!pass) return { sent: false, error: "smtp_missing" };
@@ -74,6 +72,8 @@ export async function sendResetLinkEmail(to: string, rawToken: string): Promise<
   const url = `${appBase()}/reset-password?token=${encodeURIComponent(rawToken)}`;
   const { html, text, subject } = buildResetEmailHtml(url);
 
+  const nm = await import("nodemailer");
+  const createTransport = nm.createTransport ?? (nm as { default: typeof nm }).default.createTransport;
   const transport = createTransport({
     host: "smtp.gmail.com",
     port: 465,
@@ -82,49 +82,21 @@ export async function sendResetLinkEmail(to: string, rawToken: string): Promise<
     connectionTimeout: 6_000,
     greetingTimeout: 6_000,
     socketTimeout: 8_000,
-    pool: false,
   });
   try {
-    await transport.sendMail({
-      from,
-      to,
-      subject,
-      html,
-      text,
-      priority: "high",
-      headers: { "X-Priority": "1", Importance: "high" },
-    });
+    await transport.sendMail({ from, to, subject, html, text, priority: "high" });
     transport.close();
     return { sent: true, ms: Date.now() - started };
   } catch (err) {
-    const lastErr = err instanceof Error ? err.message : String(err);
     try {
       transport.close();
     } catch {
       /* ignore */
     }
-    // Fallback único 587 se 465 falhar
-    const t2 = createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: { user, pass },
-      connectionTimeout: 6_000,
-      greetingTimeout: 6_000,
-      socketTimeout: 8_000,
-    });
-    try {
-      await t2.sendMail({ from, to, subject, html, text, priority: "high" });
-      t2.close();
-      return { sent: true, ms: Date.now() - started };
-    } catch (err2) {
-      try {
-        t2.close();
-      } catch {
-        /* ignore */
-      }
-      const msg = err2 instanceof Error ? err2.message : lastErr;
-      return { sent: false, error: msg.slice(0, 120) || "smtp_failed", ms: Date.now() - started };
-    }
+    return {
+      sent: false,
+      error: (err instanceof Error ? err.message : String(err)).slice(0, 120),
+      ms: Date.now() - started,
+    };
   }
 }

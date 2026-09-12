@@ -1122,6 +1122,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.24 | Esqueci senha: e-mail com OTP + link `/reset-password`; aguarda SMTP/relay antes do JSON; `railway.toml` na raiz do monorepo; relay Vercel aceita SMTP_* do env |
 | set/2026 | 8.25 | Esqueci senha sem OTP: link no e-mail; rotas Vercel `/api/auth/forgot`+`reset` (Postgres+SMTP); alerta “confira a caixa de entrada”; após reset → login |
 | set/2026 | 8.26 | Login/me na Vercel (bypass Railway 502); e-mail reset só botão + URL produção; SMTP 465 rápido |
+| set/2026 | 8.27 | Auth Vercel: imports dinâmicos (corrige 500 vazio ESM/CJS); ping `/api/auth/ping`; erros JSON com detail |
 
 ---
 

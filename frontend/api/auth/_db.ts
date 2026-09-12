@@ -1,22 +1,27 @@
 /**
- * Cliente Postgres para rotas Vercel (forgot/reset) — independente do Railway.
+ * Cliente Postgres para rotas Vercel auth.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import postgres from "postgres";
 
-let sql: ReturnType<typeof postgres> | null = null;
+type SqlClient = ReturnType<typeof import("postgres").default>;
 
-/** URL pública do Postgres (Railway maglev / DATABASE_URL na Vercel). */
-export function getSql() {
+let sql: SqlClient | null = null;
+
+/** URL pública do Postgres (Railway) — obrigatória na Vercel. */
+export async function getSql(): Promise<SqlClient> {
   if (sql) return sql;
   const raw = (process.env.DATABASE_URL ?? "").trim();
   if (!raw) throw new Error("DATABASE_URL missing on Vercel");
+
+  const mod = await import("postgres");
+  const postgres = mod.default;
   const url = raw.replace(/[?&]sslmode=[^&]*/gi, "").replace(/\?$/, "");
   const needsSsl = /rlwy\.net|railway\.app|neon\.tech|sslmode=require/i.test(raw);
   sql = postgres(url, {
     max: 1,
     connect_timeout: 10,
     idle_timeout: 5,
+    prepare: false,
     ...(needsSsl ? { ssl: { rejectUnauthorized: false } } : {}),
   });
   return sql;

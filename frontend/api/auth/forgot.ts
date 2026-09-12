@@ -1,61 +1,55 @@
 /**
- * POST /auth/forgot → /api/auth/forgot (Vercel Node).
- * Token no Postgres + e-mail com botão (sem OTP) — rápido, sem Railway.
+ * POST /auth/forgot → /api/auth/forgot
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createHash, randomBytes } from "node:crypto";
-import { getSql } from "./_db";
-import { sendResetLinkEmail } from "./_mail";
 
-export const config = {
-  runtime: "nodejs",
-  maxDuration: 15,
-};
+export const config = { runtime: "nodejs", maxDuration: 15 };
 
-const FORGOT_OK = {
-  ok: true as const,
-  message: "If the email exists, a reset link was sent.",
-};
-
-function sha256Hex(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
+function json(res: VercelResponse, status: number, body: unknown): void {
+  res.status(status).setHeader("Content-Type", "application/json").send(JSON.stringify(body));
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (req.method !== "POST") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
+const FORGOT_OK = { ok: true as const, message: "If the email exists, a reset link was sent." };
 
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    if (!email || !email.includes("@")) {
-      res.status(400).json({ error: "Invalid input" });
+    if (req.method !== "POST") {
+      json(res, 405, { error: "Method not allowed" });
       return;
     }
 
     if (!process.env.DATABASE_URL?.trim()) {
-      res.status(503).json({ error: "DATABASE_URL não configurado na Vercel." });
+      json(res, 503, { error: "DATABASE_URL não configurado na Vercel." });
       return;
     }
     if (!process.env.SMTP_PASS?.trim()) {
-      res.status(503).json({ error: "SMTP_PASS não configurado na Vercel." });
+      json(res, 503, { error: "SMTP_PASS não configurado na Vercel." });
       return;
     }
 
-    const db = getSql();
+    const { getSql } = await import("./_db");
+    const { sendResetLinkEmail } = await import("./_mail");
+
+    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    if (!email || !email.includes("@")) {
+      json(res, 400, { error: "Invalid input" });
+      return;
+    }
+
+    const db = await getSql();
     const users = await db<{ id: string; email: string }[]>`
       SELECT id, email FROM users WHERE lower(email) = ${email} LIMIT 1
     `;
     if (!users.length) {
-      res.status(200).json(FORGOT_OK);
+      json(res, 200, FORGOT_OK);
       return;
     }
     const user = users[0];
     const rawToken = randomBytes(32).toString("hex");
-    const tokenHash = sha256Hex(rawToken);
+    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
     await db`
@@ -70,15 +64,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const mail = await sendResetLinkEmail(user.email, rawToken);
     if (!mail.sent) {
-      console.error("[api/auth/forgot] mail failed:", mail.error, "ms=", mail.ms);
-      res.status(200).json({ ...FORGOT_OK, emailSent: false, emailError: mail.error ?? "smtp_failed" });
+      json(res, 200, { ...FORGOT_OK, emailSent: false, emailError: mail.error ?? "smtp_failed" });
       return;
     }
-    console.info("[api/auth/forgot] sent in", mail.ms, "ms");
-    res.status(200).json({ ...FORGOT_OK, emailSent: true });
+    json(res, 200, { ...FORGOT_OK, emailSent: true });
   } catch (err) {
     console.error("[api/auth/forgot]", err);
     const msg = err instanceof Error ? err.message : String(err);
-    res.status(500).json({ error: "Forgot failed", detail: msg.slice(0, 160) });
+    json(res, 500, { error: "Forgot failed", detail: msg.slice(0, 240) });
   }
 }

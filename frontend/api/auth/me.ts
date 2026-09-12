@@ -1,31 +1,32 @@
 /**
- * GET /auth/me → /api/auth/me (Vercel Node).
+ * GET /auth/me → /api/auth/me
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getSql } from "./_db";
-import { issueSession, verifyBearer } from "./_session";
 
-export const config = {
-  runtime: "nodejs",
-  maxDuration: 10,
-};
+export const config = { runtime: "nodejs", maxDuration: 10 };
+
+function json(res: VercelResponse, status: number, body: unknown): void {
+  res.status(status).setHeader("Content-Type", "application/json").send(JSON.stringify(body));
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (req.method !== "GET") {
-    res.status(405).json({ error: "Method not allowed" });
-    return;
-  }
-
   try {
+    if (req.method !== "GET") {
+      json(res, 405, { error: "Method not allowed" });
+      return;
+    }
+    const { getSql } = await import("./_db");
+    const { issueSession, verifyBearer } = await import("./_session");
+
     const auth = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
-    const payload = verifyBearer(auth);
+    const payload = await verifyBearer(auth);
     if (!payload?.sub) {
-      res.status(401).json({ error: "Unauthorized" });
+      json(res, 401, { error: "Unauthorized" });
       return;
     }
 
-    const db = getSql();
+    const db = await getSql();
     const rows = await db<
       {
         id: string;
@@ -44,18 +45,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     `;
     const user = rows[0];
     if (!user || user.is_active === false) {
-      res.status(401).json({ error: "Unauthorized" });
+      json(res, 401, { error: "Unauthorized" });
       return;
     }
     if (payload.tv != null && user.token_version != null && payload.tv !== user.token_version) {
-      res.status(401).json({ error: "Unauthorized" });
+      json(res, 401, { error: "Unauthorized" });
       return;
     }
 
-    const session = issueSession(user);
-    res.status(200).json({ user: session.user });
+    const session = await issueSession(user);
+    json(res, 200, { user: session.user });
   } catch (err) {
     console.error("[api/auth/me]", err);
-    res.status(503).json({ error: "Database unavailable" });
+    const msg = err instanceof Error ? err.message : String(err);
+    json(res, 500, { error: "Me failed", detail: msg.slice(0, 240) });
   }
 }

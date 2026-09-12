@@ -1,8 +1,7 @@
 /**
- * Helpers JWT / usuário para rotas Vercel auth.
+ * JWT / sessão — import dinâmico (compat bundle Vercel ESM).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import jwt from "jsonwebtoken";
 
 const FALLBACK_JWT =
   "controlaai-tcc-unicesumar-2026-davi-leonardo-gustavo-long-secret-key";
@@ -22,7 +21,12 @@ export type PublicUser = {
   isActive: boolean;
 };
 
-export function issueSession(row: {
+async function loadJwt() {
+  const mod = await import("jsonwebtoken");
+  return (mod as { default?: typeof import("jsonwebtoken") }).default ?? mod;
+}
+
+export async function issueSession(row: {
   id: string;
   name: string;
   email: string;
@@ -32,7 +36,8 @@ export function issueSession(row: {
   access_level: string | null;
   is_active: boolean | null;
   token_version: number | null;
-}): { token: string; user: PublicUser } {
+}): Promise<{ token: string; user: PublicUser }> {
+  const jwt = await loadJwt();
   const tv = row.token_version ?? 0;
   const token = jwt.sign({ sub: row.id, email: row.email, tv }, getJwtSecret(), { expiresIn: "7d" });
   return {
@@ -50,9 +55,12 @@ export function issueSession(row: {
   };
 }
 
-export function verifyBearer(authHeader: string | undefined): { sub: string; email: string; tv?: number } | null {
+export async function verifyBearer(
+  authHeader: string | undefined,
+): Promise<{ sub: string; email: string; tv?: number } | null> {
   if (!authHeader?.startsWith("Bearer ")) return null;
   try {
+    const jwt = await loadJwt();
     return jwt.verify(authHeader.slice(7), getJwtSecret()) as { sub: string; email: string; tv?: number };
   } catch {
     return null;
