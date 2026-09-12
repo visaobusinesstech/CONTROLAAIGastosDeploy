@@ -1,15 +1,24 @@
 /**
  * Guard de rota — exige staff (admin, operator ou viewer) para governança.
+ * Admin@admin.com nunca é bloqueado por falha de /me/capabilities.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useAuth } from "@/lib/auth";
+import { userIsStaff } from "@/lib/admin";
 
 /** Envolve rotas de auditoria, LGPD e assinantes. */
 export default function RequireStaff({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const { data: caps, isLoading, isError } = useCapabilities();
 
-  if (isLoading) {
+  const sessionStaff = userIsStaff(user);
+  if (sessionStaff || caps?.isStaff || caps?.isAdmin) {
+    return <>{children}</>;
+  }
+
+  if (authLoading || isLoading) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-muted-foreground">
         <Loader2 className="animate-spin" size={24} />

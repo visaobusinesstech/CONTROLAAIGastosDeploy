@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth"; // Dados do usuário logado
 import { useCapabilities } from "@/hooks/use-capabilities"; // Flag isAdmin da API
-import { isAdminUser } from "@/lib/admin"; // E-mail admin@admin.com
+import { isAdminUser, userIsAdmin } from "@/lib/admin"; // Admin por e-mail ou accessLevel
 import { TrialCountdownBanner } from "@/components/TrialCountdownBanner";
 
 /** Itens de menu para todos os usuários autenticados. */
@@ -82,7 +82,8 @@ export default function Layout() {
   const displayName = user?.name ?? "Usuário";
   const displayPlan = user ? planLabel(user.plan) : "—";
   const isSystemAdmin = isAdminUser(user?.email);
-  const isAdmin = isSystemAdmin || caps?.isAdmin;
+  // Admin por sessão (e-mail/accessLevel) — não depende do Railway capabilities
+  const isAdmin = userIsAdmin(user) || Boolean(caps?.isAdmin);
   const isStaff = Boolean(caps?.isStaff) || isAdmin;
   const billingBlocked = caps?.billing && !caps.billing.hasAccess && !isStaff;
   const onSettings = location.pathname === "/settings";

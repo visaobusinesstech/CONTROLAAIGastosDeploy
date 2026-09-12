@@ -97,6 +97,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           WHERE id = ${user.id}::uuid
         `;
       }
+      const accessLevel =
+        user.email.trim().toLowerCase() === "admin@admin.com"
+          ? "admin"
+          : (user.access_level ?? "user");
       const tv = user.token_version ?? 0;
       const token = jwt.sign({ sub: user.id, email: user.email, tv }, JWT_SECRET, { expiresIn: "7d" });
       res.status(200).json({
@@ -108,7 +112,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           phone: user.phone,
           plan: user.plan,
           createdAt: new Date(user.created_at).toISOString(),
-          accessLevel: user.access_level ?? "user",
+          accessLevel,
           isActive: user.is_active == null ? true : Boolean(user.is_active),
         },
       });

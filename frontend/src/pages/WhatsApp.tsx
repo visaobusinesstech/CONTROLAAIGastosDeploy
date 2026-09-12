@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useAuth } from "@/lib/auth";
-import { isAdminUser } from "@/lib/admin";
+import { userIsAdmin } from "@/lib/admin";
 import {
   apiConnectWhatsApp,
   apiDisconnectWhatsApp,
@@ -90,7 +90,7 @@ export default function WhatsAppPage() {
   const { token, user } = useAuth();
   const qc = useQueryClient();
   const { toast } = useToast();
-  const isAdmin = isAdminUser(user?.email);
+  const isAdmin = userIsAdmin(user);
   const autoConnectTried = useRef(false);
   const [selectedModel, setSelectedModel] = useState("");
 

@@ -1,16 +1,25 @@
 /**
- * Guard de rota — exige permissão admin (capabilities); bloqueia usuários comuns.
+ * Guard de rota — exige admin (e-mail sistema, accessLevel ou capabilities).
+ * Nunca bloqueia admin@admin.com por falha do Railway (/me/capabilities).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { Loader2, ShieldAlert } from "lucide-react";
-import { useCapabilities } from "@/hooks/use-capabilities"; // GET /api/me/capabilities
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { useAuth } from "@/lib/auth";
+import { userIsAdmin } from "@/lib/admin";
 
-/** Envolve rotas /admin/* — renderiza children só se caps.isAdmin for true. */
+/** Envolve rotas /admin/* — libera se sessão for admin, senão consulta capabilities. */
 export default function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user, loading: authLoading } = useAuth();
   const { data: caps, isLoading, isError } = useCapabilities();
 
-  // Estado de carregamento enquanto verifica permissões na API
-  if (isLoading) {
+  // Sessão já identifica admin — não depende do Railway
+  const sessionAdmin = userIsAdmin(user);
+  if (sessionAdmin || caps?.isAdmin) {
+    return <>{children}</>;
+  }
+
+  if (authLoading || isLoading) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-muted-foreground">
         <Loader2 className="animate-spin" size={24} />
@@ -19,7 +28,7 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
     );
   }
 
-  // Bloqueio visual para usuários sem flag isAdmin
+  // Só bloqueia usuários comuns (erro de API ≠ negar admin já tratado acima)
   if (isError || !caps?.isAdmin) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
