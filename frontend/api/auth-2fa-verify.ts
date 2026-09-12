@@ -5,7 +5,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { getDb, JWT_SECRET } from "./auth/otp-shared";
+import { getDb, JWT_SECRET } from "./auth/otp-shared.js";
 
 export const config = { runtime: "nodejs", maxDuration: 15 };
 
@@ -109,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           plan: user.plan,
           createdAt: new Date(user.created_at).toISOString(),
           accessLevel: user.access_level ?? "user",
-          isActive: user.is_active !== false,
+          isActive: user.is_active == null ? true : Boolean(user.is_active),
         },
       });
       return;

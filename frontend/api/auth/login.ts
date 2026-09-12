@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       SELECT two_factor_enabled FROM user_settings WHERE user_id = ${user.id}::uuid LIMIT 1
     `;
     if (Boolean(settings[0]?.two_factor_enabled) && email !== "admin@admin.com") {
-      const { createAndSendOtp } = await import("./otp-shared");
+      const { createAndSendOtp } = await import("./otp-shared.js");
       const challenge = await createAndSendOtp({
         userId: user.id,
         email: user.email,
@@ -110,7 +110,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         plan: user.plan,
         createdAt: new Date(user.created_at).toISOString(),
         accessLevel: user.access_level ?? "user",
-        isActive: user.is_active !== false,
+        isActive: user.is_active == null ? true : Boolean(user.is_active),
       },
     });
   } catch (err) {

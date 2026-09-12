@@ -76,6 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const isActive = user.is_active == null ? true : Boolean(user.is_active);
     res.status(200).json({
       user: {
         id: user.id,
@@ -85,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         plan: user.plan,
         createdAt: new Date(user.created_at).toISOString(),
         accessLevel: user.access_level ?? "user",
-        isActive: user.is_active !== false,
+        isActive,
       },
     });
   } catch (err) {
