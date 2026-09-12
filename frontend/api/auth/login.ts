@@ -19,8 +19,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const bcryptMod = await import("bcryptjs");
     const bcrypt = (bcryptMod as { default?: typeof bcryptMod }).default ?? bcryptMod;
-    const { getSql } = await import("./_db");
-    const { issueSession } = await import("./_session");
+    const { getSql } = await import("./db");
+    const { issueSession } = await import("./session");
 
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";

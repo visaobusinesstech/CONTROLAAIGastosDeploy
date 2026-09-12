@@ -2,7 +2,7 @@
  * Cliente Postgres para rotas Vercel auth.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { resolveDatabaseUrl } from "./_env";
+import { resolveDatabaseUrl } from "./env";
 
 type SqlClient = ReturnType<typeof import("postgres").default>;
 

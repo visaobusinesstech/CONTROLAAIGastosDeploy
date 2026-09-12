@@ -16,8 +16,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       json(res, 405, { error: "Method not allowed" });
       return;
     }
-    const { getSql } = await import("./_db");
-    const { issueSession, verifyBearer } = await import("./_session");
+    const { getSql } = await import("./db");
+    const { issueSession, verifyBearer } = await import("./session");
 
     const auth = typeof req.headers.authorization === "string" ? req.headers.authorization : undefined;
     const payload = await verifyBearer(auth);

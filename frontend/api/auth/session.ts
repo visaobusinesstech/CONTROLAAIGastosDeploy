@@ -3,7 +3,7 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
-import { resolveJwtSecret } from "./_env";
+import { resolveJwtSecret } from "./env";
 
 export function getJwtSecret(): string {
   return resolveJwtSecret();

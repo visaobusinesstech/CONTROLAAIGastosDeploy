@@ -3,7 +3,7 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import dns from "node:dns";
-import { resolveMailFrom, resolveSmtpPass, resolveSmtpUser } from "./_env";
+import { resolveMailFrom, resolveSmtpPass, resolveSmtpUser } from "./env";
 
 dns.setDefaultResultOrder("ipv4first");
 

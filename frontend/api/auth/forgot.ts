@@ -20,8 +20,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const { getSql } = await import("./_db");
-    const { sendResetLinkEmail } = await import("./_mail");
+    const { getSql } = await import("./db");
+    const { sendResetLinkEmail } = await import("./mail");
 
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
     const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
