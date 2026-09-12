@@ -592,7 +592,7 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 
 **Favicon / PWA:** `frontend/public/favicon.png` (ícone Controla.AI `.ai` em arco verde); referenciado em `frontend/index.html`.
 
-Variável `VITE_API_URL` aponta para o backend (dev: proxy Vite → porta 3333). Em produção: `https://controlaaigastosdeploy.up.railway.app` (também fallback em `api.ts` / middleware Vercel).
+Em **dev**, base vazia → proxy Vite → `localhost:3333`. Em **produção**, base vazia → same-origin no Vercel (`/auth`, `/api`, `/health`) → `middleware.ts` / `api/backend-proxy` encaminham para `BACKEND_URL` (URL pública do Railway). `VITE_API_URL` só se quiser chamar o Railway direto (opcional); URLs antigas (`controlaaigastosdeploy`, `backend-production-c328`) são rejeitadas.
 
 ### 8.1 Termos LGPD e consentimento no cadastro
 
@@ -992,8 +992,8 @@ npm run dev          # http://localhost:5173
 
 | Componente | Plataforma | Entry |
 |------------|------------|-------|
-| Backend + WhatsApp | Railway | `https://controlaaigastosdeploy.up.railway.app` (`node dist/src/index.js`, porta pública 8080) |
-| Frontend | Vercel | `https://controlaai-frontend.vercel.app` — env: `VITE_API_URL` + `BACKEND_URL` = URL Railway acima |
+| Backend + WhatsApp | Railway | URL pública do serviço backend (`https://….up.railway.app`) — `node dist/src/index.js`, porta pública 8080 |
+| Frontend | Vercel | `https://controlaai-frontend.vercel.app` — env obrigatório: `BACKEND_URL` = URL Railway; `VITE_API_URL` vazio (proxy same-origin) |
 | Banco | Railway PostgreSQL | `DATABASE_URL` |
 
 Migration onboarding: `npm run db:migrate:onboarding` ou `drizzle/0001_onboarding_settings.sql`.  
@@ -1119,6 +1119,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.20 | Cadastro/login sem e-mail (JWT direto); esqueci senha com OTP 2 etapas (`password_reset`); CRUD Assinantes (add/edit/delete) só `admin@admin.com`; migration `0012_password_reset_otp_and_delete.sql`; SMTP Gmail local; WhatsApp reabilitável via `ENABLE_WHATSAPP` |
 | set/2026 | 8.21 | Redis Railway (`REDIS_URL` / `REDIS_PASSWORD`) via `src/redis.ts` + ping em `/health`; ioredis |
 | set/2026 | 8.22 | E-mail só Gmail: remove Resend; relay Vercel Node (`/relay/send`) recebe SMTP_* no body; secret compartilhado `EMAIL_SMTP_RELAY_SECRET` |
+| set/2026 | 8.23 | Produção: API same-origin + `BACKEND_URL` no Vercel (remove fallback Railway morto `controlaaigastosdeploy`); proxy rejeita URLs inválidas com 503 |
 
 ---
 

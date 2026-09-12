@@ -109,7 +109,7 @@ export default function Register() {
         if (err.status === 0) {
           setError(
             import.meta.env.PROD
-              ? "Servidor da API offline. Configure VITE_API_URL no Vercel (URL do Railway) e redeploy."
+              ? "Servidor da API offline. Configure BACKEND_URL no Vercel (URL pública do Railway) e redeploy."
               : "API offline. Inicie o backend: cd backend && npm run dev",
           );
         } else {
@@ -118,7 +118,7 @@ export default function Register() {
       } else {
         setError(
           import.meta.env.PROD
-            ? "Não foi possível conectar ao servidor. Verifique VITE_API_URL no Vercel."
+            ? "Não foi possível conectar ao servidor. Verifique BACKEND_URL no Vercel."
             : "Não foi possível criar a conta. Inicie o backend e tente novamente.",
         );
       }

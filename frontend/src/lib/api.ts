@@ -1,15 +1,13 @@
 /**
  * Cliente HTTP do frontend — todas as chamadas à API REST do backend.
- * Base URL via VITE_API_URL; normaliza https para evitar 404 em produção.
+ * Dev: base vazia → proxy Vite → localhost:3333.
+ * Prod: base vazia → mesmo domínio Vercel → middleware/proxy → BACKEND_URL (Railway).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
-/** Backend Fastify no Railway (URL pública de fallback). */
-export const PRODUCTION_BACKEND_URL =
-  "https://controlaaigastosdeploy.up.railway.app";
-
-/** Hosts inválidos — evita apontar API para o próprio frontend Vercel. */
-const INVALID_API_HOSTS = /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|localhost|127\.0\.0\.1/i;
+/** Hosts inválidos — frontend Vercel, localhost ou Railway antigo (404). */
+const INVALID_API_HOSTS =
+  /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|localhost|127\.0\.0\.1|controlaaigastosdeploy\.up\.railway\.app|backend-production-c328\.up\.railway\.app/i;
 
 /** Sem https:// o browser trata o host como caminho relativo (ex.: Vercel → 404 no /login). */
 function normalizeApiBase(raw: string): string {
@@ -20,20 +18,20 @@ function normalizeApiBase(raw: string): string {
   return `https://${noTrail.replace(/^\/+/, "")}`;
 }
 
+/**
+ * Preferir same-origin em produção (proxy Vercel + BACKEND_URL em runtime).
+ * Só usa VITE_API_URL se for URL Railway válida e não estiver na lista morta.
+ */
 function resolveApiBase(): string {
   const configured = (import.meta.env.VITE_API_URL as string | undefined)?.trim() ?? "";
   if (configured) {
     const normalized = normalizeApiBase(configured);
     if (normalized && !INVALID_API_HOSTS.test(normalized)) return normalized;
   }
-  if (import.meta.env.PROD) return PRODUCTION_BACKEND_URL;
+  // Dev e prod: "" = mesmo origem (Vite proxy local / middleware Vercel)
   return "";
 }
 
-/**
- * Dev: base vazio → Vite proxy (vite.config.ts) encaminha /auth e /api para localhost:3333.
- * Produção: Railway ou VITE_API_URL válido no Vercel.
- */
 /** Prefixo base de todas as requisições fetch. */
 const base = resolveApiBase();
 
@@ -98,7 +96,7 @@ export async function apiFetch<T>(
         ? "O servidor demorou para responder. Tente de novo."
         : import.meta.env.DEV
           ? "Não foi possível conectar à API local (porta 3333). Inicie o backend."
-          : "Não foi possível conectar ao servidor. Verifique VITE_API_URL no Vercel.",
+          : "Não foi possível conectar ao servidor. Verifique BACKEND_URL no Vercel (Settings → Environment Variables).",
       0,
     );
   } finally {
@@ -138,7 +136,7 @@ export function translateApiError(message: string): string {
     "Password updated": "Senha atualizada.",
     "Database unavailable": "Banco de dados indisponível. Tente mais tarde.",
     "API não encontrada — URL do backend incorreta":
-      "Servidor da API incorreto. Configure VITE_API_URL com a URL do Railway.",
+      "Servidor da API incorreto. Configure BACKEND_URL no Vercel com a URL pública do Railway.",
     "Não foi possível conectar ao servidor. Verifique BACKEND_URL no Vercel (Settings → Environment Variables).":
       "Servidor offline ou BACKEND_URL errado no Vercel.",
     "BACKEND_URL não configurado no Vercel. Defina a URL pública do backend (Railway).":

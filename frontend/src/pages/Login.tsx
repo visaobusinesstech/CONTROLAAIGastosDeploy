@@ -86,7 +86,7 @@ export default function Login() {
         if (err.status === 0) {
           setError(
             import.meta.env.PROD
-              ? "Servidor da API offline. Configure VITE_API_URL no Vercel."
+              ? "Servidor da API offline. Configure BACKEND_URL no Vercel (URL pública do Railway)."
               : "API offline. Rode: cd backend && npm run dev (porta 3333).",
           );
         } else if (err.status === 503) {
