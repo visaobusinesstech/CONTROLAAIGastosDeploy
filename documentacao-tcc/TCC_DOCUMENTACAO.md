@@ -637,8 +637,8 @@ Cada aceite gera registro imutável em `user_consents` com `user_id`, `consent_t
 |--------|---------|
 | Textos legais | `backend/src/legal/documents.ts` |
 | API | `backend/src/auth.ts` — `GET /auth/legal`, validação no register, OTP, reset |
-| Mailer | `backend/src/mailer.ts` — relay Vercel HTTPS → Gmail; SMTP local em dev; Resend extra |
-| Relay Vercel | `frontend/api/relay/send.ts` — Edge Resend HTTPS; só `EMAIL_SMTP_RELAY_SECRET` no Vercel |
+| Mailer | `backend/src/mailer.ts` — SMTP Gmail local; prod → relay Vercel HTTPS → Gmail (sem Resend) |
+| Relay Vercel | `frontend/api/relay/send.ts` — Node + nodemailer; Vercel só `EMAIL_SMTP_RELAY_SECRET`; Railway manda `smtpUser`/`smtpPass` no body |
 | Schema | `backend/src/db/schema.ts` — enum `consent_type`, tabela `user_consents`, reset/2FA |
 | UI cadastro | `frontend/src/components/RegisterTermsAcceptance.tsx`, `EmailOtpStep.tsx` |
 | Orquestração | `frontend/src/pages/Register.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx` |
@@ -957,12 +957,11 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_YEARLY` | Não | IDs dos preços (defaults no código) |
 | `STRIPE_PAYMENT_LINK_MONTHLY` / `STRIPE_PAYMENT_LINK_YEARLY` | Não | URLs buy.stripe.com (links diretos de assinatura) |
 | `PUBLIC_DASHBOARD_URL` | Não | URL do painel nas mensagens pós-renda |
-| `RESEND_API_KEY` | Não | Tentativa extra (sem domínio verificado, só entrega para o e-mail da conta Resend) |
-| `MAIL_FROM` | Não | Remetente Resend (padrão `beth.t@example.com` — modo teste) |
-| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Não | Gmail local ou credenciais no **relay Vercel** (`SMTP_PASS` no projeto frontend Vercel) |
+| `RESEND_API_KEY` / `MAIL_FROM` | Não | **Removidos do fluxo** — e-mail só via Gmail SMTP / relay |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` | Sim (e-mail) | Gmail senha de app (sem espaços) — local e body do relay |
 | `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
-| `EMAIL_SMTP_RELAY_URL` | Sim (Railway) | `https://controlaai-frontend.vercel.app/relay/send` (não use `/api/email-relay` — cai no proxy) |
-| `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret; **no Vercel só esta variável** — `SMTP_*` ficam só no Railway e vão no body do POST |
+| `EMAIL_SMTP_RELAY_URL` | Sim (prod) | `https://controlaai-frontend.vercel.app/relay/send` (ou URL do worker) |
+| `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret no backend Railway e no projeto Vercel do relay |
 | `REDIS_URL` | Sim (prod) | `redis://default:SENHA@redis.railway.internal:6379` (rede privada Railway) |
 | `REDIS_PASSWORD` | Não | Senha Redis (alternativa se montar a URL) |
 | `REDIS_PUBLIC_URL` | Não (local) | Proxy público do Redis — só se for testar Redis do PC |
@@ -1119,6 +1118,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.19 | Relay Edge Resend-only (`/relay/send` → `api/relay/send`); nodemailer removido do Vercel (504); remetente `noreply@controlaai.com` |
 | set/2026 | 8.20 | Cadastro/login sem e-mail (JWT direto); esqueci senha com OTP 2 etapas (`password_reset`); CRUD Assinantes (add/edit/delete) só `admin@admin.com`; migration `0012_password_reset_otp_and_delete.sql`; SMTP Gmail local; WhatsApp reabilitável via `ENABLE_WHATSAPP` |
 | set/2026 | 8.21 | Redis Railway (`REDIS_URL` / `REDIS_PASSWORD`) via `src/redis.ts` + ping em `/health`; ioredis |
+| set/2026 | 8.22 | E-mail só Gmail: remove Resend; relay Vercel Node (`/relay/send`) recebe SMTP_* no body; secret compartilhado `EMAIL_SMTP_RELAY_SECRET` |
 
 ---
 

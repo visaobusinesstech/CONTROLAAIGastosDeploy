@@ -1,10 +1,10 @@
 /**
  * Envio de e-mails transacionais — reset de senha e códigos 2FA.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Produção (Railway): POST HTTPS → relay Vercel (/relay/send) → Gmail SMTP.
- * Local: SMTP direto ou Resend.
+ * Local: SMTP Gmail direto.
+ * Produção (Railway): POST HTTPS → relay Vercel (/relay/send) → Gmail SMTP (sem Resend).
  */
-import { createTransport } from "nodemailer"; // SMTP Gmail local
+import { createTransport } from "nodemailer"; // SMTP Gmail
 import dns from "node:dns"; // IPv4 primeiro — smtp.gmail.com em IPv6 falha em alguns hosts
 import { getAppBaseUrl } from "../api/app-links.js"; // FRONTEND_URL para links do reset
 
@@ -14,17 +14,15 @@ const OTP_MINUTES = 10; // Validade do código de 6 dígitos
 const RESET_MINUTES = 30; // Validade do link de nova senha
 const DEFAULT_SMTP_USER = "controlaisistematech@gmail.com"; // Conta Google real (um "a")
 const MAIL_CHANNEL_MS = 12_000; // Tempo por tentativa de porta (465 depois 587)
-const RELAY_TIMEOUT_MS = 15_000; // Relay Edge Resend (~2s)
+const RELAY_TIMEOUT_MS = 25_000; // Relay Vercel Node + SMTP
 
 /** Resultado do envio — error é código estável para a UI (sem corpo da API). */
 export type MailSendResult = {
   sent: boolean;
   skipped: boolean;
-  via?: "relay" | "resend" | "smtp" | "none";
+  via?: "relay" | "smtp" | "none";
   error?: string;
 };
-
-const RESEND_DEFAULT_FROM = "Controla.ai <noreply@controlaai.com>"; // controlaai.com no Resend
 
 /** Tira quebra de linha do Railway no cabeçalho From. */
 function compactFromHeader(raw: string): string {
@@ -34,19 +32,6 @@ function compactFromHeader(raw: string): string {
     return `${angled[1].replace(/\s+$/, "")}${email}${angled[3].replace(/^\s+/, "")}`.trim();
   }
   return raw.replace(/\s+/g, " ").trim();
-}
-
-/** Remetente do Resend — ignora example.com (placeholder). */
-function resendFrom(): string {
-  const raw = process.env.MAIL_FROM?.trim();
-  if (!raw) return RESEND_DEFAULT_FROM;
-  const from = compactFromHeader(raw);
-  const email = from.match(/<([^>]+)>/)?.[1] ?? from;
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  if (!domain || domain === "example.com") {
-    return "Controla.ai <noreply@controlaai.com>"; // Domínio verificado no Resend
-  }
-  return from;
 }
 
 /** Remove aspas/espaços que o Railway às vezes grava na variável. */
@@ -64,7 +49,7 @@ function smtpUser(): string {
   return raw;
 }
 
-/** Senha de app — só via SMTP_PASS no Railway (nunca no git). */
+/** Senha de app — só via SMTP_PASS (nunca no git). */
 function smtpPass(): string {
   return stripEnv(process.env.SMTP_PASS).replace(/\s+/g, "");
 }
@@ -81,7 +66,6 @@ function smtpFrom(): string {
 /** URL do relay Vercel — /relay/send (fora do proxy /api/*). */
 function relayUrl(): string {
   let url = stripEnv(process.env.EMAIL_SMTP_RELAY_URL).replace(/\/+$/, "");
-  // /api/email-relay era capturado pelo proxy → backend inexistente (502)
   if (url.endsWith("/api/email-relay")) {
     url = url.replace(/\/api\/email-relay$/, "/relay/send");
   }
@@ -92,7 +76,7 @@ function relayUrl(): string {
   return url;
 }
 
-/** Secret compartilhado Railway ↔ Vercel. */
+/** Secret compartilhado Railway ↔ Vercel (worker ou frontend). */
 function relaySecret(): string {
   return stripEnv(process.env.EMAIL_SMTP_RELAY_SECRET);
 }
@@ -124,15 +108,14 @@ export function mailHealthSnapshot(): {
   };
 }
 
-/** True quando não há relay, Resend nem SMTP — OTP pode ir no JSON (só fora de produção). */
+/** True quando não há relay nem SMTP — OTP pode ir no JSON (só fora de produção). */
 export function shouldExposeDevCode(): boolean {
   const hasRelay = Boolean(relayUrl() && relaySecret());
-  const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
   const hasSmtp = Boolean(smtpPass());
-  return !hasRelay && !hasResend && !hasSmtp && process.env.NODE_ENV !== "production";
+  return !hasRelay && !hasSmtp && process.env.NODE_ENV !== "production";
 }
 
-/** POST para relay Edge no Vercel — só Resend HTTPS (sem SMTP). */
+/** POST HTTPS → relay Vercel → Gmail SMTP (credenciais no body; Vercel só valida o secret). */
 async function sendViaRelay(opts: {
   to: string;
   subject: string;
@@ -141,13 +124,14 @@ async function sendViaRelay(opts: {
 }): Promise<MailSendResult | null> {
   const url = relayUrl();
   const secret = relaySecret();
-  const resendKey = stripEnv(process.env.RESEND_API_KEY);
+  const pass = smtpPass();
   if (!url || !secret) return null;
-  if (!resendKey) {
-    console.error("[mail] relay configurado mas RESEND_API_KEY ausente no Railway");
-    return { sent: false, skipped: false, via: "relay", error: "relay_missing_resend" };
+  if (!pass) {
+    console.error("[mail] relay configurado mas SMTP_PASS ausente");
+    return { sent: false, skipped: false, via: "relay", error: "relay_missing_smtp" };
   }
-  console.info(`[mail] relay → ${opts.to} via ${url}`);
+
+  console.info(`[mail] relay SMTP → ${opts.to} via ${url}`);
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -160,8 +144,11 @@ async function sendViaRelay(opts: {
         subject: opts.subject,
         html: opts.html,
         text: opts.text,
-        resendApiKey: resendKey,
-        resendFrom: resendFrom(),
+        smtpUser: smtpUser(),
+        smtpPass: pass,
+        from: smtpFrom(),
+        smtpHost: stripEnv(process.env.SMTP_HOST) || "smtp.gmail.com",
+        smtpPort: Number(process.env.SMTP_PORT) || 587,
       }),
       signal: AbortSignal.timeout(RELAY_TIMEOUT_MS),
     });
@@ -178,7 +165,7 @@ async function sendViaRelay(opts: {
   }
 }
 
-/** Envia pelo Gmail local: SSL 465 e, se falhar, STARTTLS 587. */
+/** Envia pelo Gmail: SSL 465 e, se falhar, STARTTLS 587. */
 async function sendViaSmtp(opts: {
   to: string;
   subject: string;
@@ -197,7 +184,7 @@ async function sendViaSmtp(opts: {
   let lastErr: unknown;
   for (const cfg of attempts) {
     const transport = createTransport({
-      host: "smtp.gmail.com",
+      host: stripEnv(process.env.SMTP_HOST) || "smtp.gmail.com",
       port: cfg.port,
       secure: cfg.secure,
       auth: { user, pass },
@@ -230,25 +217,6 @@ async function sendViaSmtp(opts: {
   return { sent: false, skipped: false, via: "smtp", error: "smtp_failed" };
 }
 
-/** Classifica o corpo do Resend sem vazar a chave. */
-function classifyResendError(status: number, body: string): string {
-  const lower = body.toLowerCase();
-  if (lower.includes("domain not verified") || lower.includes("example.com")) {
-    return "resend_from_domain";
-  }
-  if (
-    status === 403 &&
-    (lower.includes("own email") ||
-      lower.includes("testing emails") ||
-      lower.includes("verify a domain") ||
-      lower.includes("resend.dev"))
-  ) {
-    return "resend_testing_recipient";
-  }
-  if (status === 401) return "resend_auth";
-  return "resend_rejected";
-}
-
 /** Envelope HTML no padrão visual do login (verde Controla.ai). */
 function wrapHtml(title: string, bodyHtml: string): string {
   return `<!DOCTYPE html>
@@ -271,37 +239,10 @@ function wrapHtml(title: string, bodyHtml: string): string {
 </html>`;
 }
 
-/** Tenta Resend (domínio próprio ou só o e-mail da conta). */
-async function sendViaResend(opts: {
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}): Promise<MailSendResult> {
-  const resendKey = process.env.RESEND_API_KEY?.trim();
-  if (!resendKey) return { sent: false, skipped: true, via: "resend", error: "no_provider" };
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${resendKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: resendFrom(),
-      to: [opts.to],
-      subject: opts.subject,
-      html: opts.html,
-      text: opts.text,
-    }),
-    signal: AbortSignal.timeout(MAIL_CHANNEL_MS),
-  });
-  if (res.ok) return { sent: true, skipped: false, via: "resend" };
-  const body = await res.text();
-  console.error(`[mail] Resend ${res.status}: ${body.slice(0, 500)}`);
-  return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
-}
-
-/** Local: SMTP Gmail primeiro. Produção: Resend → relay Vercel → SMTP. */
+/**
+ * Ordem: SMTP local (dev) → relay Vercel (prod) → SMTP direto.
+ * Resend removido — só Gmail.
+ */
 export async function sendMail(opts: {
   to: string;
   subject: string;
@@ -316,13 +257,6 @@ export async function sendMail(opts: {
     } catch (err) {
       console.error("[mail] SMTP local:", err);
     }
-  }
-
-  try {
-    const resendResult = await sendViaResend(opts);
-    if (resendResult.sent) return resendResult;
-  } catch (err) {
-    console.error("[mail] Resend rede:", err);
   }
 
   const relayResult = await sendViaRelay(opts);
@@ -341,7 +275,7 @@ export async function sendMail(opts: {
   return { sent: false, skipped: true, via: "none", error: "no_provider" };
 }
 
-/** E-mail com código de 6 dígitos (cadastro, login 2FA, ligar/desligar) — HTML padrão, não é página. */
+/** E-mail com código de 6 dígitos (login 2FA, ligar/desligar, esqueci senha). */
 export async function sendOtpEmail(to: string, code: string, purpose: string): Promise<MailSendResult> {
   const labels: Record<string, string> = {
     register: "Confirme seu cadastro",
@@ -363,17 +297,16 @@ export async function sendOtpEmail(to: string, code: string, purpose: string): P
   return sendMail({ to, subject: `${title} — Controla.ai`, html, text });
 }
 
-/** E-mail de “esqueci a senha”: botão para a página /reset-password (mesmo padrão do login). Sem código. */
+/** E-mail legado com link de reset (fluxo atual usa OTP; mantido para compat). */
 export async function sendPasswordResetEmail(to: string, rawToken: string): Promise<MailSendResult> {
   const url = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
   const html = wrapHtml(
     "Redefinir senha",
     `<p>Recebemos um pedido para alterar a senha da sua conta.</p>
-     <p>Clique no botão para abrir a <strong>página de nova senha</strong> (o mesmo visual do login). O link vale por <strong>${RESET_MINUTES} minutos</strong> e só pode ser usado uma vez.</p>
-     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:600;font-size:15px;">Abrir página de nova senha</a></p>
-     <p style="color:#6b7280;font-size:12px;word-break:break-all;">Se o botão não abrir: ${url}</p>`,
+     <p>Clique no botão para abrir a <strong>página de nova senha</strong>. O link vale por <strong>${RESET_MINUTES} minutos</strong>.</p>
+     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:600;font-size:15px;">Abrir página de nova senha</a></p>`,
   );
-  const text = `Redefinir senha Controla.ai\n\nAbra a página (válida ${RESET_MINUTES} min):\n${url}`;
+  const text = `Redefinir senha Controla.ai\n\nAbra: ${url}`;
   return sendMail({ to, subject: "Redefinir senha — Controla.ai", html, text });
 }
 

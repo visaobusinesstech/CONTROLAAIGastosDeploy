@@ -1,10 +1,16 @@
 /**
- * Relay Resend — Vercel Edge (só HTTPS, sem nodemailer).
+ * Relay SMTP Gmail — Vercel Node (sem Resend).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Vercel: só EMAIL_SMTP_RELAY_SECRET. Railway manda resendApiKey + conteúdo no body.
+ *
+ * Vercel (controla ou worker): só EMAIL_SMTP_RELAY_SECRET.
+ * Railway manda no body: to, subject, html, text, smtpUser, smtpPass, from.
  */
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { createTransport } from "nodemailer";
+
 export const config = {
-  runtime: "edge",
+  runtime: "nodejs",
+  maxDuration: 30,
 };
 
 type RelayBody = {
@@ -12,94 +18,88 @@ type RelayBody = {
   subject?: string;
   html?: string;
   text?: string;
-  resendApiKey?: string;
-  resendFrom?: string;
+  smtpUser?: string;
+  smtpPass?: string;
+  from?: string;
+  smtpHost?: string;
+  smtpPort?: number;
 };
 
 function stripEnv(raw: string | undefined): string {
   return (raw ?? "").trim().replace(/^['"]+|['"]+$/g, "");
 }
 
-function resolveResendFrom(raw: string | undefined): string {
-  const from = stripEnv(raw);
-  if (!from) return "Controla.ai <onboarding@resend.dev>";
-  const email = from.match(/<([^>]+)>/)?.[1] ?? from;
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  if (!domain || domain === "example.com") {
-    return "Controla.ai <onboarding@resend.dev>";
-  }
-  return from.replace(/controlaaisistematech@gmail\.com/gi, "noreply@controlaai.com");
-}
-
-function authorize(req: Request): boolean {
+function authorize(req: VercelRequest): boolean {
   const secret = stripEnv(process.env.EMAIL_SMTP_RELAY_SECRET);
   if (!secret) return false;
-  const auth = req.headers.get("authorization") ?? "";
+  const auth = typeof req.headers.authorization === "string" ? req.headers.authorization : "";
   if (auth.startsWith("Bearer ") && auth.slice(7) === secret) return true;
-  return (req.headers.get("x-relay-secret") ?? "") === secret;
+  const headerSecret = req.headers["x-relay-secret"];
+  return (typeof headerSecret === "string" ? headerSecret : "") === secret;
 }
 
-/** POST /relay/send (rewrite) → esta função Edge */
-export default async function handler(req: Request): Promise<Response> {
+/** POST /relay/send → Gmail SMTP (credenciais vêm do Railway no body). */
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== "POST") {
-    return Response.json({ error: "Method not allowed" }, { status: 405 });
+    res.status(405).json({ error: "Method not allowed" });
+    return;
   }
   if (!authorize(req)) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    res.status(401).json({ error: "Unauthorized" });
+    return;
   }
 
-  let body: RelayBody;
-  try {
-    body = (await req.json()) as RelayBody;
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
+  const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as RelayBody;
   const to = body.to?.trim();
   const subject = body.subject?.trim();
   const html = body.html ?? "";
   const text = body.text ?? "";
-  const apiKey = stripEnv(body.resendApiKey);
+  const smtpUser = stripEnv(body.smtpUser).replace(/\s+/g, "").toLowerCase();
+  const smtpPass = stripEnv(body.smtpPass).replace(/\s+/g, "");
+  const from = stripEnv(body.from) || `Controla.ai <${smtpUser}>`;
+  const host = stripEnv(body.smtpHost) || "smtp.gmail.com";
+  const port = Number(body.smtpPort) || 587;
 
   if (!to || !subject || (!html && !text)) {
-    return Response.json({ error: "Invalid payload" }, { status: 400 });
+    res.status(400).json({ error: "Invalid payload" });
+    return;
   }
-  if (!apiKey) {
-    return Response.json({ error: "resendApiKey required (RESEND_API_KEY no Railway)" }, { status: 400 });
+  if (!smtpUser || !smtpPass) {
+    res.status(400).json({ error: "smtpUser/smtpPass required (SMTP_* no Railway)" });
+    return;
   }
 
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from: resolveResendFrom(body.resendFrom),
-        to: [to],
-        subject,
-        html,
-        text,
-      }),
+  const attempts: Array<{ port: number; secure: boolean }> = [
+    { port: 465, secure: true },
+    { port: port || 587, secure: false },
+  ];
+
+  let lastErr = "";
+  for (const cfg of attempts) {
+    const transport = createTransport({
+      host,
+      port: cfg.port,
+      secure: cfg.secure,
+      auth: { user: smtpUser, pass: smtpPass },
+      connectionTimeout: 12_000,
+      greetingTimeout: 12_000,
+      socketTimeout: 12_000,
     });
-    const raw = await res.text();
-    if (!res.ok) {
-      console.error("[relay/send] Resend", res.status, raw.slice(0, 200));
-      return Response.json(
-        { sent: false, via: "resend", error: "resend_rejected", detail: raw.slice(0, 200) },
-        { status: 502 },
-      );
-    }
-    let id: string | null = null;
     try {
-      id = (JSON.parse(raw) as { id?: string }).id ?? null;
-    } catch {
-      /* ignora */
+      const info = await transport.sendMail({ from, to, subject, html, text });
+      transport.close();
+      res.status(200).json({ sent: true, via: "smtp", messageId: info.messageId ?? null });
+      return;
+    } catch (err) {
+      lastErr = err instanceof Error ? err.message : String(err);
+      console.error(`[relay/send] SMTP porta ${cfg.port}:`, lastErr);
+      try {
+        transport.close();
+      } catch {
+        /* ignore */
+      }
     }
-    return Response.json({ sent: true, via: "resend", messageId: id });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return Response.json({ sent: false, error: "resend_network", detail: msg }, { status: 502 });
   }
+
+  res.status(502).json({ sent: false, via: "smtp", error: "smtp_failed", detail: lastErr.slice(0, 200) });
 }

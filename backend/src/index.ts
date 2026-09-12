@@ -116,7 +116,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.21", // Redis Railway + health
+      build: "8.22", // Relay SMTP Gmail (sem Resend)
 
       mail: mailHealthSnapshot(),
 
