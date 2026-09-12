@@ -5,7 +5,7 @@
  * Produção: REDIS_URL com redis.railway.internal (rede privada).
  * Local: use REDIS_PUBLIC_URL se o Railway publicar proxy; senão o ping falha sem derrubar a API.
  */
-import Redis from "ioredis";
+import { Redis } from "ioredis"; // ioredis v6 — tipos nativos (não usar @types/ioredis)
 
 let client: Redis | null = null;
 let lastOk: boolean | null = null;
@@ -64,7 +64,7 @@ export function getRedis(): Redis | null {
     connectTimeout: 8_000,
   });
 
-  client.on("error", (err) => {
+  client.on("error", (err: Error) => {
     console.error("[redis] erro:", err.message);
     lastOk = false;
   });
