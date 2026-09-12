@@ -242,6 +242,8 @@ export const transactions = pgTable("transactions", {
   rawMessage: text("raw_message"), // Mensagem WhatsApp original
   paymentMethod: text("payment_method"), // Pix, cartão, etc.
   installments: integer("installments"), // Parcelas se aplicável
+  /** Frequência do ganho: monthly | recurring | non_recurring | sporadic (só income) */
+  incomeFrequency: text("income_frequency"),
   isActive: boolean("is_active").notNull().default(true), // Inativar em vez de excluir
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

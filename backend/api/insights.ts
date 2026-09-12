@@ -9,21 +9,32 @@ import { and, eq, gte, lte, sql } from "drizzle-orm"; // Operadores para filtros
 import { db } from "../src/db/index.js"; // Cliente Drizzle PostgreSQL
 import { budgets, categories, goals, transactions, userSettings } from "../src/db/schema.js"; // Tabelas usadas nos KPIs
 import { num, formatBrl, monthKey } from "../src/utils/money.js"; // Utilitários monetários
+import { computeFinancialPeriodSummary } from "../src/utils/financial-summary.js"; // Fonte única: ganhos ≠ gastos
 import type { FinancialIntent } from "./parser.js"; // Intent parseado para consultas
 import { getOpenAI, getOpenAIModel, isOpenAIConfigured } from "./openai-client.js"; // Cliente OpenAI
 import { logAiOperation } from "./logger.js"; // Auditoria em ai_logs
 import { buildSyncFooter } from "./app-links.js"; // Rodapé com link ao painel
 
-/** Saldo agregado — receitas, despesas e diferença em um período. */
+/**
+ * Totais do período — income/expense/balance (legado) + indicadores explícitos.
+ * Faturamento bruto = ganhos reais; NÃO usa renda esperada do budget.
+ */
 export type UserBalance = {
-  income: number; // Total de receitas
-  expense: number; // Total de despesas
-  balance: number; // income - expense
+  income: number; // Alias legado de ganhos (faturamento bruto)
+  expense: number; // Alias legado de gastos
+  balance: number; // Faturamento líquido (= ganhos − gastos)
+  ganhos: number;
+  gastos: number;
+  faturamentoBruto: number;
+  faturamentoLiquido: number;
+  ganhosCount: number;
+  gastosCount: number;
+  isEmpty: boolean;
 };
 
 /** Calcula totais de receita/despesa/saldo para o usuário em um intervalo de datas. */
 export async function getUserBalance(userId: string, from?: Date, to?: Date): Promise<UserBalance> {
-      const conds = [eq(transactions.userId, userId), eq(transactions.isActive, true)]; // Filtro base por usuário ativo
+  const conds = [eq(transactions.userId, userId), eq(transactions.isActive, true)]; // Filtro base por usuário ativo
   if (from) conds.push(gte(transactions.occurredAt, from)); // Data inicial (inclusiva)
   if (to) conds.push(lte(transactions.occurredAt, to)); // Data final (inclusiva)
 
@@ -32,13 +43,20 @@ export async function getUserBalance(userId: string, from?: Date, to?: Date): Pr
     .from(transactions)
     .where(and(...conds)); // Todas as transações no período
 
-  let income = 0;
-  let expense = 0;
-  for (const r of rows) {
-    if (r.type === "income") income += num(r.amount); // Soma receitas
-    else expense += num(r.amount); // Soma despesas (type expense)
-  }
-  return { income, expense, balance: income - expense }; // Saldo líquido
+  // Fonte única: ganhos ≠ gastos; líquido = bruto − gastos
+  const summary = computeFinancialPeriodSummary(rows);
+  return {
+    income: summary.ganhos,
+    expense: summary.gastos,
+    balance: summary.faturamentoLiquido,
+    ganhos: summary.ganhos,
+    gastos: summary.gastos,
+    faturamentoBruto: summary.faturamentoBruto,
+    faturamentoLiquido: summary.faturamentoLiquido,
+    ganhosCount: summary.ganhosCount,
+    gastosCount: summary.gastosCount,
+    isEmpty: summary.isEmpty,
+  };
 }
 
 /** Renda mensal esperada (budgets) — base para saldo projetado no dashboard. */

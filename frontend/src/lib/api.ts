@@ -257,6 +257,7 @@ export type ApiTransaction = {
   description: string | null;
   occurredAt: string;
   source: string;
+  incomeFrequency?: string | null;
   categoryId: string | null;
   categoryName: string | null;
   categoryIcon: string | null;
@@ -311,9 +312,26 @@ export async function apiPostTransaction(
     description?: string;
     occurredAt?: string;
     source?: "whatsapp" | "web" | "recurring" | "manual";
+    incomeFrequency?: "monthly" | "recurring" | "non_recurring" | "sporadic" | null;
   },
 ): Promise<{ transaction: ApiTransaction }> {
   return apiFetch("/api/transactions", { method: "POST", body: JSON.stringify(body), token });
+}
+
+export async function apiPatchTransaction(
+  token: string,
+  id: string,
+  body: {
+    amount?: string | number;
+    type?: "expense" | "income";
+    categoryId?: string | null;
+    description?: string | null;
+    occurredAt?: string;
+    isActive?: boolean;
+    incomeFrequency?: "monthly" | "recurring" | "non_recurring" | "sporadic" | null;
+  },
+): Promise<{ transaction: ApiTransaction }> {
+  return apiFetch(`/api/transactions/${id}`, { method: "PATCH", body: JSON.stringify(body), token });
 }
 
 export async function apiDeleteTransaction(token: string, id: string): Promise<{ ok: boolean }> {
@@ -684,8 +702,52 @@ export async function apiDeleteAdminUser(token: string, id: string): Promise<{ o
   return apiFetch(`/api/admin/users/${id}`, { method: "DELETE", token });
 }
 
-export async function apiPatchGoal(token: string, id: string, body: { isActive: boolean }): Promise<{ goal: { id: string; isActive: boolean } }> {
+export async function apiPatchGoal(
+  token: string,
+  id: string,
+  body: {
+    isActive?: boolean;
+    name?: string;
+    limitAmount?: number | string;
+    periodType?: "monthly" | "quarterly" | "yearly";
+    goalType?: "limit" | "saving";
+    targetAmount?: number | string | null;
+    durationMonths?: number | null;
+    categoryId?: string | null;
+    color?: string;
+  },
+): Promise<{
+  goal: {
+    id: string;
+    isActive: boolean;
+    name?: string;
+    limitAmount?: number;
+    periodType?: string;
+    targetAmount?: number | null;
+  };
+}> {
   return apiFetch(`/api/goals/${id}`, { method: "PATCH", body: JSON.stringify(body), token });
+}
+
+export async function apiGetFinancialSummary(
+  token: string,
+  params: { from?: string; to?: string } = {},
+): Promise<{
+  summary: {
+    ganhos: number;
+    gastos: number;
+    faturamentoBruto: number;
+    faturamentoLiquido: number;
+    ganhosCount: number;
+    gastosCount: number;
+    isEmpty: boolean;
+  };
+}> {
+  const q = new URLSearchParams();
+  if (params.from) q.set("from", params.from);
+  if (params.to) q.set("to", params.to);
+  const qs = q.toString();
+  return apiFetch(`/api/insights/financial-summary${qs ? `?${qs}` : ""}`, { method: "GET", token });
 }
 
 export async function apiGetKpis(token: string): Promise<{ kpis: FinancialKpis }> {

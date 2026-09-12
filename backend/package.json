@@ -32,6 +32,8 @@
     "db:migrate:phone-unique": "node scripts/run-phone-unique-migration.mjs",
     "db:migrate:reset-token": "node scripts/run-password-reset-unique-migration.mjs",
     "db:migrate:password-otp": "node scripts/run-password-reset-otp-migration.mjs",
+    "db:migrate:income-frequency": "node scripts/run-income-frequency-migration.mjs",
+    "test:finance": "node scripts/test-finance-e2e.mjs",
     "db:migrate:all": "node scripts/run-all-migrations.mjs",
     "db:migrate:income-type": "node scripts/run-income-type-migration.mjs",
     "db:export-tcc": "node scripts/export-tcc-database.mjs",

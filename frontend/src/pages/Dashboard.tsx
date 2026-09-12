@@ -28,11 +28,18 @@ import {
   apiGetInsights,
   apiGetSettings,
   apiPostTransaction,
+  apiPatchTransaction,
   apiPutBudget,
   apiSeedRichDemo,
   apiDeleteTransaction,
   type ApiTransaction,
 } from "@/lib/api";
+import {
+  computeFinancialPeriodSummary,
+  EMPTY_FINANCIAL_COPY,
+  INCOME_FREQUENCY_LABELS,
+  type IncomeFrequency,
+} from "@/lib/financial-summary";
 import {
   ChevronLeft,
   ChevronRight,
@@ -52,6 +59,8 @@ import {
   Target,
   Wallet,
   Ban,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
@@ -164,11 +173,12 @@ function periodSummary(
   expectedIncome: number | null,
   initialBalance = 0,
 ) {
-  const incomeFromTx = txs.filter((t) => t.type === "income").reduce((s, t) => s + txAmount(t), 0);
-  const expense = txs.filter((t) => t.type === "expense").reduce((s, t) => s + txAmount(t), 0);
-  const income =
-    incomeFromTx > 0 ? incomeFromTx : expectedIncome != null && expectedIncome > 0 ? expectedIncome : 0;
-  const balance = income - expense + initialBalance;
+  // Fonte única: ganhos ≠ gastos; faturamento NÃO usa budget nem saldo inicial
+  const core = computeFinancialPeriodSummary(txs);
+  const income = core.ganhos;
+  const expense = core.gastos;
+  const balance = core.faturamentoLiquido;
+  const saldoComInicial = Math.round((balance + initialBalance) * 100) / 100;
   const days = Math.max(1, rangeDays);
   const dailyAvgExpense = expense / days;
   const savingsRate = income > 0 ? (balance / income) * 100 : 0;
@@ -185,7 +195,9 @@ function periodSummary(
   }
   const topShare = expense > 0 ? (topVal / expense) * 100 : 0;
   const budgetVar =
-    expectedIncome != null && expectedIncome > 0 ? ((income - expectedIncome) / expectedIncome) * 100 : null;
+    expectedIncome != null && expectedIncome > 0 && income > 0
+      ? ((income - expectedIncome) / expectedIncome) * 100
+      : null;
   const score = Math.min(
     100,
     Math.max(
@@ -197,6 +209,14 @@ function periodSummary(
     income,
     expense,
     balance,
+    saldoComInicial,
+    ganhos: core.ganhos,
+    gastos: core.gastos,
+    faturamentoBruto: core.faturamentoBruto,
+    faturamentoLiquido: core.faturamentoLiquido,
+    ganhosCount: core.ganhosCount,
+    gastosCount: core.gastosCount,
+    isEmpty: core.isEmpty,
     dailyAvgExpense,
     savingsRate,
     avgTicket,
@@ -448,8 +468,25 @@ export default function Dashboard() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["transactions"] });
       void qc.invalidateQueries({ queryKey: ["kpis"] });
-      void qc.invalidateQueries({ queryKey: ["monthly-report"] });
-      toast.success("Lançamento inativado");
+      void qc.invalidateQueries({ queryKey: ["monthly"] });
+      void qc.invalidateQueries({ queryKey: ["insights"] });
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+      toast.success("Despesa/ganho excluído — indicadores atualizados");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const patchTx = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof apiPatchTransaction>[2] }) =>
+      apiPatchTransaction(token!, id, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["transactions"] });
+      void qc.invalidateQueries({ queryKey: ["kpis"] });
+      void qc.invalidateQueries({ queryKey: ["monthly"] });
+      void qc.invalidateQueries({ queryKey: ["insights"] });
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+      setEditingTx(null);
+      toast.success("Lançamento atualizado — indicadores recalculados");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -464,7 +501,7 @@ export default function Dashboard() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
-  const [periodFilter, setPeriodFilter] = useState("30d");
+  const [periodFilter, setPeriodFilter] = useState("mes");
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
@@ -480,6 +517,54 @@ export default function Dashboard() {
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
   const [budgetLoading, setBudgetLoading] = useState(false);
+  const [editingTx, setEditingTx] = useState<ApiTransaction | null>(null);
+
+  /** Aplica atalho de período (hoje, semana, mês…) aos indicadores. */
+  const applyPeriodPreset = (preset: string) => {
+    setPeriodFilter(preset);
+    const now = new Date();
+    if (preset === "hoje") {
+      setRangeOverride({ from: startOfDay(now), to: endOfDay(now) });
+      return;
+    }
+    if (preset === "semana") {
+      const from = startOfDay(now);
+      from.setDate(from.getDate() - from.getDay());
+      setRangeOverride({ from, to: endOfDay(now) });
+      return;
+    }
+    if (preset === "mes") {
+      setRangeOverride(null);
+      setCurrentMonth(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`);
+      return;
+    }
+    if (preset === "mes_anterior") {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const ym = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`;
+      setCurrentMonth(ym);
+      setRangeOverride({ from: startOfMonthFromYm(ym), to: endOfMonthFromYm(ym) });
+      return;
+    }
+    if (preset === "ano") {
+      setRangeOverride({
+        from: startOfDay(new Date(now.getFullYear(), 0, 1)),
+        to: endOfDay(now),
+      });
+      return;
+    }
+    if (preset === "7d" || preset === "30d" || preset === "90d") {
+      const days = preset === "7d" ? 7 : preset === "30d" ? 30 : 90;
+      const from = startOfDay(now);
+      from.setDate(from.getDate() - (days - 1));
+      setRangeOverride({ from, to: endOfDay(now) });
+      return;
+    }
+    if (preset === "1 ano") {
+      const from = startOfDay(now);
+      from.setFullYear(from.getFullYear() - 1);
+      setRangeOverride({ from, to: endOfDay(now) });
+    }
+  };
 
   const defaultRange = useMemo(
     () => ({ from: startOfMonthFromYm(currentMonth), to: endOfMonthFromYm(currentMonth) }),
@@ -653,7 +738,7 @@ export default function Dashboard() {
     }));
   }, [txs]);
 
-  /** Saldo acumulado dia a dia no período filtrado. */
+  /** Acumulado dia a dia — só lançamentos reais (sem renda esperada mockada). */
   const balanceOverTime = useMemo(() => {
     const byDay = new Map<string, { income: number; expense: number }>();
     for (const t of txs) {
@@ -665,10 +750,6 @@ export default function Dashboard() {
     }
     const sorted = [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b));
     let acc = initialBalance;
-    if (sorted.length === 0 && expectedIncome != null && expectedIncome > 0) {
-      const today = format(new Date(), "dd/MM", { locale: ptBR });
-      return [{ day: today, accumulated: Math.round(expectedIncome * 100) / 100 }];
-    }
     return sorted.map(([day, v]) => {
       acc += v.income - v.expense;
       return {
@@ -676,7 +757,7 @@ export default function Dashboard() {
         accumulated: Math.round(acc * 100) / 100,
       };
     });
-  }, [txs, initialBalance, expectedIncome]);
+  }, [txs, initialBalance]);
 
   /** Gastos diários com média móvel de 7 dias. */
   const expenseDailyWithAvg = useMemo(() => {
@@ -769,8 +850,6 @@ export default function Dashboard() {
     const rest = Math.max(0, 30 - analytics.activeDays);
     return analytics.balance - analytics.dailyAvgExpense * rest;
   }, [txs.length, analytics.balance, analytics.activeDays, analytics.dailyAvgExpense]);
-
-  const recentList = txs.slice(0, 12);
 
   const monthLabel = monthLabelFromYm(currentMonth);
 
@@ -908,11 +987,11 @@ export default function Dashboard() {
             onClick={() => setExpenseOpen(true)}
           >
             <Plus className="h-4 w-4" />
-            Registrar gasto
+            Adicionar despesa
           </Button>
           <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={() => setIncomeOpen(true)}>
             <Wallet className="h-4 w-4" />
-            Registrar receita
+            Registrar ganho
           </Button>
           <Button type="button" size="sm" variant="outline" className="gap-1.5 border-border" onClick={() => setBudgetOpen(true)}>
             Renda mensal
@@ -966,9 +1045,18 @@ export default function Dashboard() {
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Período</p>
               <div className="flex gap-2 flex-wrap">
-                {['7d', '30d', '90d', '1 ano'].map(p => (
-                  <FilterChip key={p} active={periodFilter === p} onClick={() => setPeriodFilter(p)}>
-                    {p}
+                {[
+                  { l: "Hoje", v: "hoje" },
+                  { l: "Esta semana", v: "semana" },
+                  { l: "Este mês", v: "mes" },
+                  { l: "Mês anterior", v: "mes_anterior" },
+                  { l: "Este ano", v: "ano" },
+                  { l: "7 dias", v: "7d" },
+                  { l: "30 dias", v: "30d" },
+                  { l: "90 dias", v: "90d" },
+                ].map((p) => (
+                  <FilterChip key={p.v} active={periodFilter === p.v} onClick={() => applyPeriodPreset(p.v)}>
+                    {p.l}
                   </FilterChip>
                 ))}
               </div>
@@ -976,7 +1064,7 @@ export default function Dashboard() {
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Tipo</p>
               <div className="flex gap-2 flex-wrap">
-                {[{ l: 'Receita', v: 'income' }, { l: 'Despesa', v: 'expense' }, { l: 'Recorrente', v: 'recurring' }].map(t => (
+                {[{ l: 'Ganho', v: 'income' }, { l: 'Despesa', v: 'expense' }, { l: 'Recorrente', v: 'recurring' }].map(t => (
                   <FilterChip key={t.v} active={typeFilter === t.v} onClick={() => setTypeFilter(typeFilter === t.v ? null : t.v)}>
                     {t.l}
                   </FilterChip>
@@ -1024,30 +1112,28 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
-          label="Saldo do período"
-          value={analytics.balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          label="Ganhos no período"
+          value={analytics.ganhos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          change={analytics.ganhosCount}
+          trend={analytics.ganhosCount ? "up" : "neutral"}
+        />
+        <MetricCard
+          label="Gastos no período"
+          value={analytics.gastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          change={analytics.gastosCount}
+          trend={analytics.gastosCount ? "down" : "neutral"}
+        />
+        <MetricCard
+          label="Faturamento bruto"
+          value={analytics.faturamentoBruto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+          change={0}
+          trend={analytics.faturamentoBruto > 0 ? "up" : "neutral"}
+        />
+        <MetricCard
+          label="Faturamento líquido"
+          value={analytics.faturamentoLiquido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={txs.length ? Math.min(99, Math.abs(analytics.savingsRate)) : 0}
-          trend={txs.length ? (analytics.balance >= 0 ? "up" : "down") : "neutral"}
-        />
-        <MetricCard
-          label="Receitas"
-          value={analytics.income.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-          change={txs.length && analytics.budgetVar != null ? Math.round(analytics.budgetVar) : 0}
-          trend={txs.length && analytics.budgetVar != null && analytics.budgetVar < 0 ? "down" : "up"}
-        />
-        <MetricCard
-          label="Despesas"
-          value={analytics.expense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-          change={txs.length ? Math.round((analytics.expense / Math.max(analytics.income, 1)) * 100) : 0}
-          trend="down"
-        />
-        <MetricCard
-          label="Quanto sobrou (%)"
-          value={analytics.savingsRate.toFixed(1)}
-          change={txs.length ? Math.round(analytics.topShare) : 0}
-          prefix=""
-          suffix="%"
-          trend={txs.length ? (analytics.savingsRate >= 20 ? "up" : "neutral") : "neutral"}
+          trend={analytics.faturamentoLiquido >= 0 ? "up" : "down"}
         />
         <MetricCard
           label="Gasto médio por dia"
@@ -1058,12 +1144,17 @@ export default function Dashboard() {
         <MetricCard
           label="Sua nota (0–100)"
           value={(kpisRes?.kpis?.financialScore ?? Math.round(analytics.score)).toString()}
-          change={3}
+          change={0}
           prefix=""
           suffix="/100"
           trend="up"
         />
       </div>
+      {analytics.isEmpty && (
+        <p className="text-sm text-muted-foreground">
+          {EMPTY_FINANCIAL_COPY.ganhos} {EMPTY_FINANCIAL_COPY.gastos}
+        </p>
+      )}
 
       {kpisRes?.kpis && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -1153,11 +1244,11 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Saldo atual</p>
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Faturamento líquido</p>
           <p className="text-xl font-semibold tabular tracking-tight text-cgreen-500">
-            R$ {analytics.balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            R$ {analytics.faturamentoLiquido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </p>
-          <p className="text-[11px] text-muted-foreground">Dados reais do banco</p>
+          <p className="text-[11px] text-muted-foreground">Ganhos − gastos (dados reais)</p>
         </div>
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Risco endividamento</p>
@@ -1185,7 +1276,7 @@ export default function Dashboard() {
           <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Gastos por categoria</h3>
           <p className="mb-4 text-xs text-muted-foreground">Cada fatia mostra quanto foi para cada tipo de despesa.</p>
           {pieData.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">Sem despesas no período — registre pelo WhatsApp ou acima.</p>
+            <p className="py-12 text-center text-sm text-muted-foreground">{EMPTY_FINANCIAL_COPY.gastos}</p>
           ) : (
           <>
           <ChartPlotArea>
@@ -1229,8 +1320,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Entrou vs. saiu (por mês)</h3>
-          <p className="mb-4 text-xs text-muted-foreground">Barras verdes = receitas; vermelhas = despesas.</p>
+          <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Ganhos vs. gastos (por mês)</h3>
+          <p className="mb-4 text-xs text-muted-foreground">Barras verdes = faturamento/ganhos; vermelhas = despesas.</p>
           <ChartPlotArea>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={barEvolution} barCategoryGap="30%">
@@ -1238,8 +1329,8 @@ export default function Dashboard() {
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: tickFill }} />
                 <YAxis tick={{ fontSize: 11, fill: tickFill }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip content={<DashTooltip />} />
-                <Bar dataKey="income" name="Receitas" fill="#4CAF50" radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar dataKey="expense" name="Despesas" fill="#EF5350" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar dataKey="income" name="Ganhos" fill="#4CAF50" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar dataKey="expense" name="Gastos" fill="#EF5350" radius={[4, 4, 0, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           </ChartPlotArea>
@@ -1401,16 +1492,20 @@ export default function Dashboard() {
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Calendário: dias com mais gasto</h3>
-        <p className="mb-4 text-xs text-muted-foreground">Quanto mais escuro, mais você gastou naquele dia (exemplo).</p>
+        <p className="mb-4 text-xs text-muted-foreground">Quanto mais escuro, mais você gastou naquele dia (dados reais do período).</p>
         <ChartPlotArea className="p-4">
-          {txs.length > 0 && <SpendingHeatmap txs={txs} />}
+          {txs.filter((t) => t.type === "expense").length > 0 ? (
+            <SpendingHeatmap txs={txs} />
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">{EMPTY_FINANCIAL_COPY.gastos}</p>
+          )}
         </ChartPlotArea>
       </div>
 
       <div className="space-y-1">
         <h2 className="text-lg font-semibold tracking-tight text-foreground">Mais gráficos de gastos</h2>
         <p className="text-sm text-muted-foreground">
-          Quando você filtra o período, usamos seus dados; se não houver despesas, mostramos números de exemplo para o painel não ficar vazio.
+          Todos os gráficos usam apenas despesas reais do período filtrado — sem valores de exemplo.
         </p>
       </div>
 
@@ -1566,7 +1661,7 @@ export default function Dashboard() {
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground capitalize">Resumo do mês — {monthLabel}</h3>
-        <p className="mb-4 text-xs text-muted-foreground">Três números rápidos; sem dados no filtro, usamos um exemplo.</p>
+        <p className="mb-4 text-xs text-muted-foreground">Três números rápidos com base nos lançamentos reais do filtro.</p>
         <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-xl bg-muted/50 p-4">
             <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Maior compra do período</p>
@@ -1712,7 +1807,7 @@ export default function Dashboard() {
                 R$ {monthEndPreview.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
               </p>
               <p className="mt-1 text-xs text-cgreen-600 dark:text-cgreen-500/90">
-                {txs.length ? "Com base no que já entrou e no ritmo de gasto do período." : "Valor de exemplo até você registrar transações."}
+                {txs.length ? "Com base no que já entrou e no ritmo de gasto do período." : "Sem lançamentos — registre ganhos e despesas para projetar."}
               </p>
             </div>
             <div className="rounded-xl bg-camber-light p-4 dark:bg-amber-900/20">
@@ -1747,54 +1842,114 @@ export default function Dashboard() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">Transações Recentes</h3>
-          <button type="button" className="text-sm font-medium text-cgreen-500 hover:text-cgreen-600 dark:hover:text-cgreen-400">
-            Ver todas
-          </button>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-base font-semibold tracking-tight text-foreground">Despesas e ganhos do período</h3>
+            <p className="text-xs text-muted-foreground">
+              Valor, data, categoria e descrição — edite ou exclua para recalcular os indicadores na hora.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" className="gap-1.5 bg-cgreen-500 hover:bg-cgreen-700" onClick={() => setExpenseOpen(true)}>
+              <Plus className="h-4 w-4" />
+              Nova despesa
+            </Button>
+            <Button type="button" size="sm" variant="secondary" className="gap-1.5" onClick={() => setIncomeOpen(true)}>
+              <Wallet className="h-4 w-4" />
+              Novo ganho
+            </Button>
+          </div>
         </div>
-        <div className="space-y-1">
-          {recentList.length > 0
-            ? recentList.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 border-b border-border/60 py-3 last:border-0">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/80 text-foreground">
-                    <CategoryIcon name={t.categoryIcon} size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{t.description ?? "—"}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {t.categoryName ?? "—"} ·{" "}
-                      {new Date(t.occurredAt).toLocaleString("pt-BR", {
-                        day: "2-digit",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                  <span
-                    className={cn("tabular text-sm font-semibold", t.type === "income" ? "text-cgreen-500" : "text-cred-main")}
-                  >
-                    {t.type === "income" ? "+" : "-"} R$ {txAmount(t).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </span>
-                  <button
-                    type="button"
-                    className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
-                    aria-label="Inativar lançamento"
-                    title="Inativar lançamento"
-                    disabled={inactivateTx.isPending}
-                    onClick={() => inactivateTx.mutate(t.id)}
-                  >
-                    <Ban size={14} />
-                  </button>
-                </div>
-              ))
-            : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  Nenhuma transação no período. Registre pelo WhatsApp ou use os botões acima.
-                </p>
-              )}
-        </div>
+        {txs.length === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            {EMPTY_FINANCIAL_COPY.gastos} {EMPTY_FINANCIAL_COPY.ganhos}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="py-2 pr-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Tipo</th>
+                  <th className="py-2 pr-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Descrição</th>
+                  <th className="py-2 pr-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Categoria</th>
+                  <th className="py-2 pr-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Data</th>
+                  <th className="py-2 pr-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Valor</th>
+                  <th className="py-2 pl-3 text-right text-xs font-medium uppercase tracking-wider text-muted-foreground">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {txs.map((t) => (
+                  <tr key={t.id} className="border-b border-border/60 last:border-0">
+                    <td className="py-3 pr-3">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          t.type === "income"
+                            ? "bg-cgreen-50 text-cgreen-700 dark:bg-cgreen-900/30 dark:text-cgreen-400"
+                            : "bg-cred-light text-cred-main dark:bg-red-900/25",
+                        )}
+                      >
+                        {t.type === "income"
+                          ? t.incomeFrequency && t.incomeFrequency in INCOME_FREQUENCY_LABELS
+                            ? INCOME_FREQUENCY_LABELS[t.incomeFrequency as IncomeFrequency]
+                            : "Ganho"
+                          : "Despesa"}
+                      </span>
+                    </td>
+                    <td className="max-w-[220px] truncate py-3 pr-3 font-medium text-foreground">
+                      {t.description ?? "—"}
+                    </td>
+                    <td className="py-3 pr-3 text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <CategoryIcon name={t.categoryIcon} size={14} />
+                        {t.categoryName ?? "Sem categoria"}
+                      </span>
+                    </td>
+                    <td className="py-3 pr-3 tabular text-muted-foreground">
+                      {new Date(t.occurredAt).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td
+                      className={cn(
+                        "py-3 pr-3 text-right tabular font-semibold",
+                        t.type === "income" ? "text-cgreen-500" : "text-cred-main",
+                      )}
+                    >
+                      {t.type === "income" ? "+" : "−"} R${" "}
+                      {txAmount(t).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 pl-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          aria-label="Editar lançamento"
+                          title="Editar"
+                          onClick={() => setEditingTx(t)}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
+                          aria-label="Excluir lançamento"
+                          title="Excluir"
+                          disabled={inactivateTx.isPending}
+                          onClick={() => {
+                            if (confirm(`Excluir "${t.description ?? "lançamento"}"? Os indicadores serão recalculados.`)) {
+                              inactivateTx.mutate(t.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <TransactionDialog
@@ -1807,13 +1962,21 @@ export default function Dashboard() {
           if (!token) return;
           setTxLoading(true);
           try {
-            await apiPostTransaction(token, { ...data, type: "expense", source: "manual" });
-            toast.success("Gasto registrado.");
+            await apiPostTransaction(token, {
+              amount: data.amount,
+              description: data.description,
+              categoryId: data.categoryId,
+              occurredAt: data.occurredAt,
+              type: "expense",
+              source: "manual",
+            });
+            toast.success("Despesa registrada — gastos e líquido atualizados.");
             setExpenseOpen(false);
             void qc.invalidateQueries({ queryKey: ["transactions"] });
             void qc.invalidateQueries({ queryKey: ["monthly"] });
             void qc.invalidateQueries({ queryKey: ["kpis"] });
             void qc.invalidateQueries({ queryKey: ["insights"] });
+            void qc.invalidateQueries({ queryKey: ["goals"] });
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Erro ao salvar");
           } finally {
@@ -1831,18 +1994,51 @@ export default function Dashboard() {
           if (!token) return;
           setTxLoading(true);
           try {
-            await apiPostTransaction(token, { ...data, type: "income", source: "manual" });
-            toast.success("Receita registrada.");
+            await apiPostTransaction(token, {
+              amount: data.amount,
+              description: data.description,
+              categoryId: data.categoryId,
+              occurredAt: data.occurredAt,
+              type: "income",
+              source: "manual",
+              incomeFrequency: data.incomeFrequency ?? "monthly",
+            });
+            toast.success("Ganho registrado — faturamento atualizado.");
             setIncomeOpen(false);
             void qc.invalidateQueries({ queryKey: ["transactions"] });
             void qc.invalidateQueries({ queryKey: ["monthly"] });
             void qc.invalidateQueries({ queryKey: ["kpis"] });
             void qc.invalidateQueries({ queryKey: ["insights"] });
+            void qc.invalidateQueries({ queryKey: ["goals"] });
           } catch (e) {
             toast.error(e instanceof Error ? e.message : "Erro ao salvar");
           } finally {
             setTxLoading(false);
           }
+        }}
+      />
+      <TransactionDialog
+        open={Boolean(editingTx)}
+        onOpenChange={(v) => {
+          if (!v) setEditingTx(null);
+        }}
+        type={editingTx?.type === "income" ? "income" : "expense"}
+        categories={categories}
+        loading={patchTx.isPending}
+        mode="edit"
+        initial={editingTx}
+        onSubmit={async (data) => {
+          if (!editingTx) return;
+          await patchTx.mutateAsync({
+            id: editingTx.id,
+            body: {
+              amount: data.amount,
+              description: data.description,
+              categoryId: data.categoryId,
+              occurredAt: data.occurredAt,
+              incomeFrequency: editingTx.type === "income" ? data.incomeFrequency ?? null : null,
+            },
+          });
         }}
       />
       <MonthlyBudgetDialog

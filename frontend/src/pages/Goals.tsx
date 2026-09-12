@@ -1,5 +1,5 @@
 /**
- * Metas financeiras — criar, editar e acompanhar progresso via API /goals.
+ * Metas financeiras — CRUD completo com progresso real via API /goals.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useState } from "react";
@@ -7,7 +7,7 @@ import { useTheme } from "next-themes";
 import { motion } from "framer-motion"; // Animações de entrada dos cards
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, TrendingUp, AlertTriangle, CheckCircle2, Ban } from "lucide-react";
+import { Plus, TrendingUp, AlertTriangle, CheckCircle2, Ban, Pencil } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Slider } from "@/components/ui/slider";
 import { MagicCard } from "@/components/ui/magic-card";
@@ -19,9 +19,17 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CategoryIcon } from "@/lib/category-icons";
 import { useAuth } from "@/lib/auth";
@@ -33,6 +41,7 @@ import {
   type ApiCategory,
   type ApiGoal,
 } from "@/lib/api";
+import { computeGoalProgressPercent } from "@/lib/financial-summary";
 
 type GoalTemplate = {
   name: string;
@@ -47,6 +56,16 @@ type GoalTemplate = {
 };
 
 const GOAL_TEMPLATES: GoalTemplate[] = [
+  {
+    name: "Meta de faturamento mensal",
+    goalType: "saving",
+    limitAmount: 20000,
+    targetAmount: 20000,
+    periodType: "monthly",
+    color: "#4CAF50",
+    icon: "wallet",
+    description: "Progresso baseado nos ganhos reais registrados no período",
+  },
   {
     name: "Limite alimentação",
     goalType: "limit",
@@ -65,7 +84,7 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     periodType: "yearly",
     color: "#42A5F5",
     icon: "piggy-bank",
-    description: "Guarde uma reserva para imprevistos",
+    description: "Guarde uma reserva — progresso pelos ganhos registrados",
   },
   {
     name: "Limite transporte",
@@ -97,16 +116,6 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
     icon: "gamepad-2",
     description: "Streaming, cinema e passeios",
   },
-  {
-    name: "Reduzir assinaturas",
-    goalType: "limit",
-    limitAmount: 150,
-    periodType: "monthly",
-    categoryName: "Assinaturas",
-    color: "#EF5350",
-    icon: "tv",
-    description: "Teto mensal para apps e serviços",
-  },
 ];
 
 function findCategoryId(categories: ApiCategory[], name?: string): string | null {
@@ -130,7 +139,15 @@ function GoalProgressBar({ percentage }: { percentage: number }) {
   );
 }
 
-function GoalCard({ goal, onInactivate }: { goal: ApiGoal; onInactivate: () => void }) {
+function GoalCard({
+  goal,
+  onInactivate,
+  onEdit,
+}: {
+  goal: ApiGoal;
+  onInactivate: () => void;
+  onEdit: () => void;
+}) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const gridStroke = isDark ? "#48484A" : "#F0F0F2";
@@ -138,15 +155,18 @@ function GoalCard({ goal, onInactivate }: { goal: ApiGoal; onInactivate: () => v
   const [simAmount, setSimAmount] = useState([500]);
 
   const target = goal.targetAmount ?? goal.limitAmount;
+  // Progresso dinâmico: backend já calcula; reforçamos a mesma regra no cliente
+  const livePct =
+    goal.goalType === "saving"
+      ? computeGoalProgressPercent(goal.currentAmount, target)
+      : goal.percentage;
   const riskColors = {
     low: "text-cgreen-600 dark:text-cgreen-400 bg-cgreen-50 dark:bg-cgreen-900/30",
     medium: "text-camber-main bg-camber-light dark:bg-amber-900/25",
     high: "text-cred-main bg-cred-light dark:bg-red-900/25",
   };
   const riskLabels = { low: "Baixo", medium: "Médio", high: "Alto" };
-
   const evolutionData = [{ month: "Atual", value: goal.currentAmount }];
-
   const monthsToGoal =
     goal.goalType === "saving" && simAmount[0] > 0
       ? Math.ceil(Math.max(target - goal.currentAmount, 0) / simAmount[0])
@@ -171,7 +191,14 @@ function GoalCard({ goal, onInactivate }: { goal: ApiGoal; onInactivate: () => v
                 <h3 className="text-base font-semibold tracking-tight text-foreground">{goal.name}</h3>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                    {goal.goalType === "limit" ? "Limite" : "Poupança"}
+                    {goal.goalType === "limit" ? "Limite de gasto" : "Meta de ganhos/faturamento"}
+                  </span>
+                  <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {goal.periodType === "monthly"
+                      ? "Mensal"
+                      : goal.periodType === "quarterly"
+                        ? "Trimestral"
+                        : "Anual"}
                   </span>
                   <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", riskColors[goal.riskLevel])}>
                     Risco {riskLabels[goal.riskLevel]}
@@ -179,27 +206,46 @@ function GoalCard({ goal, onInactivate }: { goal: ApiGoal; onInactivate: () => v
                 </div>
               </div>
             </div>
-            <button
-              type="button"
-              className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
-              aria-label="Inativar meta"
-              title="Inativar meta"
-              onClick={onInactivate}
-            >
-              <Ban size={16} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Editar meta"
+                title="Editar meta"
+                onClick={onEdit}
+              >
+                <Pencil size={16} />
+              </button>
+              <button
+                type="button"
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
+                aria-label="Excluir meta"
+                title="Excluir meta"
+                onClick={onInactivate}
+              >
+                <Ban size={16} />
+              </button>
+            </div>
           </div>
 
           <div>
             <div className="mb-1 flex justify-between text-sm">
               <span className="text-muted-foreground">
                 R$ {goal.currentAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {goal.goalType === "saving" ? " em ganhos" : " gastos"}
               </span>
               <span className="font-medium tabular text-foreground">
-                {goal.percentage.toFixed(0)}% de R$ {target.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {livePct.toFixed(0)}% de R$ {target.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </span>
             </div>
-            <GoalProgressBar percentage={goal.percentage} />
+            <GoalProgressBar percentage={livePct} />
+            {goal.currentAmount === 0 && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                {goal.goalType === "saving"
+                  ? "Você ainda não possui ganhos registrados neste período da meta."
+                  : "Nenhuma despesa registrada neste período da meta."}
+              </p>
+            )}
           </div>
 
           <ChartPlotArea className="h-[120px]">
@@ -291,7 +337,7 @@ function TemplateCard({
         <div className="min-w-0">
           <p className="font-medium text-foreground">{template.name}</p>
           <p className="text-xs text-muted-foreground">
-            {template.goalType === "limit" ? "Limite" : "Poupança"} · R${" "}
+            {template.goalType === "limit" ? "Limite" : "Ganhos"} · R${" "}
             {template.limitAmount.toLocaleString("pt-BR")}
           </p>
         </div>
@@ -304,12 +350,16 @@ function TemplateCard({
 export default function Goals() {
   const { token } = useAuth();
   const qc = useQueryClient();
-  const [dialogOpen, setDialogOpen] = useState(false); // Modal de nova meta
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editGoal, setEditGoal] = useState<ApiGoal | null>(null);
   const [customName, setCustomName] = useState("");
-  const [customAmount, setCustomAmount] = useState("500");
-  const [customType, setCustomType] = useState<"limit" | "saving">("limit");
+  const [customAmount, setCustomAmount] = useState("20000");
+  const [customType, setCustomType] = useState<"limit" | "saving">("saving");
+  const [customPeriod, setCustomPeriod] = useState<"monthly" | "quarterly" | "yearly">("monthly");
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editPeriod, setEditPeriod] = useState<"monthly" | "quarterly" | "yearly">("monthly");
 
-  // GET /api/goals — lista metas com progresso calculado no backend
   const { data, isLoading } = useQuery({
     queryKey: ["goals", token],
     queryFn: () => apiGetGoals(token!),
@@ -332,7 +382,7 @@ export default function Goals() {
       void qc.invalidateQueries({ queryKey: ["goals"] });
       setDialogOpen(false);
       setCustomName("");
-      setCustomAmount("500");
+      setCustomAmount("20000");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -340,8 +390,19 @@ export default function Goals() {
   const inactivateMut = useMutation({
     mutationFn: (id: string) => apiPatchGoal(token!, id, { isActive: false }),
     onSuccess: () => {
-      toast.success("Meta inativada");
+      toast.success("Meta excluída (inativada)");
       void qc.invalidateQueries({ queryKey: ["goals"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Parameters<typeof apiPatchGoal>[2] }) =>
+      apiPatchGoal(token!, id, body),
+    onSuccess: () => {
+      toast.success("Meta atualizada — progresso recalculado");
+      void qc.invalidateQueries({ queryKey: ["goals"] });
+      setEditGoal(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -362,7 +423,7 @@ export default function Goals() {
     e.preventDefault();
     const amount = Number(customAmount.replace(",", "."));
     if (!customName.trim() || !Number.isFinite(amount) || amount <= 0) {
-      toast.error("Preencha nome e valor válidos");
+      toast.error("Preencha nome e valor válidos (maior que zero)");
       return;
     }
     createMut.mutate({
@@ -370,8 +431,34 @@ export default function Goals() {
       goalType: customType,
       limitAmount: amount,
       targetAmount: customType === "saving" ? amount : undefined,
-      periodType: "monthly",
+      periodType: customPeriod,
       color: "#6366f1",
+    });
+  };
+
+  const openEdit = (goal: ApiGoal) => {
+    setEditGoal(goal);
+    setEditName(goal.name);
+    setEditAmount(String(goal.targetAmount ?? goal.limitAmount));
+    setEditPeriod((goal.periodType as "monthly" | "quarterly" | "yearly") || "monthly");
+  };
+
+  const saveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editGoal) return;
+    const amount = Number(editAmount.replace(",", "."));
+    if (!editName.trim() || !Number.isFinite(amount) || amount <= 0) {
+      toast.error("Nome e valor da meta são obrigatórios (valor > 0)");
+      return;
+    }
+    updateMut.mutate({
+      id: editGoal.id,
+      body: {
+        name: editName.trim(),
+        limitAmount: amount,
+        targetAmount: editGoal.goalType === "saving" ? amount : null,
+        periodType: editPeriod,
+      },
     });
   };
 
@@ -385,7 +472,7 @@ export default function Goals() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Metas Financeiras</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Escolha um modelo ou crie a sua — o progresso vem das transações registradas
+            Crie, edite e acompanhe — progresso baseado em ganhos/despesas reais
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -401,17 +488,17 @@ export default function Goals() {
             </DialogHeader>
             <form onSubmit={createCustom} className="space-y-4 pt-2">
               <div>
-                <Label htmlFor="goal-name">Nome</Label>
+                <Label htmlFor="goal-name">Nome *</Label>
                 <Input
                   id="goal-name"
                   value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
-                  placeholder="Ex.: Economizar para notebook"
+                  placeholder="Ex.: Faturamento mensal R$ 20.000"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="goal-amount">Valor (R$)</Label>
+                <Label htmlFor="goal-amount">Valor (R$) *</Label>
                 <Input
                   id="goal-amount"
                   type="number"
@@ -422,8 +509,21 @@ export default function Goals() {
                   required
                 />
               </div>
+              <div>
+                <Label>Período</Label>
+                <Select value={customPeriod} onValueChange={(v) => setCustomPeriod(v as typeof customPeriod)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="quarterly">Trimestral</SelectItem>
+                    <SelectItem value="yearly">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="flex gap-2">
-                {(["limit", "saving"] as const).map((t) => (
+                {(["saving", "limit"] as const).map((t) => (
                   <button
                     key={t}
                     type="button"
@@ -435,7 +535,7 @@ export default function Goals() {
                         : "border-border text-muted-foreground hover:bg-muted",
                     )}
                   >
-                    {t === "limit" ? "Limite de gasto" : "Poupança"}
+                    {t === "limit" ? "Limite de gasto" : "Meta de ganhos"}
                   </button>
                 ))}
               </div>
@@ -447,11 +547,63 @@ export default function Goals() {
         </Dialog>
       </div>
 
+      <Dialog
+        open={Boolean(editGoal)}
+        onOpenChange={(v) => {
+          if (!v) setEditGoal(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar meta</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveEdit} className="space-y-4 pt-2">
+            <div>
+              <Label htmlFor="edit-goal-name">Nome *</Label>
+              <Input id="edit-goal-name" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+            </div>
+            <div>
+              <Label htmlFor="edit-goal-amount">Valor (R$) *</Label>
+              <Input
+                id="edit-goal-amount"
+                type="number"
+                min={1}
+                step={1}
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label>Período</Label>
+              <Select value={editPeriod} onValueChange={(v) => setEditPeriod(v as typeof editPeriod)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="quarterly">Trimestral</SelectItem>
+                  <SelectItem value="yearly">Anual</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditGoal(null)}>
+                Cancelar
+              </Button>
+              <Button type="submit" className="bg-cgreen-500 hover:bg-cgreen-700" disabled={updateMut.isPending}>
+                {updateMut.isPending ? "Salvando…" : "Salvar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {isLoading && <p className="text-sm text-muted-foreground">Carregando metas…</p>}
 
       {!isLoading && goals.length === 0 && (
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">Comece com um modelo pronto:</p>
+          <p className="text-sm text-muted-foreground">Nenhuma meta ativa. Comece com um modelo pronto:</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {GOAL_TEMPLATES.map((template) => (
               <TemplateCard
@@ -470,11 +622,18 @@ export default function Goals() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <SummaryStat icon={CheckCircle2} label="No prazo" value={onTrack} iconBg="bg-cgreen-50 dark:bg-cgreen-900/30" iconClass="text-cgreen-500" />
             <SummaryStat icon={AlertTriangle} label="Atenção" value={goals.length - onTrack - exceeded} iconBg="bg-camber-light dark:bg-amber-900/25" iconClass="text-camber-main" />
-            <SummaryStat icon={TrendingUp} label="Excedidas" value={exceeded} iconBg="bg-cred-light dark:bg-red-900/25" iconClass="text-cred-main" />
+            <SummaryStat icon={TrendingUp} label="Excedidas / batidas" value={exceeded} iconBg="bg-cred-light dark:bg-red-900/25" iconClass="text-cred-main" />
           </div>
           <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
             {goals.map((goal) => (
-              <GoalCard key={goal.id} goal={goal} onInactivate={() => inactivateMut.mutate(goal.id)} />
+              <GoalCard
+                key={goal.id}
+                goal={goal}
+                onEdit={() => openEdit(goal)}
+                onInactivate={() => {
+                  if (confirm(`Excluir a meta "${goal.name}"?`)) inactivateMut.mutate(goal.id);
+                }}
+              />
             ))}
           </div>
         </>

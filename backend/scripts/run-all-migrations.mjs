@@ -26,6 +26,7 @@ const MIGRATIONS = [
   "0010_drop_users_phone_unique.sql",
   "0011_password_reset_token_unique.sql",
   "0012_password_reset_otp_and_delete.sql",
+  "0013_transaction_income_frequency.sql",
 ];
 
 function normalizeUrl(raw) {

@@ -22,7 +22,7 @@ import { parseDocumentText } from "../api/parser.js"; // Parser OpenAI para PDF
 import { createBulkTransactions } from "../api/transaction-service.js"; // Import em lote
 import { getTopCategories, getUserPreferences } from "../api/financial-memory.js"; // Memória financeira
 import { extractPdfText } from "../api/media-processor.js"; // Extração texto PDF
-import { computeFinancialKpis, generateInsights, generatePeriodReport } from "../api/insights.js"; // Dashboard inteligente
+import { computeFinancialKpis, generateInsights, generatePeriodReport, getUserBalance } from "../api/insights.js"; // Dashboard inteligente
 import { getEnrichedGoals, computeGoalDeadline } from "./goals-service.js"; // Metas com progresso
 import { num } from "./utils/money.js"; // Parse numeric
 import {
@@ -53,6 +53,19 @@ const goalCreateBody = z.object({
   targetAmount: z.union([z.string(), z.number()]).transform(String).nullable().optional(),
   durationMonths: z.number().int().min(1).max(360).nullable().optional(),
   color: z.string().optional(),
+});
+
+/** Schema Zod — PATCH /api/goals/:id (editar campos + ativar/inativar) */
+const goalPatchBody = z.object({
+  name: z.string().min(1).max(200).optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  limitAmount: z.union([z.string(), z.number()]).transform(String).optional(),
+  periodType: z.enum(["monthly", "quarterly", "yearly"]).optional(),
+  goalType: z.enum(["limit", "saving"]).optional(),
+  targetAmount: z.union([z.string(), z.number()]).transform(String).nullable().optional(),
+  durationMonths: z.number().int().min(1).max(360).nullable().optional(),
+  color: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
 
 /** Registra rotas estendidas (/api) e admin IA (/api/admin/ai). */
@@ -206,6 +219,34 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
       return reply.send({ kpis });
     });
 
+    /**
+     * GET /api/insights/financial-summary?from=&to=
+     * Fonte única de indicadores: ganhos, gastos, faturamento bruto/líquido.
+     */
+    r.get("/insights/financial-summary", async (request: FastifyRequest, reply: FastifyReply) => {
+      const q = request.query as { from?: string; to?: string };
+      const from = q.from ? new Date(q.from) : undefined;
+      const to = q.to ? new Date(q.to) : undefined;
+      if (from && Number.isNaN(from.getTime())) {
+        return reply.status(400).send({ error: "Parâmetro from inválido." });
+      }
+      if (to && Number.isNaN(to.getTime())) {
+        return reply.status(400).send({ error: "Parâmetro to inválido." });
+      }
+      const summary = await getUserBalance(request.user!.id, from, to);
+      return reply.send({
+        summary: {
+          ganhos: summary.ganhos,
+          gastos: summary.gastos,
+          faturamentoBruto: summary.faturamentoBruto,
+          faturamentoLiquido: summary.faturamentoLiquido,
+          ganhosCount: summary.ganhosCount,
+          gastosCount: summary.gastosCount,
+          isEmpty: summary.isEmpty,
+        },
+      });
+    });
+
     /** GET /api/insights/list — insights gerados por IA/heurística. */
     r.get("/insights/list", async (request: FastifyRequest, reply: FastifyReply) => {
       const insights = await generateInsights(request.user!.id);
@@ -284,29 +325,81 @@ export async function registerExtendedRoutes(app: FastifyInstance): Promise<void
       });
     });
 
-    /** PATCH /api/goals/:id — inativa/reativa meta (sem exclusão). */
+    /** PATCH /api/goals/:id — editar meta (valor, período, nome) ou ativar/inativar. */
     r.patch<{ Params: { id: string } }>("/goals/:id", async (request, reply) => {
-      const parsed = z.object({ isActive: z.boolean() }).safeParse(request.body);
+      const parsed = goalPatchBody.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
       }
       const userId = request.user!.id;
+      const d = parsed.data;
+
+      if (d.limitAmount !== undefined) {
+        const n = Number(d.limitAmount);
+        if (!Number.isFinite(n) || n <= 0) {
+          return reply.status(400).send({ error: "Valor da meta deve ser maior que zero." });
+        }
+      }
+
+      const patch: Record<string, unknown> = {};
+      if (d.name !== undefined) patch.name = d.name.trim();
+      if (d.categoryId !== undefined) patch.categoryId = d.categoryId;
+      if (d.limitAmount !== undefined) patch.limitAmount = d.limitAmount;
+      if (d.periodType !== undefined) patch.periodType = d.periodType;
+      if (d.goalType !== undefined) patch.goalType = d.goalType;
+      if (d.targetAmount !== undefined) patch.targetAmount = d.targetAmount;
+      if (d.color !== undefined) patch.color = d.color;
+      if (d.isActive !== undefined) patch.isActive = d.isActive;
+      if (d.durationMonths !== undefined) {
+        patch.durationMonths = d.durationMonths;
+        if (d.durationMonths != null) {
+          patch.deadlineAt = computeGoalDeadline(new Date(), d.durationMonths);
+        } else {
+          patch.deadlineAt = null;
+        }
+      }
+
+      if (Object.keys(patch).length === 0) {
+        return reply.status(400).send({ error: "Nenhum campo para atualizar." });
+      }
+
       const [row] = await db
         .update(goals)
-        .set({ isActive: parsed.data.isActive })
+        .set(patch as never)
         .where(and(eq(goals.id, request.params.id), eq(goals.userId, userId)))
-        .returning({ id: goals.id, isActive: goals.isActive });
+        .returning({
+          id: goals.id,
+          name: goals.name,
+          isActive: goals.isActive,
+          limitAmount: goals.limitAmount,
+          periodType: goals.periodType,
+          targetAmount: goals.targetAmount,
+        });
       if (!row) return reply.status(404).send({ error: "Not found" });
+
       const meta = requestAuditMeta(request);
+      const inactivated = d.isActive === false;
+      const activated = d.isActive === true;
       await writeAuditLog({
         userId,
-        routine: parsed.data.isActive ? "goals.activate" : "goals.inactivate",
-        action: parsed.data.isActive ? "activate" : "inactivate",
+        routine: inactivated ? "goals.inactivate" : activated ? "goals.activate" : "goals.update",
+        action: inactivated ? "inactivate" : activated ? "activate" : "update",
         entity: "goals",
         entityId: row.id,
         ...meta,
+        details: patch,
       });
-      return reply.send({ goal: row });
+
+      return reply.send({
+        goal: {
+          id: row.id,
+          name: row.name,
+          isActive: row.isActive,
+          limitAmount: num(row.limitAmount),
+          periodType: row.periodType,
+          targetAmount: row.targetAmount != null ? num(row.targetAmount) : null,
+        },
+      });
     });
 
     // --- User WhatsApp conversations ---

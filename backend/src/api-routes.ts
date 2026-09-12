@@ -17,6 +17,7 @@ import type { IncomeRecurrence, IncomeType } from "../api/onboarding-agent.js";
 import { billingAccessPreHandler } from "./billing-routes.js";
 import { requestAuditMeta, writeAuditLog } from "./audit.js";
 import { releasePhoneFromOtherUsers } from "../whatsapp/user-resolver.js";
+import { INCOME_FREQUENCIES, isValidIncomeFrequency } from "./utils/financial-summary.js";
 
 /** Converte numeric Postgres para number (helper local). */
 function num(v: string | null): number {
@@ -46,9 +47,10 @@ const txCreateBody = z.object({
   amount: z.union([z.string(), z.number()]).transform((a) => String(a)),
   type: z.enum(["expense", "income"]),
   categoryId: z.string().uuid().nullable().optional(),
-  description: z.string().max(500).optional(),
+  description: z.string().min(1).max(500),
   occurredAt: z.string().min(4).optional(),
   source: z.enum(["whatsapp", "web", "recurring", "manual"]).optional(),
+  incomeFrequency: z.enum(["monthly", "recurring", "non_recurring", "sporadic"]).nullable().optional(),
 });
 
 /** Schema Zod — PATCH /api/transactions/:id */
@@ -56,9 +58,10 @@ const txPatchBody = z.object({
   amount: z.union([z.string(), z.number()]).transform((a) => String(a)).optional(),
   type: z.enum(["expense", "income"]).optional(),
   categoryId: z.string().uuid().nullable().optional(),
-  description: z.string().max(500).nullable().optional(),
+  description: z.string().min(1).max(500).nullable().optional(),
   occurredAt: z.string().min(4).optional(),
   isActive: z.boolean().optional(),
+  incomeFrequency: z.enum(["monthly", "recurring", "non_recurring", "sporadic"]).nullable().optional(),
 });
 
 /** Schema Zod — PUT /api/budgets */
@@ -101,6 +104,7 @@ function mapTxRow(row: {
   description: string | null;
   occurredAt: Date;
   source: "whatsapp" | "web" | "recurring" | "manual";
+  incomeFrequency?: string | null;
   createdAt: Date;
   categoryName: string | null;
   categoryIcon: string | null;
@@ -113,6 +117,7 @@ function mapTxRow(row: {
     description: row.description,
     occurredAt: row.occurredAt.toISOString(),
     source: row.source,
+    incomeFrequency: row.incomeFrequency ?? null,
     categoryId: row.categoryId,
     categoryName: row.categoryName,
     categoryIcon: row.categoryIcon,
@@ -120,6 +125,23 @@ function mapTxRow(row: {
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+/** Campos SELECT padrão de transação + join de categoria. */
+const txSelectFields = {
+  id: transactions.id,
+  userId: transactions.userId,
+  categoryId: transactions.categoryId,
+  amount: transactions.amount,
+  type: transactions.type,
+  description: transactions.description,
+  occurredAt: transactions.occurredAt,
+  source: transactions.source,
+  incomeFrequency: transactions.incomeFrequency,
+  createdAt: transactions.createdAt,
+  categoryName: categories.name,
+  categoryIcon: categories.icon,
+  categoryColor: categories.color,
+};
 
 /** Registra todas as rotas CRUD principais com prefixo /api. */
 export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
@@ -191,20 +213,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       if (type === "expense" || type === "income") conds.push(eq(transactions.type, type));
 
       const rows = await db
-        .select({
-          id: transactions.id,
-          userId: transactions.userId,
-          categoryId: transactions.categoryId,
-          amount: transactions.amount,
-          type: transactions.type,
-          description: transactions.description,
-          occurredAt: transactions.occurredAt,
-          source: transactions.source,
-          createdAt: transactions.createdAt,
-          categoryName: categories.name,
-          categoryIcon: categories.icon,
-          categoryColor: categories.color,
-        })
+        .select(txSelectFields)
         .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(and(...conds))
@@ -262,35 +271,39 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
       }
       const userId = request.user!.id;
-      const { amount, type, categoryId, description, occurredAt, source } = parsed.data;
+      const { amount, type, categoryId, description, occurredAt, source, incomeFrequency } = parsed.data;
+
+      // Validação: valor > 0
+      const amountNum = Number(String(amount).replace(",", "."));
+      if (!Number.isFinite(amountNum) || amountNum <= 0) {
+        return reply.status(400).send({ error: "Valor deve ser maior que zero." });
+      }
+      if (!description.trim()) {
+        return reply.status(400).send({ error: "Nome/descrição é obrigatório." });
+      }
+      if (occurredAt && Number.isNaN(new Date(occurredAt).getTime())) {
+        return reply.status(400).send({ error: "Data inválida." });
+      }
+      if (type === "income" && incomeFrequency != null && !isValidIncomeFrequency(incomeFrequency)) {
+        return reply.status(400).send({ error: "Frequência inválida.", allowed: INCOME_FREQUENCIES });
+      }
+
       const [row] = await db
         .insert(transactions)
         .values({
           userId,
-          amount,
+          amount: String(amountNum),
           type,
           categoryId: categoryId ?? null,
-          description: description ?? null,
+          description: description.trim(),
           occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
           source: source ?? "manual",
+          incomeFrequency: type === "income" ? (incomeFrequency ?? null) : null,
         })
         .returning();
 
       const [joined] = await db
-        .select({
-          id: transactions.id,
-          userId: transactions.userId,
-          categoryId: transactions.categoryId,
-          amount: transactions.amount,
-          type: transactions.type,
-          description: transactions.description,
-          occurredAt: transactions.occurredAt,
-          source: transactions.source,
-          createdAt: transactions.createdAt,
-          categoryName: categories.name,
-          categoryIcon: categories.icon,
-          categoryColor: categories.color,
-        })
+        .select(txSelectFields)
         .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(eq(transactions.id, row.id));
@@ -319,30 +332,37 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       const [existing] = await db.select().from(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
       if (!existing) return reply.status(404).send({ error: "Not found" });
 
+      if (parsed.data.amount !== undefined) {
+        const amountNum = Number(String(parsed.data.amount).replace(",", "."));
+        if (!Number.isFinite(amountNum) || amountNum <= 0) {
+          return reply.status(400).send({ error: "Valor deve ser maior que zero." });
+        }
+      }
+      if (parsed.data.description !== undefined && parsed.data.description !== null && !parsed.data.description.trim()) {
+        return reply.status(400).send({ error: "Nome/descrição é obrigatório." });
+      }
+      if (parsed.data.occurredAt && Number.isNaN(new Date(parsed.data.occurredAt).getTime())) {
+        return reply.status(400).send({ error: "Data inválida." });
+      }
+
       const patch: Record<string, unknown> = {};
-      if (parsed.data.amount !== undefined) patch.amount = parsed.data.amount;
+      if (parsed.data.amount !== undefined) patch.amount = String(Number(String(parsed.data.amount).replace(",", ".")));
       if (parsed.data.type !== undefined) patch.type = parsed.data.type;
       if (parsed.data.categoryId !== undefined) patch.categoryId = parsed.data.categoryId;
-      if (parsed.data.description !== undefined) patch.description = parsed.data.description;
+      if (parsed.data.description !== undefined) {
+        patch.description = parsed.data.description == null ? null : parsed.data.description.trim();
+      }
       if (parsed.data.occurredAt !== undefined) patch.occurredAt = new Date(parsed.data.occurredAt);
       if (parsed.data.isActive !== undefined) patch.isActive = parsed.data.isActive;
+      if (parsed.data.incomeFrequency !== undefined) {
+        const nextType = (parsed.data.type ?? existing.type) as string;
+        patch.incomeFrequency =
+          nextType === "income" ? parsed.data.incomeFrequency : null;
+      }
 
       if (Object.keys(patch).length === 0) {
         const [joined] = await db
-          .select({
-            id: transactions.id,
-            userId: transactions.userId,
-            categoryId: transactions.categoryId,
-            amount: transactions.amount,
-            type: transactions.type,
-            description: transactions.description,
-            occurredAt: transactions.occurredAt,
-            source: transactions.source,
-            createdAt: transactions.createdAt,
-            categoryName: categories.name,
-            categoryIcon: categories.icon,
-            categoryColor: categories.color,
-          })
+          .select(txSelectFields)
           .from(transactions)
           .leftJoin(categories, eq(transactions.categoryId, categories.id))
           .where(eq(transactions.id, id));
@@ -352,20 +372,7 @@ export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
       await db.update(transactions).set(patch as never).where(eq(transactions.id, id));
 
       const [joined] = await db
-        .select({
-          id: transactions.id,
-          userId: transactions.userId,
-          categoryId: transactions.categoryId,
-          amount: transactions.amount,
-          type: transactions.type,
-          description: transactions.description,
-          occurredAt: transactions.occurredAt,
-          source: transactions.source,
-          createdAt: transactions.createdAt,
-          categoryName: categories.name,
-          categoryIcon: categories.icon,
-          categoryColor: categories.color,
-        })
+        .select(txSelectFields)
         .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id))
         .where(eq(transactions.id, id));
