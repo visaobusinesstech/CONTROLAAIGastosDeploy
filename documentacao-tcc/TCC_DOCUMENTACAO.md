@@ -1126,6 +1126,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.28 | Auth Vercel: fallbacks DATABASE_URL/SMTP/JWT embutidos (`_env.ts`) quando Variables vazias |
 | set/2026 | 8.29 | 2FA enable/disable/verify/resend na Vercel + e-mail template próprio; `/api/settings` via Vercel |
 | set/2026 | 8.30 | Fix build Vercel TS: remove `mail/env/db/session/diag` mortos; imports relativos com `.js`; `isActive` sem comparação `true`/`false` inválida |
+| set/2026 | 8.31 | Middleware exclui `/api/settings` do proxy Railway (rewrite → `user-settings` na Vercel) |
 
 ---
 
