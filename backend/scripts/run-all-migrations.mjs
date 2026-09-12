@@ -42,9 +42,13 @@ if (!url) {
   process.exit(1);
 }
 
+// Node 22: sslmode=require na URL vira verify-full e falha no proxy Railway
+const cleanUrl = url.replace(/([?&])sslmode=[^&]*/g, "$1").replace(/[?&]$/, "");
+const isLocal = /localhost|127\.0\.0\.1/.test(cleanUrl);
+
 const client = new pg.Client({
-  connectionString: url,
-  ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false },
+  connectionString: cleanUrl,
+  ssl: isLocal ? false : { rejectUnauthorized: false },
 });
 await client.connect();
 

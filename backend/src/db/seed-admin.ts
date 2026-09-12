@@ -18,13 +18,30 @@ async function seedAdmin() {
   if (existing) {
     await db
       .update(users)
-      .set({ name: ADMIN_NAME, passwordHash, plan: "premium" })
+      .set({
+        name: ADMIN_NAME,
+        passwordHash,
+        plan: "premium",
+        accessLevel: "admin",
+        isActive: true,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      })
       .where(eq(users.id, existing.id));
     console.log(`Admin atualizado: ${email} / senha: ${ADMIN_PASSWORD}`);
   } else {
     const [row] = await db
       .insert(users)
-      .values({ name: ADMIN_NAME, email, passwordHash, plan: "premium" })
+      .values({
+        name: ADMIN_NAME,
+        email,
+        passwordHash,
+        plan: "premium",
+        accessLevel: "admin",
+        isActive: true,
+        emailVerified: true,
+        emailVerifiedAt: new Date(),
+      })
       .returning({ id: users.id });
     await db.insert(userSettings).values({ userId: row.id }).onConflictDoNothing();
     console.log(`Admin criado: ${email} / senha: ${ADMIN_PASSWORD}`);

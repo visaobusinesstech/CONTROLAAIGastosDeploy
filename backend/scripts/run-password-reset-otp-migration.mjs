@@ -12,12 +12,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, "..");
 dotenv.config({ path: path.join(root, ".env") });
 
-const url = (process.env.DATABASE_URL ?? "").trim();
-if (!url) {
+const raw = (process.env.DATABASE_URL ?? "").trim();
+if (!raw) {
   console.error("DATABASE_URL ausente");
   process.exit(1);
 }
 
+const url = raw.replace(/([?&])sslmode=[^&]*/g, "$1").replace(/[?&]$/, "");
 const client = new pg.Client({
   connectionString: url,
   ssl: /localhost|127\.0\.0\.1/.test(url) ? false : { rejectUnauthorized: false },

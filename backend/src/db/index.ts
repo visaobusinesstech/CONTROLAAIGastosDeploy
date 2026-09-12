@@ -29,20 +29,13 @@ const needsSsl =
   url.includes("sslmode=require") ||
   url.includes("sslmode=verify-full");
 
-
-
 const client = postgres(url, {
-
   max: 10, // Máximo de conexões simultâneas no pool
-
   connect_timeout: 30, // Segundos para timeout na conexão inicial
-
   idle_timeout: 20, // Fecha conexões ociosas após 20s
-
-  ...(needsSsl ? { ssl: "require" as const } : {}), // Força SSL em produção Neon
-
+  // Railway/proxy: aceita cadeia self-signed (evita SELF_SIGNED_CERT_IN_CHAIN no Node 22)
+  ...(needsSsl ? { ssl: { rejectUnauthorized: false } } : {}),
   ...(usePooler ? { prepare: false } : {}), // Obrigatório com pooler Neon (PgBouncer)
-
 });
 
 

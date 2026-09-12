@@ -15,11 +15,17 @@ function dbUrl(): string {
   return url;
 }
 
+const url = dbUrl();
+const isRemote = !/localhost|127\.0\.0\.1/.test(url);
+// Node 22: sslmode=require na URL vira verify-full e quebra no proxy Railway
+const cleanUrl = url.replace(/([?&])sslmode=[^&]*/g, "$1").replace(/[?&]$/, "");
+
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: dbUrl(),
+    url: cleanUrl,
+    ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
   },
 });
