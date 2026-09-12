@@ -8,6 +8,7 @@
  * SERVIDOR CORE (`src/`)
  *   index.ts              → Boot Fastify, CORS, health, WhatsApp, admin
  *   env.ts                → DATABASE_URL, JWT, FRONTEND_URL, Railway/Neon
+ *   redis.ts              → Cliente Redis Railway (REDIS_URL / REDIS_PASSWORD)
  *   auth.ts               → Register, login, JWT 7d, reset senha, OTP e-mail, 2FA, authPreHandler
  *   mailer.ts             → Resend/SMTP — códigos 2FA e link de reset
  *   legal/documents.ts    → Termos, Privacidade e consentimento LGPD (versão)
@@ -70,6 +71,7 @@ export const BACKEND_MAP_VERSION = "3.0";
 export const BACKEND_APPLICATION_FILES = [
   "src/index.ts",
   "src/env.ts",
+  "src/redis.ts",
   "src/auth.ts",
   "src/mailer.ts",
   "src/legal/documents.ts",

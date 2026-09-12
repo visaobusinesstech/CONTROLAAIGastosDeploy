@@ -41,6 +41,8 @@ import { initWhatsApp } from "../whatsapp/client.js"; // Inicia socket Baileys +
 
 import { ensureAdminUser } from "./db/ensure-admin.js"; // Garante admin@admin.com no banco
 
+import { redisHealthCheck } from "./redis.js"; // Ping Redis Railway (opcional)
+
 
 
 const port = Number(process.env.PORT) || 3333; // Porta HTTP (Railway injeta PORT automaticamente)
@@ -100,6 +102,8 @@ async function createApp() {
 
     }
 
+    const redis = await redisHealthCheck(); // Não bloqueia liveness se Redis falhar
+
     return {
 
       ok: true, // Servidor Node está vivo
@@ -108,9 +112,12 @@ async function createApp() {
 
       db: dbOk, // true/false — banco acessível
 
+      redis, // { configured, ok, host }
+
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.20", // Auth direto + esqueci senha OTP + CRUD Assinantes
+      build: "8.21", // Redis Railway + health
+
       mail: mailHealthSnapshot(),
 
     };

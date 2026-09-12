@@ -162,6 +162,7 @@ controlaaii/
     │   ├── extended-routes.ts ← Chat IA, KPIs, metas, imports
     │   ├── goals-service.ts   ← Progresso de metas
     │   ├── env.ts             ← Variáveis de ambiente
+    │   ├── redis.ts           ← Cliente Redis Railway (cache/sessões)
     │   ├── db/                ← Schema Drizzle + seeds
     │   └── utils/             ← phone, money, admin
     ├── drizzle/               ← Migrations SQL
@@ -962,6 +963,9 @@ Arquivo: `backend/.env` (ver `.env.example`)
 | `MAIL_FROM_SMTP` | Não | Remetente SMTP (padrão `Controla.ai <SMTP_USER>`) |
 | `EMAIL_SMTP_RELAY_URL` | Sim (Railway) | `https://controlaai-frontend.vercel.app/relay/send` (não use `/api/email-relay` — cai no proxy) |
 | `EMAIL_SMTP_RELAY_SECRET` | Sim (Railway + Vercel) | Mesmo secret; **no Vercel só esta variável** — `SMTP_*` ficam só no Railway e vão no body do POST |
+| `REDIS_URL` | Sim (prod) | `redis://default:SENHA@redis.railway.internal:6379` (rede privada Railway) |
+| `REDIS_PASSWORD` | Não | Senha Redis (alternativa se montar a URL) |
+| `REDIS_PUBLIC_URL` | Não (local) | Proxy público do Redis — só se for testar Redis do PC |
 | `STRIPE_BRANDING_LOGO_FILE_ID` | Não | `file_xxx` logo (`business_logo`) já enviado ao Stripe |
 | `STRIPE_BRANDING_ICON_FILE_ID` | Não | `file_xxx` ícone (`business_icon`) já enviado ao Stripe |
 
@@ -1007,7 +1011,7 @@ Cada arquivo abaixo possui **comentários em português** no código-fonte (cabe
 
 | Pasta | Arquivos comentados (PT) |
 |-------|--------------------------|
-| `src/` | index, env, auth, **mailer**, api-routes, extended-routes, **governance-routes**, **audit**, **lgpd**, goals-service, db/index, db/schema, db/ensure-admin, utils/* |
+| `src/` | index, env, **redis**, auth, **mailer**, api-routes, extended-routes, **governance-routes**, **audit**, **lgpd**, goals-service, db/index, db/schema, db/ensure-admin, utils/* |
 | `api/` | financial-agent, onboarding-agent, goal-agent, **goal-parser**, app-links, parser, prompts, transaction-service, category-resolver, insights, financial-memory, media-processor, openai-client, runtime-config, logger, **stripe-service**, **stripe-branding**, index |
 | `whatsapp/` | client, message-handler, user-resolver, jid-resolver, routes, session-utils, keep-alive, baileys-log |
 
@@ -1114,6 +1118,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.18.3 | Relay exposto em `/relay/send` (rewrite → `api/email-relay`); `/api/email-relay` caía no proxy backend (502) |
 | ago/2026 | 8.19 | Relay Edge Resend-only (`/relay/send` → `api/relay/send`); nodemailer removido do Vercel (504); remetente `noreply@controlaai.com` |
 | set/2026 | 8.20 | Cadastro/login sem e-mail (JWT direto); esqueci senha com OTP 2 etapas (`password_reset`); CRUD Assinantes (add/edit/delete) só `admin@admin.com`; migration `0012_password_reset_otp_and_delete.sql`; SMTP Gmail local; WhatsApp reabilitável via `ENABLE_WHATSAPP` |
+| set/2026 | 8.21 | Redis Railway (`REDIS_URL` / `REDIS_PASSWORD`) via `src/redis.ts` + ping em `/health`; ioredis |
 
 ---
 
