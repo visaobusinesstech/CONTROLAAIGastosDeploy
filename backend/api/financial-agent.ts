@@ -13,6 +13,7 @@ import {
   generatePeriodReport,
 } from "./insights.js"; // Consultas e relatórios com dados reais
 import {
+  clearGoalSession,
   hasActiveGoalSession,
   hasGoalDataInText,
   isGoalRequest,
@@ -353,7 +354,68 @@ export async function processFinancialAgentMessage(
     if (ack) return ack;
   }
 
-  // Metas — sessão ativa, pedido explícito ou fase pós-renda
+  // PRIORIDADE: lançamento explícito de gasto/ganho SEMPRE antes de meta
+  // Corrige bug: "Quero registrar um gasto de 30 reais em comida" virava meta
+  const isExplicitTx =
+    isExpenseMessage(trimmed) ||
+    isIncomeMessage(trimmed) ||
+    isTransactionMessage(trimmed);
+
+  if (isExplicitTx && !isGoalRequest(trimmed)) {
+    // Se havia sessão de meta presa, cancela para não engolir o gasto
+    if (hasActiveGoalSession(userId)) {
+      clearGoalSession(userId);
+    }
+    const topCategoriesEarly = userCtx.topCategories.length
+      ? userCtx.topCategories
+      : (options?.topCategories ?? (await getTopCategories(userId)));
+    const expenseCategoriesEarly =
+      options?.expenseCategories ?? (await listAvailableCategories(userId, "expense"));
+    const incomeCategoriesEarly =
+      options?.incomeCategories ?? (await listAvailableCategories(userId, "income"));
+    const conversationHistoryEarly = [
+      await buildParserConversationHistory(userId, 10),
+      userCtx.summaryForAi,
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+    const txIntent = await parseFinancialIntent(trimmed, {
+      userId,
+      topCategories: topCategoriesEarly,
+      expenseCategories: expenseCategoriesEarly,
+      incomeCategories: incomeCategoriesEarly,
+      conversationHistory: conversationHistoryEarly,
+    });
+
+    // Força transaction se o regex já disse que é gasto/ganho
+    const forcedIntent =
+      txIntent.intent === "transaction"
+        ? txIntent
+        : {
+            intent: "transaction" as const,
+            type: (isExpenseMessage(trimmed) ? "expense" : "income") as "expense" | "income",
+            value: txIntent.value ?? parseMoneyAmount(trimmed) ?? undefined,
+            category: txIntent.category,
+            description: txIntent.description ?? trimmed.slice(0, 200),
+          };
+
+    if (forcedIntent.intent === "transaction") {
+      const result = await createTransactionFromIntent(userId, forcedIntent, trimmed, {
+        userName: options?.userName,
+      });
+      if (result) {
+        const reminder = await buildIncomeProfileReminder(userId);
+        return {
+          response: await finalizeResponse(userId, result.response + reminder),
+          transactionId: result.transactionId ?? null,
+          transactionCreated: Boolean(result.transactionId),
+        };
+      }
+    }
+  }
+
+  // Metas — só se NÃO for lançamento explícito
   if (
     isGoalRequest(trimmed) ||
     hasActiveGoalSession(userId) ||
@@ -433,7 +495,7 @@ export async function processFinancialAgentMessage(
     };
   }
 
-  if (hasGoalDataInText(trimmed)) {
+  if (hasGoalDataInText(trimmed) && isGoalRequest(trimmed)) {
     const goalResult = await processGoalAgentMessage(userId, trimmed, {
       userName: options?.userName,
     });

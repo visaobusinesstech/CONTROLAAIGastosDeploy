@@ -52,9 +52,13 @@ ESTRUTURA JSON:
 
 EXEMPLOS:
 - "Gastei 50 na pizza" → transaction expense 50 Alimentação descrição pizza
+- "Quero registrar um gasto de 30 reais em comida" → transaction expense 30 Alimentação (NÃO é meta!)
+- "Registrar despesa de 150 no servidor" → transaction expense 150 Tecnologia
+- "Lançar gasto 80 uber" → transaction expense 80 Transporte
 - "Gastei 80 no livro do Paulo Marçal" → transaction expense 80 Educação
 - "Quero criar uma meta" → goal (sem value)
 - "Quero juntar 5 mil para viagem" → goal (informação para meta, NÃO income)
+- "Quero registrar uma meta de alimentação 800" → goal limit
 - "Recebi 3 mil do cliente João" → transaction income 3000 Freelance descrição Cliente João
 - "Recebi 5000" → transaction income 5000 Salário
 - "Recebi 5k" → transaction income 5000
@@ -63,6 +67,8 @@ EXEMPLOS:
 - "Quanto gastei esse mês?" → query monthly_spending
 - "Posso gastar 500 esse fds?" → query can_spend value 500
 - "Resumo mensal" → report
+
+REGRA CRÍTICA: "registrar um gasto/despesa" = SEMPRE intent=transaction type=expense. NUNCA confunda com meta/limite.
 
 Toda transação identificada será salva no banco com source=whatsapp e refletida no dashboard em tempo real.`;
 

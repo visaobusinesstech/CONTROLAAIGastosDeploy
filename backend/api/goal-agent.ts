@@ -81,57 +81,53 @@ const sessions = new Map<string, GoalSession>();
 
 
 const GOAL_REQUEST_RE =
-
   /\b(meta|metas|objetivo|objetivos)\b|quero\s+(registrar|criar|cadastrar|definir|montar|estabelecer)\s+(uma\s+)?meta|cri(ar|e)\s+(uma\s+)?meta|registrar\s+(uma\s+)?meta|nova\s+meta|minha\s+meta/i;
-
-
 
 const CANCEL_RE = /^(cancelar|cancela|sair|parar|desistir|voltar)([!?.…,\s]*|$)/i;
 
-
+/** Import lazy evita ciclo com transaction-intent. */
+async function isExpenseNotGoalMessage(text: string): Promise<boolean> {
+  const { isExpenseNotGoal, isExplicitTransactionRegistration } = await import("./transaction-intent.js");
+  return isExpenseNotGoal(text) || isExplicitTransactionRegistration(text);
+}
 
 export function isGoalRequest(text: string): boolean {
-
-  return GOAL_REQUEST_RE.test(text.trim());
-
+  const t = text.trim();
+  // "quero registrar um gasto" NÃO é pedido de meta (mesmo que tenha "quero registrar")
+  if (/\b(gasto|despesa|compra|pagamento)\b/i.test(t) && !/\b(meta|metas|objetivo)\b/i.test(t)) {
+    return false;
+  }
+  return GOAL_REQUEST_RE.test(t);
 }
-
-
 
 export function hasActiveGoalSession(userId: string): boolean {
-
   return sessions.has(userId);
-
 }
-
-
 
 export function clearGoalSession(userId: string): void {
-
   sessions.delete(userId);
-
 }
 
-
-
-/** Mensagem contém dados parseáveis de meta (valor, tipo, prazo). */
-
+/** Mensagem contém dados parseáveis de meta (valor, tipo, prazo) — sem confundir com gasto. */
 export function hasGoalDataInText(text: string): boolean {
-
   const t = text.trim();
-
   if (!t) return false;
+  // Gasto/ganho explícito nunca conta como "dados de meta"
+  if (/\b(gastei|paguei|comprei|recebi|ganhei|faturei)\b/i.test(t)) return false;
+  if (
+    /\b(registrar|cadastrar|lan[cç]ar|anotar|adicionar)\s+(um[a]?\s+)?(gasto|despesa|ganho|receita|compra)/i.test(
+      t,
+    )
+  ) {
+    return false;
+  }
+  if (/\b(gasto|despesa)\s+(de\s+)?(r\$\s*)?\d/i.test(t)) return false;
 
   if (parseGoalAmount(t)) return true;
-
   if (parseGoalType(t)) return true;
-
   if (parseDurationMonths(t) != null) return true;
-
   if (/junt|poupar|economiz|guardar|limit|teto|n[aã]o pass|\d+\s*(mil|k)/i.test(t)) return true;
-
   return false;
-
 }
 
 
@@ -441,19 +437,14 @@ export type GoalAgentResult = {
 
 
 /** Usuário sem metas e fase conversacional pedindo metas. */
-
 export async function shouldAutoCaptureGoal(userId: string, text: string): Promise<boolean> {
-
+  // Gasto/ganho explícito NUNCA vira auto-meta (ex.: "registrar um gasto de 30")
+  if (await isExpenseNotGoalMessage(text)) return false;
   if (hasActiveGoalSession(userId)) return true;
-
   if (getConversationPhase(userId) === "goals") return hasGoalDataInText(text) || isGoalRequest(text);
-
   const count = await countUserGoals(userId);
-
   if (count === 0 && hasGoalDataInText(text)) return true;
-
   return false;
-
 }
 
 
@@ -582,7 +573,13 @@ export async function processGoalAgentMessage(
 
   }
 
-
+  // Gasto explícito durante sessão de meta → não cria meta; devolve para o agente financeiro
+  if (await isExpenseNotGoalMessage(trimmed)) {
+    if (!mentionsGoal) {
+      clearGoalSession(userId);
+      return { handled: false, response: "", goalCreated: false };
+    }
+  }
 
   if (looksLikeIncomeNotGoal(trimmed) && !looksLikeGoalAmount(trimmed)) {
 

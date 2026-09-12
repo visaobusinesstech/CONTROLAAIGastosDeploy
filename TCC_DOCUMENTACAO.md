@@ -1039,6 +1039,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| set/2026 | 8.1 | **Fix agente WhatsApp:** "Quero registrar um gasto…" não vira meta — prioridade gasto>meta; `isExplicitExpenseRegistration` / `isExpenseNotGoal`; `shouldAutoCaptureGoal` bloqueia lançamentos; prompt OpenAI reforçado |
 | set/2026 | 8.0 | **Módulo financeiro ponta a ponta:** ganhos ≠ gastos; indicadores Ganhos / Gastos / Faturamento bruto / líquido via fonte única (`financial-summary`); CRUD ganhos (frequência mensal/recorrente/não recorrente/esporádico), despesas e metas (criar/editar/excluir); filtros de período reais; empty states; validações; migration `0013_transaction_income_frequency`; endpoint `GET /api/insights/financial-summary`; 18 testes Vitest + 20 E2E (`npm run test:finance`) |
 | jun/2026 | 2.0 | Reorganização TCC: `api/` (OpenAI), `whatsapp/` (Baileys), achatamento de `src/modules/` |
 | jun/2026 | 2.0 | Criação deste documento único `TCC_DOCUMENTACAO.md` |

@@ -73,7 +73,8 @@ function parseLocalIntent(text: string): FinancialIntent {
   }
 
   if (/\b(meta|metas|objetivo)\b|quero\s+(registrar|criar|cadastrar).*meta|criar\s+(uma\s+)?meta/i.test(lower)) {
-    if (!isTransactionMessage(text)) return { intent: "goal" };
+    // Gasto explícito vence meta mesmo se a frase tiver palavras ambíguas
+    if (!isTransactionMessage(text) && !isExpenseMessage(text)) return { intent: "goal" };
   }
 
   const isIncome = isIncomeMessage(text);
