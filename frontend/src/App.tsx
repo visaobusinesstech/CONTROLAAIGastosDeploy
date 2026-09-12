@@ -26,7 +26,7 @@ import RequireAdmin from "@/components/RequireAdmin"; // Guard WhatsApp / modelo
 import RequireStaff from "@/components/RequireStaff"; // Guard governança
 import RequireAdminAuth from "@/components/RequireAdminAuth"; // Guard só admin@admin.com
 import { DocumentTitle } from "@/components/DocumentTitle"; // Título dinâmico da aba
-import { AppErrorBoundary } from "@/components/AppErrorBoundary"; // Captura erros de render
+import { AppErrorBoundaryWithRouter } from "@/components/AppErrorBoundary"; // Captura erros de render
 import { useAuth } from "@/lib/auth"; // Hook de sessão JWT
 
 const queryClient = new QueryClient();
@@ -55,8 +55,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AppErrorBoundary>
-        <BrowserRouter>
+      <BrowserRouter>
+        <AppErrorBoundaryWithRouter>
           <DocumentTitle />
           <Routes>
             {/* Rotas públicas — autenticação */}
@@ -120,8 +120,8 @@ const App = () => (
             <Route path="/admin" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<NotFound />} /> {/* 404 */}
           </Routes>
-        </BrowserRouter>
-      </AppErrorBoundary>
+        </AppErrorBoundaryWithRouter>
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

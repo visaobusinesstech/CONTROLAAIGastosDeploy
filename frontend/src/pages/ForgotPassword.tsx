@@ -34,6 +34,7 @@ export default function ForgotPassword() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [challenge, setChallenge] = useState<AuthChallengeResponse | null>(null);
+  const [genericSent, setGenericSent] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,21 +52,15 @@ export default function ForgotPassword() {
         setChallenge(res);
         return;
       }
-      // Conta inexistente: resposta genérica sem revelar
       setError("");
       setChallenge(null);
-      alertFallbackOk();
+      setGenericSent(true);
     } catch (err) {
       setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível enviar o código.");
     } finally {
       setSubmitting(false);
     }
   };
-
-  const [genericSent, setGenericSent] = useState(false);
-  function alertFallbackOk() {
-    setGenericSent(true);
-  }
 
   const handleVerifyOtp = async (code: string) => {
     if (!challenge || code.length !== 6) return;

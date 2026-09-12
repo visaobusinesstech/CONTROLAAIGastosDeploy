@@ -2,12 +2,13 @@
  * Error boundary global — captura erros de renderização e exibe fallback amigável.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, useEffect, type ErrorInfo, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 
-type Props = { children: ReactNode };
+type Props = { children: ReactNode; resetKey?: string };
 type State = { error: Error | null };
 
-/** Envolve BrowserRouter em App.tsx para evitar tela branca em falhas de render. */
+/** Envolve rotas em App.tsx para evitar tela branca em falhas de render. */
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
 
@@ -19,8 +20,14 @@ export class AppErrorBoundary extends Component<Props, State> {
     console.error("[app] render error:", error, info.componentStack);
   }
 
+  componentDidUpdate(prevProps: Props): void {
+    // Nova rota limpa o erro — evita tela “Algo deu errado” presa após login
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
   render() {
-    // UI de fallback quando um componente filho lança exceção
     if (this.state.error) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
@@ -41,4 +48,13 @@ export class AppErrorBoundary extends Component<Props, State> {
     }
     return this.props.children;
   }
+}
+
+/** Liga o boundary à URL atual para resetar ao navegar. */
+export function AppErrorBoundaryWithRouter({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  useEffect(() => {
+    /* só para forçar re-render com resetKey via location.key */
+  }, [location.key]);
+  return <AppErrorBoundary resetKey={location.key}>{children}</AppErrorBoundary>;
 }

@@ -29,14 +29,11 @@ export default function Login() {
   const isAdminMode = isAdminUser(email.trim());
   const redirectFrom = (location.state as { from?: string } | null)?.from;
 
-  if (!loading && token && user) {
-    return <Navigate to={getPostLoginPath(user.email, redirectFrom)} replace />;
-  }
-
   const inputFocusClass = isAdminMode
     ? "focus:border-amber-500"
     : "focus:border-cgreen-500";
 
+  // Hooks SEMPRE antes de qualquer return (evita "Rendered fewer hooks than expected" no login)
   const header = useMemo(
     () =>
       isAdminMode ? (
@@ -67,6 +64,10 @@ export default function Login() {
       ),
     [isAdminMode],
   );
+
+  if (!loading && token && user) {
+    return <Navigate to={getPostLoginPath(user.email, redirectFrom)} replace />;
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
