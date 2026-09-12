@@ -3,7 +3,7 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createAndSendOtp, getDb, loadUser, type OtpPurpose } from "../otp-shared";
+import { createAndSendOtp, getDb, loadUser, type OtpPurpose } from "./auth/otp-shared";
 
 export const config = { runtime: "nodejs", maxDuration: 15 };
 

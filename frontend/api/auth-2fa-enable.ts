@@ -1,9 +1,9 @@
 /**
- * POST /auth/2fa/disable → /api/auth/2fa/disable
+ * POST /auth/2fa/enable → /api/auth/2fa/enable
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createAndSendOtp, isTwoFactorEnabled, loadUser, verifyBearer } from "../otp-shared";
+import { createAndSendOtp, isTwoFactorEnabled, loadUser, verifyBearer } from "./auth/otp-shared";
 
 export const config = { runtime: "nodejs", maxDuration: 15 };
 
@@ -24,20 +24,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    if (!(await isTwoFactorEnabled(user.id))) {
-      res.status(200).json({ ok: true, twoFactorEnabled: false });
+    if (await isTwoFactorEnabled(user.id)) {
+      res.status(200).json({ ok: true, twoFactorEnabled: true });
       return;
     }
     const challenge = await createAndSendOtp({
       userId: user.id,
       email: user.email,
-      purpose: "disable",
+      purpose: "enable",
     });
     res.status(200).json(challenge);
   } catch (err) {
-    console.error("[2fa/disable]", err);
+    console.error("[2fa/enable]", err);
     res.status(500).json({
-      error: "Não foi possível iniciar a desativação do 2FA.",
+      error: "Não foi possível iniciar a verificação em 2 etapas.",
       detail: err instanceof Error ? err.message : String(err),
     });
   }

@@ -19,7 +19,7 @@ export const config = {
     "/auth/register",
     "/auth/legal",
     "/health",
-    "/api/((?!backend-proxy|relay|auth|user-settings|settings).*)",
+    "/api/((?!backend-proxy|relay|auth|auth-2fa|user-settings).*)",
   ],
 };
 

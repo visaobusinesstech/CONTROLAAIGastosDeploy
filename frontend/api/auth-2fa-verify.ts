@@ -5,7 +5,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { getDb, JWT_SECRET } from "../otp-shared";
+import { getDb, JWT_SECRET } from "./auth/otp-shared";
 
 export const config = { runtime: "nodejs", maxDuration: 15 };
 
