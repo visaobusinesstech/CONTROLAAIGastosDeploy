@@ -75,13 +75,14 @@ export const twoFactorPurposeEnum = pgEnum("two_factor_purpose", [
   "login", // 2FA após senha
   "enable", // Ligar 2FA nas configurações
   "disable", // Desligar 2FA nas configurações
+  "password_reset", // Esqueci a senha — verificação em 2 etapas antes da nova senha
 ]);
 
 /** Nível de acesso — user vê só os próprios dados; staff vê painel com máscara LGPD */
 export const accessLevelEnum = pgEnum("access_level", ["user", "viewer", "operator", "admin"]);
 
-/** Ação registrada na auditoria de cadastros (nunca exclusão física) */
-export const auditActionEnum = pgEnum("audit_action", ["insert", "update", "inactivate", "activate"]);
+/** Ação registrada na auditoria de cadastros (delete = exclusão física pelo admin do sistema) */
+export const auditActionEnum = pgEnum("audit_action", ["insert", "update", "inactivate", "activate", "delete"]);
 
 // --- TABELA users: contas do sistema (web + auto-criadas via WhatsApp) ---
 

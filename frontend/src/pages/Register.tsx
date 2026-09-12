@@ -1,5 +1,6 @@
 /**
  * Cadastro de novos usuários — aceite legal (LGPD) e depois formulário.
+ * Sem e-mail/OTP no cadastro: grava no banco e emite JWT. OTP só em 2FA opt-in ou esqueci senha.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { useState } from "react";
@@ -10,9 +11,8 @@ import { Eye, EyeOff, Check, ArrowLeft } from "lucide-react";
 import { LogoFull } from "@/components/Logo";
 import { RegisterTermsAcceptance } from "@/components/RegisterTermsAcceptance";
 import { useAuth } from "@/lib/auth";
-import { registerRequest, verifyTwoFactorRequest, ApiError, translateApiError, isAuthChallenge, type AuthChallengeResponse, type ConsentType } from "@/lib/api";
+import { registerRequest, ApiError, translateApiError, isAuthChallenge, type ConsentType } from "@/lib/api";
 import { getHomePathForUser } from "@/lib/routes";
-import { EmailOtpStep } from "@/components/EmailOtpStep";
 
 function formatPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -45,7 +45,6 @@ export default function Register() {
   const [phoneValid, setPhoneValid] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [challenge, setChallenge] = useState<AuthChallengeResponse | null>(null);
 
   if (!loading && token && user) {
     return <Navigate to={getHomePathForUser(user.email)} replace />;
@@ -99,7 +98,7 @@ export default function Register() {
         result = await registerRequest({ ...payload, phone: undefined });
       }
       if (isAuthChallenge(result)) {
-        setChallenge(result);
+        setError("Resposta inesperada do servidor. Tente entrar com e-mail e senha.");
         return;
       }
       setSession(result.token, result.user);
@@ -123,26 +122,6 @@ export default function Register() {
             : "Não foi possível criar a conta. Inicie o backend e tente novamente.",
         );
       }
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleVerifyOtp = async (code: string) => {
-    if (!challenge || code.length !== 6) return;
-    setError("");
-    setSubmitting(true);
-    try {
-      const result = await verifyTwoFactorRequest({ challengeId: challenge.challengeId, code });
-      if (!("token" in result)) {
-        setError("Código confirmado, mas o cadastro não foi concluído. Tente entrar.");
-        return;
-      }
-      setSession(result.token, result.user);
-      queryClient.clear();
-      window.location.assign(getHomePathForUser(result.user.email));
-    } catch (err) {
-      setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível verificar o código.");
     } finally {
       setSubmitting(false);
     }
@@ -176,25 +155,6 @@ export default function Register() {
                   </Link>
                 </p>
               </motion.div>
-            ) : challenge ? (
-              <motion.div
-                key="otp"
-                initial={{ opacity: 0, x: 12 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -12 }}
-              >
-                <EmailOtpStep
-                  challenge={challenge}
-                  submitting={submitting}
-                  error={error}
-                  onChangeChallenge={setChallenge}
-                  onCodeComplete={handleVerifyOtp}
-                  onBack={() => {
-                    setChallenge(null);
-                    setError("");
-                  }}
-                />
-              </motion.div>
             ) : (
               <motion.div
                 key="form"
@@ -220,43 +180,18 @@ export default function Register() {
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div>
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
-                      Nome completo
+                      Nome
                     </label>
                     <input
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="João da Silva"
+                      placeholder="Seu nome"
                       required
                       autoComplete="name"
                       className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                     />
                   </div>
-
-                  <div>
-                    <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
-                      WhatsApp <span className="normal-case tracking-normal text-cgray-400">(opcional)</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => handlePhoneChange(e.target.value)}
-                        placeholder="(11) 99999-0000"
-                        autoComplete="tel"
-                        className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
-                      />
-                      {phoneValid && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-cgreen-500 flex items-center justify-center">
-                          <Check size={12} className="text-white" />
-                        </div>
-                      )}
-                    </div>
-                    {phone && !phoneValid && (
-                      <p className="text-xs text-camber-main mt-1">Informe o DDD + 9 dígitos</p>
-                    )}
-                  </div>
-
                   <div>
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                       E-mail
@@ -264,21 +199,31 @@ export default function Register() {
                     <input
                       type="email"
                       value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        try {
-                          sessionStorage.setItem("controlaai.lastEmail", e.target.value.trim().toLowerCase());
-                        } catch {
-                          /* ignore */
-                        }
-                      }}
+                      onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu@email.com"
                       required
                       autoComplete="email"
                       className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                     />
                   </div>
-
+                  <div>
+                    <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
+                      WhatsApp <span className="normal-case text-cgray-400">(opcional)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        placeholder="(11) 99999-9999"
+                        autoComplete="tel"
+                        className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-10 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
+                      />
+                      {phoneValid && (
+                        <Check size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-cgreen-500" />
+                      )}
+                    </div>
+                  </div>
                   <div>
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                       Senha
@@ -290,22 +235,21 @@ export default function Register() {
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Mínimo 6 caracteres"
                         required
+                        minLength={6}
                         autoComplete="new-password"
-                        className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
+                        className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-10 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                       />
                       <button
                         type="button"
-                        onClick={() => setShowPw(!showPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400"
+                        onClick={() => setShowPw((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400 hover:text-cgray-600"
                         aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                       >
-                        {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     </div>
                   </div>
-
                   {error && <p className="text-xs text-cred-main">{error}</p>}
-
                   <button
                     type="submit"
                     disabled={submitting}
@@ -319,17 +263,6 @@ export default function Register() {
                   Já tem conta?{" "}
                   <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                     Entrar
-                  </Link>
-                  {" · "}
-                  <Link
-                    to={
-                      email.trim()
-                        ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
-                        : "/forgot-password"
-                    }
-                    className="text-cgreen-500 font-medium hover:text-cgreen-700"
-                  >
-                    Esqueceu a senha?
                   </Link>
                 </p>
               </motion.div>

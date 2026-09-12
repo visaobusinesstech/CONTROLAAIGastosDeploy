@@ -6,7 +6,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { authPreHandler } from "./auth.js";
-import { staffPreHandler } from "./utils/admin.js";
+import { systemAdminPreHandler } from "./utils/admin.js";
 import { applyLgpdMask, loadLgpdRules } from "./lgpd.js";
 import { db } from "./db/index.js";
 import { subscriptions, users } from "./db/schema.js";
@@ -131,10 +131,10 @@ export async function registerBillingRoutes(app: FastifyInstance): Promise<void>
     });
   }, { prefix: "/api" });
 
-  /** Admin — central de assinantes e usuários. */
+  /** Somente admin@admin.com — listagem de assinantes. */
   app.register(async (r) => {
     r.addHook("preHandler", authPreHandler);
-    r.addHook("preHandler", staffPreHandler);
+    r.addHook("preHandler", systemAdminPreHandler);
 
     r.get("/subscribers", async (request, reply) => {
       const rules = await loadLgpdRules();

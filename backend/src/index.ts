@@ -110,7 +110,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.19", // Relay Edge Resend-only (/api/relay/send)
+      build: "8.20", // Auth direto + esqueci senha OTP + CRUD Assinantes
       mail: mailHealthSnapshot(),
 
     };

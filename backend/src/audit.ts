@@ -6,7 +6,7 @@ import type { FastifyRequest } from "fastify";
 import { db } from "./db/index.js";
 import { auditLogs } from "./db/schema.js";
 
-export type AuditAction = "insert" | "update" | "inactivate" | "activate";
+export type AuditAction = "insert" | "update" | "inactivate" | "activate" | "delete";
 
 /** Extrai IP e user-agent para gravar no log de auditoria. */
 export function requestAuditMeta(request: FastifyRequest): { ipAddress: string | null; userAgent: string | null } {

@@ -50,3 +50,16 @@ export async function staffPreHandler(request: FastifyRequest, reply: FastifyRep
     return;
   }
 }
+
+/** Somente admin@admin.com — CRUD Assinantes e rotas exclusivas do sistema. */
+export async function systemAdminPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const user = request.user;
+  if (!user) {
+    reply.status(401).send({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminEmail(user.email)) {
+    reply.status(403).send({ error: "Somente admin@admin.com acessa Assinantes" });
+    return;
+  }
+}

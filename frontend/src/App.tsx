@@ -24,6 +24,7 @@ import AdminAuditLogsPage from "@/pages/AdminAuditLogs";
 import AdminLgpdPage from "@/pages/AdminLgpd";
 import RequireAdmin from "@/components/RequireAdmin"; // Guard WhatsApp / modelo
 import RequireStaff from "@/components/RequireStaff"; // Guard governança
+import RequireAdminAuth from "@/components/RequireAdminAuth"; // Guard só admin@admin.com
 import { DocumentTitle } from "@/components/DocumentTitle"; // Título dinâmico da aba
 import { AppErrorBoundary } from "@/components/AppErrorBoundary"; // Captura erros de render
 import { useAuth } from "@/lib/auth"; // Hook de sessão JWT
@@ -83,9 +84,9 @@ const App = () => (
                 <Route
                   path="admin/subscribers"
                   element={
-                    <RequireStaff>
+                    <RequireAdminAuth>
                       <AdminSubscribersPage />
-                    </RequireStaff>
+                    </RequireAdminAuth>
                   }
                 />
                 <Route

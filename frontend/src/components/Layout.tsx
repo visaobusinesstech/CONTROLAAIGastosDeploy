@@ -32,12 +32,16 @@ const baseNavItems = [
 
 const settingsNavItem = { to: "/settings", icon: Settings, label: "Configurações" };
 
-/** Itens visíveis para staff (admin, operator, viewer). */
+/** Itens visíveis para staff (admin, operator, viewer) — sem Assinantes. */
 const staffNavItems = [
-  { to: "/admin/subscribers", icon: Users, label: "Assinantes" },
   { to: "/admin/audit", icon: ClipboardList, label: "Auditoria" },
   { to: "/admin/lgpd", icon: Shield, label: "LGPD" },
   { to: "/admin/ai-logs", icon: ScrollText, label: "Logs IA" },
+];
+
+/** Exclusivo admin@admin.com — CRUD Assinantes. */
+const systemAdminNavItems = [
+  { to: "/admin/subscribers", icon: Users, label: "Assinantes" },
 ];
 
 /** Itens extras só para admin (WhatsApp Baileys). */
@@ -77,15 +81,18 @@ export default function Layout() {
   const navigate = useNavigate();
   const displayName = user?.name ?? "Usuário";
   const displayPlan = user ? planLabel(user.plan) : "—";
-  const isAdmin = isAdminUser(user?.email) || caps?.isAdmin;
+  const isSystemAdmin = isAdminUser(user?.email);
+  const isAdmin = isSystemAdmin || caps?.isAdmin;
   const isStaff = Boolean(caps?.isStaff) || isAdmin;
   const billingBlocked = caps?.billing && !caps.billing.hasAccess && !isStaff;
   const onSettings = location.pathname === "/settings";
-  const navItems = isAdmin
-    ? [...baseNavItems, ...staffNavItems, ...adminOnlyNavItems, settingsNavItem]
-    : isStaff
-      ? [...baseNavItems, ...staffNavItems, settingsNavItem]
-      : [...baseNavItems, settingsNavItem];
+  const navItems = [
+    ...baseNavItems,
+    ...(isSystemAdmin ? systemAdminNavItems : []),
+    ...(isAdmin || isStaff ? staffNavItems : []),
+    ...(isAdmin ? adminOnlyNavItems : []),
+    settingsNavItem,
+  ];
   const isAiChat = location.pathname === "/ai";
 
   // Impede usuário comum de acessar URLs /admin/* via barra de endereço
@@ -94,6 +101,13 @@ export default function Layout() {
       navigate("/", { replace: true });
     }
   }, [user, isStaff, location.pathname, navigate]);
+
+  // Assinantes: somente admin@admin.com
+  useEffect(() => {
+    if (user && location.pathname.startsWith("/admin/subscribers") && !isSystemAdmin) {
+      navigate("/", { replace: true });
+    }
+  }, [user, isSystemAdmin, location.pathname, navigate]);
 
   useEffect(() => {
     if (billingBlocked && !onSettings) {

@@ -301,13 +301,23 @@ async function sendViaResend(opts: {
   return { sent: false, skipped: false, via: "resend", error: classifyResendError(res.status, body) };
 }
 
-/** Resend (HTTPS) → relay Vercel → SMTP local (dev). */
+/** Local: SMTP Gmail primeiro. Produção: Resend → relay Vercel → SMTP. */
 export async function sendMail(opts: {
   to: string;
   subject: string;
   html: string;
   text: string;
 }): Promise<MailSendResult> {
+  const preferSmtpLocal = process.env.NODE_ENV !== "production" && Boolean(smtpPass());
+  if (preferSmtpLocal) {
+    try {
+      const smtpFirst = await sendViaSmtp(opts);
+      if (smtpFirst?.sent) return smtpFirst;
+    } catch (err) {
+      console.error("[mail] SMTP local:", err);
+    }
+  }
+
   try {
     const resendResult = await sendViaResend(opts);
     if (resendResult.sent) return resendResult;
@@ -338,6 +348,7 @@ export async function sendOtpEmail(to: string, code: string, purpose: string): P
     login: "Verificação em 2 etapas",
     enable: "Ativar verificação em 2 etapas",
     disable: "Desativar verificação em 2 etapas",
+    password_reset: "Código para redefinir senha",
   };
   const title = labels[purpose] ?? "Código de verificação";
   const html = wrapHtml(

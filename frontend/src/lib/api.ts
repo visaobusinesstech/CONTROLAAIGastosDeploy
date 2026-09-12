@@ -194,7 +194,7 @@ export async function meRequest(token: string): Promise<{ user: ApiUser }> {
 export type AuthChallengeResponse = {
   requiresTwoFactor: true;
   challengeId: string;
-  purpose: "register" | "login" | "enable" | "disable";
+  purpose: "register" | "login" | "enable" | "disable" | "password_reset";
   emailHint: string;
   expiresInSeconds: number;
   emailSent?: boolean;
@@ -210,10 +210,23 @@ export function isAuthChallenge(r: { requiresTwoFactor?: boolean }): r is AuthCh
   return r.requiresTwoFactor === true;
 }
 
+export async function forgotPasswordRequest(
+  email: string,
+): Promise<
+  | AuthChallengeResponse
+  | { ok: boolean; message: string }
+> {
+  return apiFetch("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) });
+}
+
 export async function verifyTwoFactorRequest(body: {
   challengeId: string;
   code: string;
-}): Promise<AuthSessionResponse | { ok: true; twoFactorEnabled: boolean }> {
+}): Promise<
+  | AuthSessionResponse
+  | { ok: true; twoFactorEnabled: boolean }
+  | { ok: true; purpose: "password_reset"; resetToken: string; message?: string }
+> {
   return apiFetch("/auth/2fa/verify", { method: "POST", body: JSON.stringify(body) });
 }
 
@@ -227,10 +240,6 @@ export async function enableTwoFactorRequest(token: string): Promise<AuthChallen
 
 export async function disableTwoFactorRequest(token: string): Promise<AuthChallengeResponse | { ok: true; twoFactorEnabled: boolean }> {
   return apiFetch("/auth/2fa/disable", { method: "POST", token });
-}
-
-export async function forgotPasswordRequest(email: string): Promise<{ ok: boolean; message: string; devToken?: string }> {
-  return apiFetch("/auth/forgot", { method: "POST", body: JSON.stringify({ email }) });
 }
 
 export async function resetPasswordRequest(body: { token: string; password: string }): Promise<{ ok: boolean }> {
@@ -623,9 +632,61 @@ export async function apiPatchLgpdField(
 export async function apiPatchAdminUser(
   token: string,
   id: string,
-  body: { accessLevel?: "user" | "viewer" | "operator" | "admin"; isActive?: boolean },
-): Promise<{ user: { id: string; name: string; email: string; accessLevel: string; isActive: boolean } }> {
+  body: {
+    name?: string;
+    email?: string;
+    password?: string;
+    plan?: "free" | "pro" | "premium";
+    accessLevel?: "user" | "viewer" | "operator" | "admin";
+    isActive?: boolean;
+    trialEndsAt?: string | null;
+    billingGrandfathered?: boolean;
+  },
+): Promise<{
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    plan: string;
+    accessLevel: string;
+    isActive: boolean;
+    trialEndsAt: string | null;
+    billingGrandfathered?: boolean;
+  };
+}> {
   return apiFetch(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(body), token });
+}
+
+export async function apiCreateAdminUser(
+  token: string,
+  body: {
+    name: string;
+    email: string;
+    password: string;
+    plan?: "free" | "pro" | "premium";
+    accessLevel?: "user" | "viewer" | "operator" | "admin";
+    isActive?: boolean;
+    trialEndsAt?: string | null;
+    billingGrandfathered?: boolean;
+  },
+): Promise<{
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    plan: string;
+    accessLevel: string;
+    isActive: boolean;
+    trialEndsAt: string | null;
+    billingGrandfathered: boolean;
+    createdAt: string;
+  };
+}> {
+  return apiFetch(`/api/admin/users`, { method: "POST", body: JSON.stringify(body), token });
+}
+
+export async function apiDeleteAdminUser(token: string, id: string): Promise<{ ok: boolean; deletedId: string }> {
+  return apiFetch(`/api/admin/users/${id}`, { method: "DELETE", token });
 }
 
 export async function apiPatchGoal(token: string, id: string, body: { isActive: boolean }): Promise<{ goal: { id: string; isActive: boolean } }> {

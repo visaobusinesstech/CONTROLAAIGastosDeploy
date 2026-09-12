@@ -33,10 +33,9 @@ import {
   OTP_MINUTES,
   RESET_MINUTES,
   sendOtpEmail,
-  sendPasswordResetEmail,
   shouldExposeDevCode,
   type MailSendResult,
-} from "./mailer.js"; // E-mails transacionais
+} from "./mailer.js"; // E-mails só em 2FA opt-in ou esqueci senha
 
 /** Detecta violação UNIQUE do Postgres (23505) na coluna indicada. */
 function isUniqueViolation(err: unknown, column: string): boolean {
@@ -52,7 +51,7 @@ const OTP_TTL_MS = OTP_MINUTES * 60 * 1000; // 10 minutos
 const RESET_TTL_MS = RESET_MINUTES * 60 * 1000; // 30 minutos
 
 const consentTypeSchema = z.enum(["terms_of_use", "privacy_policy", "data_processing_lgpd"]);
-const otpPurposeSchema = z.enum(["register", "login", "enable", "disable"]);
+const otpPurposeSchema = z.enum(["register", "login", "enable", "disable", "password_reset"]);
 
 /** Schema Zod do body POST /auth/register */
 const registerBody = z.object({
@@ -287,7 +286,8 @@ function buildChallengePayload(
     expiresInSeconds: OTP_MINUTES * 60,
     emailSent,
     ...(pending && !emailSent ? { emailPending: true } : {}),
-    ...(emailSent ? {} : { emailError: mail?.error ?? "smtp_failed" }),
+    // Só reporta falha depois da tentativa real de envio (não no reply antecipado)
+    ...(!emailSent && !pending ? { emailError: mail?.error ?? "smtp_failed" } : {}),
     ...(shouldExposeDevCode() ? { devCode: opts.code } : {}),
   };
 }
@@ -334,7 +334,7 @@ async function isTwoFactorEnabled(userId: string): Promise<boolean> {
 /** Resposta genérica do forgot — nunca revela se o e-mail existe. */
 const FORGOT_OK = {
   ok: true as const,
-  message: "If the email exists, a reset link was sent.",
+  message: "If the email exists, a verification code was sent.",
 };
 
 /** Registra rotas /auth/* no Fastify. */
@@ -401,7 +401,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
           phone: phoneValue,
           trialEndsAt,
           billingGrandfathered: false,
-          emailVerified: false,
+          emailVerified: true, // Cadastro direto — e-mail só em 2FA opt-in ou esqueci senha
+          emailVerifiedAt: new Date(),
           tokenVersion: 0,
           accessLevel: isAdminEmail(email.toLowerCase()) ? "admin" : "user",
           isActive: true,
@@ -465,17 +466,8 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(503).send({ error: "Database unavailable" });
     }
 
-    // Cadastro em 2 etapas: JWT só depois do código no e-mail
-    await createAndSendChallenge({
-      userId: row.id,
-      email: row.email,
-      purpose: "register",
-      ip: clientIp,
-      userAgent: clientUserAgent,
-      reply,
-      statusCode: 201,
-    });
-    return;
+    // Cadastro padrão: grava no banco e emite JWT — sem e-mail/OTP
+    return reply.status(201).send(issueSession(row));
   });
 
   app.post("/auth/login", async (request: FastifyRequest, reply: FastifyReply) => {
@@ -510,20 +502,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const ip = getClientIp(request);
     const ua = getUserAgent(request);
 
-    // E-mail ainda não confirmado — reenvia código de cadastro (admin pula)
-    if (!user.emailVerified && !isAdminEmail(user.email)) {
-      await createAndSendChallenge({
-        userId: user.id,
-        email: user.email,
-        purpose: "register",
-        ip,
-        userAgent: ua,
-        reply,
-      });
-      return;
-    }
-
-    // 2FA ligado nas configurações — senha ok, JWT ainda não
+    // 2FA só se o usuário optou nas Configurações — login padrão não envia e-mail
     if (!isAdminEmail(user.email) && (await isTwoFactorEnabled(user.id))) {
       await createAndSendChallenge({
         userId: user.id,
@@ -539,7 +518,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(issueSession(user));
   });
 
-  /** Pedido de reset — sempre 200 para não enumerar contas. */
+  /** Pedido de reset — envia OTP (2 etapas); sempre 200 para não enumerar contas. */
   app.post("/auth/forgot", async (request: FastifyRequest, reply: FastifyReply) => {
     const parsed = forgotBody.safeParse(request.body);
     if (!parsed.success) {
@@ -556,32 +535,15 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(FORGOT_OK);
     }
 
-    const rawToken = randomBytes(32).toString("hex"); // 64 chars hex
-    await db
-      .update(passwordResetTokens)
-      .set({ used: true, usedAt: new Date() })
-      .where(and(eq(passwordResetTokens.userId, user.id), eq(passwordResetTokens.used, false)));
-
-    await db.insert(passwordResetTokens).values({
+    // Verificação em 2 etapas: código por e-mail antes de liberar token de nova senha
+    await createAndSendChallenge({
       userId: user.id,
-      tokenSha256: sha256Hex(rawToken),
-      expiresAt: new Date(Date.now() + RESET_TTL_MS),
-      ipAddress: getClientIp(request),
+      email: user.email,
+      purpose: "password_reset",
+      ip: getClientIp(request),
       userAgent: getUserAgent(request),
+      reply,
     });
-
-    if (shouldExposeDevCode()) {
-      reply.send({ ...FORGOT_OK, devToken: rawToken });
-    } else {
-      reply.send(FORGOT_OK);
-    }
-
-    try {
-      const mail = await sendPasswordResetEmail(user.email, rawToken);
-      if (!mail.sent) request.log.error({ emailError: mail.error, via: mail.via }, "forgot email not sent");
-    } catch (err) {
-      request.log.error({ err }, "forgot email error");
-    }
     return;
   });
 
@@ -682,6 +644,28 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     if (challenge.purpose === "login") {
       return reply.send(issueSession(user));
+    }
+
+    // OTP do esqueci senha — libera token de uso único para /auth/reset
+    if (challenge.purpose === "password_reset") {
+      const rawToken = randomBytes(32).toString("hex");
+      await db
+        .update(passwordResetTokens)
+        .set({ used: true, usedAt: new Date() })
+        .where(and(eq(passwordResetTokens.userId, user.id), eq(passwordResetTokens.used, false)));
+      await db.insert(passwordResetTokens).values({
+        userId: user.id,
+        tokenSha256: sha256Hex(rawToken),
+        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+        ipAddress: getClientIp(request),
+        userAgent: getUserAgent(request),
+      });
+      return reply.send({
+        ok: true,
+        purpose: "password_reset",
+        resetToken: rawToken,
+        message: "Código confirmado. Defina a nova senha.",
+      });
     }
 
     if (challenge.purpose === "enable") {

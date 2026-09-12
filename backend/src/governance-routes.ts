@@ -1,16 +1,20 @@
 /**
- * Governança — auditoria, campos LGPD e níveis de usuário (ativar/inativar).
+ * Governança — auditoria, campos LGPD e CRUD de usuários (Assinantes).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import bcrypt from "bcryptjs";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "./db/index.js";
-import { auditLogs, lgpdSensitiveFields, users } from "./db/schema.js";
+import { auditLogs, lgpdSensitiveFields, userSettings, users } from "./db/schema.js";
 import { authPreHandler } from "./auth.js";
-import { isAdminEmail, staffPreHandler } from "./utils/admin.js";
+import { isAdminEmail, staffPreHandler, systemAdminPreHandler } from "./utils/admin.js";
 import { requestAuditMeta, writeAuditLog } from "./audit.js";
 import { applyLgpdMask, isAdminLevel, loadLgpdRules, type AccessLevel } from "./lgpd.js";
+import { defaultTrialEndsAt } from "../api/billing-access.js";
+
+const SALT_ROUNDS = 10;
 
 const fieldPatchBody = z.object({
   label: z.string().min(2).max(120).optional(),
@@ -28,11 +32,28 @@ const fieldCreateBody = z.object({
 });
 
 const userPatchBody = z.object({
+  name: z.string().min(2).max(200).optional(),
+  email: z.string().email().max(320).optional(),
+  password: z.string().min(6).max(128).optional(),
+  plan: z.enum(["free", "pro", "premium"]).optional(),
   accessLevel: z.enum(["user", "viewer", "operator", "admin"]).optional(),
   isActive: z.boolean().optional(),
+  trialEndsAt: z.union([z.string().min(1), z.null()]).optional(),
+  billingGrandfathered: z.boolean().optional(),
 });
 
-/** Rotas /api/admin/audit-logs, /lgpd/fields e PATCH usuários. */
+const userCreateBody = z.object({
+  name: z.string().min(2).max(200),
+  email: z.string().email().max(320),
+  password: z.string().min(6).max(128),
+  plan: z.enum(["free", "pro", "premium"]).optional(),
+  accessLevel: z.enum(["user", "viewer", "operator", "admin"]).optional(),
+  isActive: z.boolean().optional(),
+  trialEndsAt: z.union([z.string().min(1), z.null()]).optional(),
+  billingGrandfathered: z.boolean().optional(),
+});
+
+/** Rotas /api/admin/audit-logs, /lgpd/fields e CRUD usuários (Assinantes). */
 export async function registerGovernanceRoutes(app: FastifyInstance): Promise<void> {
   app.register(async (r) => {
     r.addHook("preHandler", authPreHandler);
@@ -155,50 +176,189 @@ export async function registerGovernanceRoutes(app: FastifyInstance): Promise<vo
       });
       return reply.send({ field: row });
     });
+  }, { prefix: "/api/admin" });
 
-    /** PATCH /api/admin/users/:id — nível de acesso e ativar/inativar cadastro. */
-    r.patch<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
-      if (!isAdminLevel(request.user!.accessLevel)) {
-        return reply.status(403).send({ error: "Somente admin altera nível/status" });
+  /** CRUD Assinantes — exclusivo admin@admin.com */
+  app.register(async (r) => {
+    r.addHook("preHandler", authPreHandler);
+    r.addHook("preHandler", systemAdminPreHandler);
+
+    /** POST /api/admin/users — cria assinante/usuário. */
+    r.post("/users", async (request: FastifyRequest, reply: FastifyReply) => {
+      const parsed = userCreateBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
       }
+      const email = parsed.data.email.toLowerCase();
+      const [exists] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
+      if (exists) return reply.status(409).send({ error: "Email already registered" });
+
+      const accessLevel = (parsed.data.accessLevel ?? "user") as AccessLevel;
+      const plan = parsed.data.plan ?? "free";
+      const passwordHash = await bcrypt.hash(parsed.data.password, SALT_ROUNDS);
+      const trialEndsAt =
+        parsed.data.trialEndsAt === null
+          ? null
+          : parsed.data.trialEndsAt
+            ? new Date(parsed.data.trialEndsAt)
+            : isAdminEmail(email)
+              ? null
+              : defaultTrialEndsAt();
+
+      const [row] = await db
+        .insert(users)
+        .values({
+          name: parsed.data.name.trim(),
+          email,
+          passwordHash,
+          plan,
+          accessLevel: isAdminEmail(email) ? "admin" : accessLevel,
+          isActive: parsed.data.isActive ?? true,
+          trialEndsAt,
+          billingGrandfathered: parsed.data.billingGrandfathered ?? false,
+          emailVerified: true,
+          emailVerifiedAt: new Date(),
+        })
+        .returning({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          plan: users.plan,
+          accessLevel: users.accessLevel,
+          isActive: users.isActive,
+          trialEndsAt: users.trialEndsAt,
+          billingGrandfathered: users.billingGrandfathered,
+          createdAt: users.createdAt,
+        });
+
+      await db.insert(userSettings).values({ userId: row.id }).onConflictDoNothing();
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId: request.user!.id,
+        routine: "users.admin_create",
+        action: "insert",
+        entity: "users",
+        entityId: row.id,
+        ...meta,
+        details: { email: row.email, accessLevel: row.accessLevel, plan: row.plan },
+      });
+      return reply.status(201).send({
+        user: {
+          ...row,
+          trialEndsAt: row.trialEndsAt?.toISOString() ?? null,
+          createdAt: row.createdAt.toISOString(),
+        },
+      });
+    });
+
+    /** PATCH /api/admin/users/:id — edita nome, e-mail, senha, plano, nível, trial, status. */
+    r.patch<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
       const parsed = userPatchBody.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
       }
-      const { accessLevel, isActive } = parsed.data;
-      if (accessLevel === undefined && isActive === undefined) {
+      const data = parsed.data;
+      if (Object.values(data).every((v) => v === undefined)) {
         return reply.status(400).send({ error: "Empty patch" });
       }
-      if (request.params.id === request.user!.id && isActive === false) {
+      if (request.params.id === request.user!.id && data.isActive === false) {
         return reply.status(400).send({ error: "Não é possível inativar a própria conta" });
       }
-      const [target] = await db.select({ email: users.email }).from(users).where(eq(users.id, request.params.id));
+
+      const [target] = await db.select().from(users).where(eq(users.id, request.params.id));
       if (!target) return reply.status(404).send({ error: "Not found" });
-      if (isAdminEmail(target.email) && accessLevel && accessLevel !== "admin") {
+      if (isAdminEmail(target.email) && data.accessLevel && data.accessLevel !== "admin") {
         return reply.status(400).send({ error: "Conta admin do sistema permanece no nível admin" });
       }
-      const patch: { accessLevel?: AccessLevel; isActive?: boolean } = {};
-      if (accessLevel !== undefined) patch.accessLevel = accessLevel;
-      if (isActive !== undefined) patch.isActive = isActive;
-      const [row] = await db.update(users).set(patch).where(eq(users.id, request.params.id)).returning({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        accessLevel: users.accessLevel,
-        isActive: users.isActive,
-      });
+      if (isAdminEmail(target.email) && data.isActive === false) {
+        return reply.status(400).send({ error: "Conta admin@admin.com não pode ser inativada" });
+      }
+
+      if (data.email) {
+        const nextEmail = data.email.toLowerCase();
+        if (nextEmail !== target.email) {
+          if (isAdminEmail(target.email)) {
+            return reply.status(400).send({ error: "E-mail admin@admin.com é imutável" });
+          }
+          const [dup] = await db.select({ id: users.id }).from(users).where(eq(users.email, nextEmail));
+          if (dup) return reply.status(409).send({ error: "Email already registered" });
+        }
+      }
+
+      const patch: Record<string, unknown> = {};
+      if (data.name !== undefined) patch.name = data.name.trim();
+      if (data.email !== undefined) patch.email = data.email.toLowerCase();
+      if (data.plan !== undefined) patch.plan = data.plan;
+      if (data.accessLevel !== undefined) patch.accessLevel = data.accessLevel;
+      if (data.isActive !== undefined) patch.isActive = data.isActive;
+      if (data.billingGrandfathered !== undefined) patch.billingGrandfathered = data.billingGrandfathered;
+      if (data.trialEndsAt !== undefined) {
+        patch.trialEndsAt = data.trialEndsAt === null ? null : new Date(data.trialEndsAt);
+      }
+      if (data.password) patch.passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
+
+      const [row] = await db
+        .update(users)
+        .set(patch)
+        .where(eq(users.id, request.params.id))
+        .returning({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          plan: users.plan,
+          accessLevel: users.accessLevel,
+          isActive: users.isActive,
+          trialEndsAt: users.trialEndsAt,
+          billingGrandfathered: users.billingGrandfathered,
+        });
       if (!row) return reply.status(404).send({ error: "Not found" });
+
       const meta = requestAuditMeta(request);
+      const action =
+        data.isActive === false ? "inactivate" : data.isActive === true ? "activate" : "update";
       await writeAuditLog({
         userId: request.user!.id,
         routine: "users.update",
-        action: isActive === false ? "inactivate" : isActive === true ? "activate" : "update",
+        action,
         entity: "users",
         entityId: row.id,
         ...meta,
-        details: patch,
+        details: { ...data, password: data.password ? "[set]" : undefined },
       });
-      return reply.send({ user: row });
+      return reply.send({
+        user: {
+          ...row,
+          trialEndsAt: row.trialEndsAt?.toISOString() ?? null,
+        },
+      });
+    });
+
+    /** DELETE /api/admin/users/:id — exclusão física (exceto admin@admin.com). */
+    r.delete<{ Params: { id: string } }>("/users/:id", async (request, reply) => {
+      if (request.params.id === request.user!.id) {
+        return reply.status(400).send({ error: "Não é possível excluir a própria conta" });
+      }
+      const [target] = await db
+        .select({ id: users.id, email: users.email, name: users.name })
+        .from(users)
+        .where(eq(users.id, request.params.id));
+      if (!target) return reply.status(404).send({ error: "Not found" });
+      if (isAdminEmail(target.email)) {
+        return reply.status(400).send({ error: "Conta admin@admin.com não pode ser excluída" });
+      }
+
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId: request.user!.id,
+        routine: "users.delete",
+        action: "delete",
+        entity: "users",
+        entityId: target.id,
+        ...meta,
+        details: { email: target.email, name: target.name },
+      });
+      await db.delete(users).where(eq(users.id, target.id));
+      return reply.send({ ok: true, deletedId: target.id });
     });
   }, { prefix: "/api/admin" });
 }

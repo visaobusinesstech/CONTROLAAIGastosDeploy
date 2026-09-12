@@ -52,6 +52,10 @@ const PURPOSE_COPY: Record<string, { title: string; hint: string }> = {
     title: "Desativar verificação em 2 etapas",
     hint: "Confirme o código recebido por e-mail para desligar a proteção.",
   },
+  password_reset: {
+    title: "Código para redefinir senha",
+    hint: "Digite o código de 6 dígitos enviado ao seu e-mail para continuar.",
+  },
 };
 
 export function EmailOtpStep({

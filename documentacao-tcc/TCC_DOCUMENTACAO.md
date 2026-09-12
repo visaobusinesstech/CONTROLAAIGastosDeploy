@@ -334,17 +334,16 @@ sequenceDiagram
 
 ### 4.7 Recuperação de senha e 2FA por e-mail
 
-1. **Esqueci a senha:** `POST /auth/forgot` (resposta genérica) → `INSERT password_reset_tokens` (SHA-256 do token, 30 min, uso único) → e-mail HTML (remetente Gmail do sistema) com **botão** para `/reset-password?token=…` — **não envia código**; a pessoa altera a senha na página no padrão do login.
-2. **Nova senha:** `POST /auth/reset` → `UPDATE users.password_hash` + `token_version++` (invalida JWTs antigos) + marca token `used` + linha em `audit_logs`.
-3. **Cadastro:** após insert LGPD, envia OTP (`purpose=register`) → confirmação grava `email_verified` e emite JWT.
-4. **Ligar 2FA:** Configurações → `POST /auth/2fa/enable` (Bearer) → OTP → `user_settings.two_factor_enabled=true` + linha em `two_factor_secrets` (`method=email`).
-5. E-mails: **Railway bloqueia SMTP (465/587)** — o backend POSTa HTTPS para o worker **`frontend/api/email-relay.ts`** no Vercel (`EMAIL_SMTP_RELAY_URL`), que envia via Gmail SMTP com `await` antes da resposta. Login/OTP respondem na hora (`reply.send` + envio depois). **Reset** = HTML com botão da página; **2FA/cadastro** = HTML com código de 6 dígitos.
+1. **Esqueci a senha (2 etapas):** `POST /auth/forgot` → OTP por e-mail (`purpose=password_reset`) → `POST /auth/2fa/verify` libera `resetToken` → página `/reset-password` → `POST /auth/reset` (hash + `token_version++` + audit).
+2. **Cadastro/login padrão:** gravam no banco e emitem JWT **sem** enviar e-mail. `email_verified=true` no insert do cadastro.
+3. **2FA opt-in:** Configurações → `POST /auth/2fa/enable` → OTP → `user_settings.two_factor_enabled=true`. Nos logins seguintes, senha ok dispara OTP (`purpose=login`) antes do JWT.
+4. E-mails: local prioriza SMTP Gmail (`SMTP_*` / `MAIL_FROM_SMTP`); produção Railway usa relay Vercel e/ou SMTP conforme variáveis.
 
 ### 4.8 Auditoria, inativação e LGPD por nível
 
-1. Toda inclusão/alteração/inativação de cadastro grava linha em `audit_logs` (`routine`, `action`, `entity`, `occurred_at`, `user_id`, IP).
-2. Cadastros **não são excluídos**: `DELETE` de transação ou conversa IA vira `UPDATE is_active=false`. Usuário inativo não entra (`Account inactive`).
-3. Níveis em `users.access_level`: `user` (titular), `viewer`, `operator`, `admin`. WhatsApp Baileys e troca de modelo OpenAI ficam só no `admin`.
+1. Toda inclusão/alteração/inativação/exclusão de cadastro grava linha em `audit_logs` (`routine`, `action`, `entity`, `occurred_at`, `user_id`, IP).
+2. Assinantes (`admin@admin.com`): CRUD completo — criar, editar (plano/nível/trial), inativar e **excluir** fisicamente (`action=delete`). Demais fluxos preferem `is_active=false`.
+3. Níveis em `users.access_level`: `user` (titular), `viewer`, `operator`, `admin`. Página Assinantes e WhatsApp Baileys ficam restritos ao e-mail `admin@admin.com` / admin.
 4. Tabela `lgpd_sensitive_fields` cadastra campos (e-mail, telefone, prompt IA etc.) e flags `hide_from_operator` / `hide_from_viewer`. O painel aplica máscara (`***`) conforme o nível de quem consulta.
 
 ### 4.3 Admin conecta WhatsApp
@@ -401,7 +400,11 @@ sequenceDiagram
 - **Registro:** exige `documentVersion` + três `consents` (LGPD) → valida Zod → hash bcrypt (10 rounds) → insert `users` (`email_verified=false`) + `user_settings` + **`user_consents`** (IP, user-agent, versão) → envia OTP por e-mail (`purpose=register`) → **201** `{ requiresTwoFactor, challengeId }` (JWT só após `POST /auth/2fa/verify`).
 - **Login:** busca por email → `bcrypt.compare` → conta inativa retorna 403 → se e-mail não verificado ou 2FA ligado, envia OTP; senão JWT. Admin pula OTP.
 - **Middleware `authPreHandler`:** extrai Bearer → `jwt.verify` → confere `tv` vs `users.token_version` → rejeita `is_active=false` → carrega `request.user` (inclui `accessLevel`).
-- **POST `/auth/forgot`:** resposta genérica; grava `password_reset_tokens.token_sha256`; e-mail com link de 30 min.
+- **POST `/auth/forgot`:** resposta genérica ou desafio OTP (`password_reset`) se o e-mail existir.
+- **POST `/auth/2fa/verify`:** confirma OTP; em `password_reset` devolve `resetToken` para `/auth/reset`.
+- **POST `/auth/register` / `POST `/auth/login`:** sessão JWT direta (e-mail só se 2FA estiver ligado).
+- **POST/PATCH/DELETE `/api/admin/users`:** CRUD Assinantes (somente `admin@admin.com`).
+- **GET `/api/admin/billing/subscribers`:** listagem restrita a `admin@admin.com`.
 - **POST `/auth/reset`:** valida token → nova senha bcrypt → `token_version++`.
 - **POST `/auth/2fa/verify` | `/resend` | `/enable` | `/disable`:** desafios em `two_factor_challenges` (bcrypt do código, 10 min, ≤5 tentativas).
 
@@ -566,7 +569,8 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 | Rota | Página | Função |
 |------|--------|--------|
 | `/` | Dashboard | KPIs, gráficos, transações |
-| `/login`, `/register` | Auth | JWT; cadastro LGPD → formulário → código no e-mail |
+| `/login`, `/register` | Auth | JWT direto no banco; OTP só se 2FA ligado |
+| `/forgot-password` | ForgotPassword | OTP por e-mail → `/reset-password` |
 | `/forgot-password` | ForgotPassword | Pedido de link de redefinição |
 | `/reset-password` | ResetPassword | Nova senha via token do e-mail |
 | `/admin/login` | AdminLogin | JWT exclusivo admin |
@@ -575,7 +579,7 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 | `/settings` | Settings | Perfil, 2FA por e-mail, tema, export CSV |
 | `/admin/whatsapp` | WhatsApp | QR Baileys, modelo OpenAI (admin) |
 | `/admin/ai-logs` | AiLogs | Logs OpenAI (staff; conteúdo mascarado por nível) |
-| `/admin/subscribers` | AdminSubscribers | Assinantes, níveis e ativar/inativar |
+| `/admin/subscribers` | AdminSubscribers | CRUD Assinantes (só admin@admin.com) |
 | `/admin/audit` | AdminAuditLogs | Auditoria de cadastros |
 | `/admin/lgpd` | AdminLgpd | Campos sensíveis LGPD |
 | `*` | NotFound | 404 |
@@ -1109,6 +1113,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | ago/2026 | 8.18.2 | Fix deploy Vercel: remove regex inválida em `vercel.json` (lookahead); `/api/email-relay` tem prioridade sobre rewrite |
 | ago/2026 | 8.18.3 | Relay exposto em `/relay/send` (rewrite → `api/email-relay`); `/api/email-relay` caía no proxy backend (502) |
 | ago/2026 | 8.19 | Relay Edge Resend-only (`/relay/send` → `api/relay/send`); nodemailer removido do Vercel (504); remetente `noreply@controlaai.com` |
+| set/2026 | 8.20 | Cadastro/login sem e-mail (JWT direto); esqueci senha com OTP 2 etapas (`password_reset`); CRUD Assinantes (add/edit/delete) só `admin@admin.com`; migration `0012_password_reset_otp_and_delete.sql`; SMTP Gmail local; WhatsApp reabilitável via `ENABLE_WHATSAPP` |
 
 ---
 
