@@ -591,7 +591,7 @@ Logo original: `frontend/src/assets/CONTROLA AI LOGO e favicon.png` (redimension
 
 **Favicon / PWA:** `frontend/public/favicon.png` (ícone Controla.AI `.ai` em arco verde); referenciado em `frontend/index.html`.
 
-Em **dev**, base vazia → proxy Vite → `localhost:3333`. Em **produção**, base vazia → same-origin no Vercel. **Esqueci senha / reset** usam funções Node `frontend/api/auth/forgot.ts` e `reset.ts` (Postgres `DATABASE_URL` + Gmail `SMTP_*` na Vercel — não dependem do Railway). Demais rotas `/auth/*` e `/api/*` → middleware/proxy → `BACKEND_URL`.
+Em **dev**, base vazia → proxy Vite → `localhost:3333`. Em **produção**, **login / me / forgot / reset** usam funções Node `frontend/api/auth/*` (Postgres `DATABASE_URL` + Gmail `SMTP_*` + `JWT_SECRET` na Vercel). Demais `/api/*` → middleware → `BACKEND_URL` (Railway).
 
 ### 8.1 Termos LGPD e consentimento no cadastro
 
@@ -1121,6 +1121,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 | set/2026 | 8.23 | Produção: API same-origin + `BACKEND_URL` no Vercel (remove fallback Railway morto `controlaaigastosdeploy`); proxy rejeita URLs inválidas com 503 |
 | set/2026 | 8.24 | Esqueci senha: e-mail com OTP + link `/reset-password`; aguarda SMTP/relay antes do JSON; `railway.toml` na raiz do monorepo; relay Vercel aceita SMTP_* do env |
 | set/2026 | 8.25 | Esqueci senha sem OTP: link no e-mail; rotas Vercel `/api/auth/forgot`+`reset` (Postgres+SMTP); alerta “confira a caixa de entrada”; após reset → login |
+| set/2026 | 8.26 | Login/me na Vercel (bypass Railway 502); e-mail reset só botão + URL produção; SMTP 465 rápido |
 
 ---
 

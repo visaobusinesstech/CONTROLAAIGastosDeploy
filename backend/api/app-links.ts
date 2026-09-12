@@ -14,11 +14,18 @@ export function getPublicDashboardUrl(): string {
 export function getAppBaseUrl(): string {
   const raw = process.env.FRONTEND_URL?.trim() || process.env.APP_URL?.trim() || DEFAULT_APP_URL;
   const cleaned = raw.replace(/\/+$/, "");
-  // Em produção o link do e-mail nunca pode apontar para localhost
   if (process.env.NODE_ENV === "production" && /localhost|127\.0\.0\.1/i.test(cleaned)) {
     return DEFAULT_APP_URL;
   }
   return cleaned || DEFAULT_APP_URL;
+}
+
+/** URL pública do app nos e-mails — nunca localhost. */
+export function getEmailAppBaseUrl(): string {
+  const raw = process.env.PUBLIC_APP_URL?.trim() || process.env.VITE_APP_URL?.trim() || getAppBaseUrl();
+  const cleaned = raw.replace(/\/+$/, "");
+  if (!cleaned || /localhost|127\.0\.0\.1/i.test(cleaned)) return DEFAULT_APP_URL;
+  return cleaned;
 }
 
 /** URL de cadastro — REGISTER_URL ou /register na base do app. */

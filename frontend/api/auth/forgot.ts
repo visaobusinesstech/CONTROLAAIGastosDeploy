@@ -1,6 +1,6 @@
 /**
  * POST /auth/forgot → /api/auth/forgot (Vercel Node).
- * Cria token no Postgres e envia e-mail com link (sem OTP) — rápido, sem Railway.
+ * Token no Postgres + e-mail com botão (sem OTP) — rápido, sem Railway.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -10,7 +10,7 @@ import { sendResetLinkEmail } from "./_mail";
 
 export const config = {
   runtime: "nodejs",
-  maxDuration: 20,
+  maxDuration: 15,
 };
 
 const FORGOT_OK = {
@@ -28,14 +28,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body ?? {};
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-  if (!email || !email.includes("@")) {
-    res.status(400).json({ error: "Invalid input" });
-    return;
-  }
-
   try {
+    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body ?? {};
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    if (!email || !email.includes("@")) {
+      res.status(400).json({ error: "Invalid input" });
+      return;
+    }
+
+    if (!process.env.DATABASE_URL?.trim()) {
+      res.status(503).json({ error: "DATABASE_URL não configurado na Vercel." });
+      return;
+    }
+    if (!process.env.SMTP_PASS?.trim()) {
+      res.status(503).json({ error: "SMTP_PASS não configurado na Vercel." });
+      return;
+    }
+
     const db = getSql();
     const users = await db<{ id: string; email: string }[]>`
       SELECT id, email FROM users WHERE lower(email) = ${email} LIMIT 1
@@ -61,13 +70,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const mail = await sendResetLinkEmail(user.email, rawToken);
     if (!mail.sent) {
-      console.error("[api/auth/forgot] mail failed:", mail.error);
+      console.error("[api/auth/forgot] mail failed:", mail.error, "ms=", mail.ms);
       res.status(200).json({ ...FORGOT_OK, emailSent: false, emailError: mail.error ?? "smtp_failed" });
       return;
     }
+    console.info("[api/auth/forgot] sent in", mail.ms, "ms");
     res.status(200).json({ ...FORGOT_OK, emailSent: true });
   } catch (err) {
     console.error("[api/auth/forgot]", err);
-    res.status(503).json({ error: "Database unavailable" });
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: "Forgot failed", detail: msg.slice(0, 160) });
   }
 }

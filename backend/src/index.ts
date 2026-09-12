@@ -116,7 +116,7 @@ async function createApp() {
 
       whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
 
-      build: "8.25", // Forgot link-only + Vercel /api/auth/forgot|reset
+      build: "8.26", // Login Vercel + e-mail reset só botão (URL produção)
 
       mail: mailHealthSnapshot(),
 

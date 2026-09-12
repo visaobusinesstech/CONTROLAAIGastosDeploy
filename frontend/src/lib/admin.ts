@@ -7,8 +7,8 @@
 export const ADMIN_EMAIL = "admin@admin.com";
 
 /** Verifica se o e-mail pertence ao administrador do sistema. */
-export function isAdminUser(email: string | undefined | null): boolean {
-  return email?.trim().toLowerCase() === ADMIN_EMAIL;
+export function isAdminUser(email?: string | null): boolean {
+  return (email ?? "").trim().toLowerCase() === ADMIN_EMAIL;
 }
 
 /** Níveis com acesso ao painel de governança (não é o cliente titular). */

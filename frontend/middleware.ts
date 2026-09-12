@@ -1,10 +1,9 @@
 /**
- * Proxy Edge — encaminha /auth (exceto forgot/reset), /api e /health ao Railway.
- * Forgot/reset ficam nas funções Node Vercel (/api/auth/*) — e-mail rápido sem backend.
+ * Proxy Edge — encaminha /api e auth restantes ao Railway.
+ * login/me/forgot/reset ficam nas funções Node Vercel (Postgres direto).
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
-/** URLs mortas / inválidas — não usar como destino do proxy. */
 const INVALID_BACKEND =
   /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|controlaaigastosdeploy\.up\.railway\.app|backend-production-c328\.up\.railway\.app|localhost|127\.0\.0\.1/i;
 
@@ -16,11 +15,8 @@ function resolveBackendUrl(): string | null {
 }
 
 export const config = {
-  // forgot/reset → funções Vercel; demais auth/api → Railway
   matcher: [
-    "/auth/login",
     "/auth/register",
-    "/auth/me",
     "/auth/legal",
     "/auth/2fa/:path*",
     "/health",

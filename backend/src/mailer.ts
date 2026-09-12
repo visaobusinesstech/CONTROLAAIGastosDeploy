@@ -6,7 +6,7 @@
  */
 import { createTransport } from "nodemailer"; // SMTP Gmail
 import dns from "node:dns"; // IPv4 primeiro — smtp.gmail.com em IPv6 falha em alguns hosts
-import { getAppBaseUrl } from "../api/app-links.js"; // FRONTEND_URL para links do reset
+import { getEmailAppBaseUrl } from "../api/app-links.js"; // URL produção nos e-mails (nunca localhost)
 
 dns.setDefaultResultOrder("ipv4first");
 
@@ -188,9 +188,9 @@ async function sendViaSmtp(opts: {
       port: cfg.port,
       secure: cfg.secure,
       auth: { user, pass },
-      connectionTimeout: MAIL_CHANNEL_MS,
-      greetingTimeout: MAIL_CHANNEL_MS,
-      socketTimeout: MAIL_CHANNEL_MS,
+      connectionTimeout: 6_000,
+      greetingTimeout: 6_000,
+      socketTimeout: 8_000,
     });
     try {
       const info = await transport.sendMail({
@@ -199,6 +199,7 @@ async function sendViaSmtp(opts: {
         subject: opts.subject,
         html: opts.html,
         text: opts.text,
+        priority: "high",
       });
       console.info(`[mail] SMTP OK porta ${cfg.port} id=${info.messageId ?? "?"}`);
       transport.close();
@@ -211,6 +212,7 @@ async function sendViaSmtp(opts: {
       } catch {
         /* ignora falha ao fechar socket */
       }
+      if (cfg.port === 465) continue; // tenta 587 só se 465 falhar
     }
   }
   console.error("[mail] SMTP esgotou 465 e 587:", lastErr);
@@ -301,15 +303,14 @@ export async function sendOtpEmail(to: string, code: string, purpose: string): P
  * E-mail legado / backend — só link de reset (sem OTP).
  */
 export async function sendPasswordResetEmail(to: string, rawToken: string): Promise<MailSendResult> {
-  const url = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
+  const url = `${getEmailAppBaseUrl()}/reset-password?token=${encodeURIComponent(rawToken)}`;
   const html = wrapHtml(
     "Redefinir senha",
     `<p>Recebemos um pedido para alterar a senha da sua conta.</p>
      <p>Clique no botão para abrir a página de nova senha no Controla.ai. O link vale por <strong>${RESET_MINUTES} minutos</strong>.</p>
-     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:600;font-size:15px;">Redefinir minha senha</a></p>
-     <p style="color:#6b7280;font-size:12px;word-break:break-all;">Se o botão não abrir: ${url}</p>`,
+     <p style="margin:24px 0;text-align:center;"><a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:600;font-size:15px;">Redefinir minha senha</a></p>`,
   );
-  const text = `Redefinir senha Controla.ai\n\nAbra: ${url}`;
+  const text = `Redefinir senha Controla.ai — use o botão no e-mail HTML.`;
   return sendMail({ to, subject: "Redefinir senha — Controla.ai", html, text });
 }
 
