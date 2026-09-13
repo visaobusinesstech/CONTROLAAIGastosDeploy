@@ -16,9 +16,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect,
-  // Calcula valor só quando dependências mudam (performance)
   useMemo,
   useState,
   type ReactNode,
@@ -54,28 +52,22 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 /** Provider que envolve a aplicação em main.tsx. */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Armazena dado no navegador (persiste após fechar aba)
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [user, setUser] = useState<ApiUser | null>(() => loadStoredUser());
   const [loading, setLoading] = useState(true); // true até validar token na API
   /** Revalida o token atual chamando GET /auth/me. */
-  // Função memorizada — evita recriar a cada render
   const refreshUser = useCallback(async () => {
     const t = localStorage.getItem(TOKEN_KEY);
     if (!t) {
       setUser(null);
       setToken(null);
-      // Armazena dado no navegador (persiste após fechar aba)
       localStorage.removeItem(USER_KEY);
       return;
     }
-    // Desestrutura valores do hook/contexto (acesso direto às variáveis)
     const { user: u } = await meRequest(t);
     setUser(u);
-    // Transforma objeto em texto JSON para enviar à API
     localStorage.setItem(USER_KEY, JSON.stringify(u));
   }, []);
-  // Ao montar: valida token salvo ou limpa sessão expirada
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -88,19 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
-        // Desestrutura valores do hook/contexto (acesso direto às variáveis)
         const { user: u } = await meRequest(t);
         if (!cancelled) {
           setUser(u);
           setToken(t);
-          // Transforma objeto em texto JSON para enviar à API
           localStorage.setItem(USER_KEY, JSON.stringify(u));
         }
       } catch {
         if (!cancelled) {
-          // Armazena dado no navegador (persiste após fechar aba)
           localStorage.removeItem(TOKEN_KEY);
-          // Armazena dado no navegador (persiste após fechar aba)
           localStorage.removeItem(USER_KEY);
           setUser(null);
           setToken(null);
@@ -114,28 +102,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   /** Grava token e usuário após login ou registro bem-sucedido. */
-  // Função memorizada — evita recriar a cada render
   const setSession = useCallback((newToken: string, u: ApiUser) => {
-    // Armazena dado no navegador (persiste após fechar aba)
     localStorage.setItem(TOKEN_KEY, newToken);
-    // Transforma objeto em texto JSON para enviar à API
     localStorage.setItem(USER_KEY, JSON.stringify(u));
     setToken(newToken);
     setUser(u);
     setLoading(false);
   }, []);
   /** Encerra sessão e remove dados do localStorage. */
-  // Função memorizada — evita recriar a cada render
   const logout = useCallback(() => {
-    // Armazena dado no navegador (persiste após fechar aba)
     localStorage.removeItem(TOKEN_KEY);
-    // Armazena dado no navegador (persiste após fechar aba)
     localStorage.removeItem(USER_KEY);
     setToken(null);
     setUser(null);
     setLoading(false);
   }, []);
-  // Valor memorizado — recalcula só quando dependências mudam
   const value = useMemo(
     () => ({
       user,

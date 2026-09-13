@@ -18,11 +18,8 @@ import { userIsAdmin } from "@/lib/admin";
 
 /** Envolve rotas /admin/* — libera se sessão for admin, senão consulta capabilities. */
 export default function RequireAdmin({ children }: { children: React.ReactNode }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { user, loading: authLoading } = useAuth();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: caps, isLoading, isError } = useCapabilities();
-  // Sessão já identifica admin — não depende do Railway
   const sessionAdmin = userIsAdmin(user);
   if (sessionAdmin || caps?.isAdmin) {
     return <>{children}</>;
@@ -35,7 +32,6 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
       </div>
     );
   }
-  // Só bloqueia usuários comuns (erro de API ≠ negar admin já tratado acima)
   if (isError || !caps?.isAdmin) {
     return (
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">

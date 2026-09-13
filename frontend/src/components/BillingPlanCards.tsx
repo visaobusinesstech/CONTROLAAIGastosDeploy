@@ -42,7 +42,6 @@ async function openPlanCheckout(
     window.open(paymentLink, "_blank", "noopener,noreferrer");
     return;
   }
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { url } = await apiPostBillingCheckout(token, interval);
   window.open(url, "_blank", "noopener,noreferrer");
 }
@@ -58,16 +57,13 @@ export function BillingPlanCards({ billing, token, className, variant = "cards" 
   const savingsPct = Math.round((1 - yearlyMonthly / monthlyAmount) * 100);
   const choose = async (interval: PlanInterval) => {
     if (!billing.stripeConfigured) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Pagamentos em configuração. Tente novamente em breve.");
       return;
     }
     setLoadingPlan(interval);
     try {
-      // Aguarda resposta assíncrona (API, timer)
       await openPlanCheckout(interval, billing, token);
     } catch (e) {
-      // Exibe notificação temporária (toast) na tela
       toast.error(e instanceof Error ? e.message : "Erro ao abrir checkout");
     } finally {
       setLoadingPlan(null);
@@ -77,22 +73,16 @@ export function BillingPlanCards({ billing, token, className, variant = "cards" 
     return (
       <div className={cn("flex flex-wrap items-center justify-center gap-2", className)}>
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={loadingPlan !== null || !billing.stripeConfigured}
-          // Executa ação quando o usuário clica
           onClick={() => void choose("monthly")}
           className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-orange-700 shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-60 sm:text-sm"
         >
           {loadingPlan === "monthly" ? "Abrindo…" : `R$ ${formatBrl(monthlyAmount)}/mês`}
         </button>
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={loadingPlan !== null || !billing.stripeConfigured}
-          // Executa ação quando o usuário clica
           onClick={() => void choose("yearly")}
           className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold text-white ring-1 ring-white/30 transition-colors hover:bg-white/25 disabled:opacity-60 sm:text-sm"
         >
@@ -106,11 +96,8 @@ export function BillingPlanCards({ billing, token, className, variant = "cards" 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Mensal */}
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={loadingPlan !== null || !billing.stripeConfigured}
-          // Executa ação quando o usuário clica
           onClick={() => void choose("monthly")}
           className="group relative flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-sm transition-all hover:border-cgreen-500/60 hover:shadow-md disabled:opacity-60"
         >
@@ -125,7 +112,6 @@ export function BillingPlanCards({ billing, token, className, variant = "cards" 
           </div>
           <p className="mt-1 text-sm text-muted-foreground">Flexível, cancele quando quiser</p>
           <ul className="mt-4 space-y-2">
-            // Percorre lista e renderiza um item para cada elemento
             {MONTHLY_FEATURES.map((f) => (
               <li key={f} className="flex items-center gap-2 text-sm text-foreground/90">
                 <Check className="h-3.5 w-3.5 shrink-0 text-cgreen-500" />
@@ -140,11 +126,8 @@ export function BillingPlanCards({ billing, token, className, variant = "cards" 
         </button>
         {/* Anual */}
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={loadingPlan !== null || !billing.stripeConfigured}
-          // Executa ação quando o usuário clica
           onClick={() => void choose("yearly")}
           className="group relative flex flex-col overflow-hidden rounded-2xl border-2 border-cgreen-500 bg-gradient-to-b from-cgreen-500/10 to-cgreen-500/5 p-5 text-left shadow-sm transition-all hover:shadow-lg disabled:opacity-60"
         >
@@ -165,7 +148,6 @@ export function BillingPlanCards({ billing, token, className, variant = "cards" 
             R$ {formatBrl(yearlyAmount, 0)} cobrados uma vez por ano
           </p>
           <ul className="mt-4 space-y-2">
-            // Percorre lista e renderiza um item para cada elemento
             {YEARLY_FEATURES.map((f) => (
               <li key={f} className="flex items-center gap-2 text-sm text-foreground/90">
                 <Check className="h-3.5 w-3.5 shrink-0 text-cgreen-600" />

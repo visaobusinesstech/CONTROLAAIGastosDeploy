@@ -18,9 +18,7 @@ import { userIsStaff } from "@/lib/admin";
 
 /** Envolve rotas de auditoria, LGPD e assinantes. */
 export default function RequireStaff({ children }: { children: React.ReactNode }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { user, loading: authLoading } = useAuth();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: caps, isLoading, isError } = useCapabilities();
   const sessionStaff = userIsStaff(user);
   if (sessionStaff || caps?.isStaff || caps?.isAdmin) {

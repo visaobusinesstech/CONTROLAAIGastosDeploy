@@ -11,10 +11,8 @@
  *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-// Importa de ./logo/logo-controla.png
 import logoWordmark from "./logo/logo-controla.png"; // Imagem do logotipo completo
 
-// Contrato de props ou objeto (TypeScript)
 interface LogoProps {
   size?: number;
 }

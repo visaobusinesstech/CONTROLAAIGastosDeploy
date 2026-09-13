@@ -18,7 +18,6 @@ import { isAdminUser } from "@/lib/admin"; // Verifica e-mail admin@admin.com
 
 /** Protege rotas administrativas antes do Layout (login dedicado). */
 export default function RequireAdminAuth({ children }: { children: React.ReactNode }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, user, loading } = useAuth();
   const location = useLocation();
   if (loading) {
@@ -29,11 +28,9 @@ export default function RequireAdminAuth({ children }: { children: React.ReactNo
       </div>
     );
   }
-  // Sem token → login administrativo
   if (!token) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
-  // Usuário comum autenticado → dashboard
   if (!isAdminUser(user?.email)) {
     return <Navigate to="/" replace />;
   }

@@ -21,7 +21,6 @@ import { ApiError, resetPasswordRequest, translateApiError } from "@/lib/api";
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  // Valor memorizado — recalcula só quando dependências mudam
   const token = useMemo(() => params.get("token")?.trim() ?? "", [params]);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -29,11 +28,9 @@ export default function ResetPassword() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (!done) return;
     const t = window.setTimeout(() => {
-      // Navega para outra página do app
       navigate("/login?reset=1", { replace: true });
     }, 1200);
     return () => window.clearTimeout(t);
@@ -41,28 +38,21 @@ export default function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password.length < 6) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError("A senha deve ter pelo menos 6 caracteres");
       return;
     }
     if (password !== confirm) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError("As senhas não coincidem");
       return;
     }
-    // Atualiza mensagem de erro exibida ao usuário
     setError("");
-    // Liga/desliga indicador "carregando" no botão
     setSubmitting(true);
     try {
-      // Aguarda resposta assíncrona (API, timer)
       await resetPasswordRequest({ token, password });
       setDone(true);
     } catch (err) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível redefinir a senha.");
     } finally {
-      // Liga/desliga indicador "carregando" no botão
       setSubmitting(false);
     }
   };
@@ -110,13 +100,10 @@ export default function ResetPassword() {
                   <input
                     type={showPw ? "text" : "password"}
                     value={password}
-                    // Atualiza estado quando o usuário digita/seleciona
                     onChange={(e) => {
                       setPassword(e.target.value);
-                      // Atualiza mensagem de erro exibida ao usuário
                       setError("");
                     }}
-                    // Texto cinza de exemplo dentro do campo vazio
                     placeholder="••••••"
                     required
                     minLength={6}
@@ -124,12 +111,9 @@ export default function ResetPassword() {
                     className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                   />
                   <button
-                    // Botão comum (não envia formulário)
                     type="button"
-                    // Executa ação quando o usuário clica
                     onClick={() => setShowPw(!showPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400"
-                    // Texto acessível para leitores de tela
                     aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                   >
                     {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -143,13 +127,10 @@ export default function ResetPassword() {
                 <input
                   type={showPw ? "text" : "password"}
                   value={confirm}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) => {
                     setConfirm(e.target.value);
-                    // Atualiza mensagem de erro exibida ao usuário
                     setError("");
                   }}
-                  // Texto cinza de exemplo dentro do campo vazio
                   placeholder="••••••"
                   required
                   minLength={6}
@@ -159,9 +140,7 @@ export default function ResetPassword() {
               </div>
               {error && <p className="text-xs text-cred-main">{error}</p>}
               <button
-                // Botão que envia o formulário
                 type="submit"
-                // Desabilita botão/campo (ex.: durante envio)
                 disabled={submitting}
                 className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
               >

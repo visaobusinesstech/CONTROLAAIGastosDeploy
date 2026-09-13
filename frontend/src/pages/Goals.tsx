@@ -139,7 +139,6 @@ function GoalProgressBar({ percentage }: { percentage: number }) {
     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
       <motion.div
         initial={{ width: 0 }}
-        // Operação matemática (arredondar, somar, etc.)
         animate={{ width: `${Math.min(percentage, 100)}%` }}
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="h-full rounded-full"
@@ -158,14 +157,12 @@ function GoalCard({
   onInactivate: () => void;
   onEdit: () => void;
 }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const gridStroke = isDark ? "#48484A" : "#F0F0F2";
   const tickFill = isDark ? "#A8A8AD" : "#AEAEB2";
   const [simAmount, setSimAmount] = useState([500]);
   const target = goal.targetAmount ?? goal.limitAmount;
-  // Progresso dinâmico: backend já calcula; reforçamos a mesma regra no cliente
   const livePct =
     goal.goalType === "saving"
       ? computeGoalProgressPercent(goal.currentAmount, target)
@@ -179,7 +176,6 @@ function GoalCard({
   const evolutionData = [{ month: "Atual", value: goal.currentAmount }];
   const monthsToGoal =
     goal.goalType === "saving" && simAmount[0] > 0
-      // Operação matemática (arredondar, somar, etc.)
       ? Math.ceil(Math.max(target - goal.currentAmount, 0) / simAmount[0])
       : null;
   return (
@@ -218,25 +214,19 @@ function GoalCard({
             </div>
             <div className="flex items-center gap-1">
               <button
-                // Botão comum (não envia formulário)
                 type="button"
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                // Texto acessível para leitores de tela
                 aria-label="Editar meta"
                 title="Editar meta"
-                // Executa ação quando o usuário clica
                 onClick={onEdit}
               >
                 <Pencil size={16} />
               </button>
               <button
-                // Botão comum (não envia formulário)
                 type="button"
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
-                // Texto acessível para leitores de tela
                 aria-label="Excluir meta"
                 title="Excluir meta"
-                // Executa ação quando o usuário clica
                 onClick={onInactivate}
               >
                 <Ban size={16} />
@@ -246,12 +236,10 @@ function GoalCard({
           <div>
             <div className="mb-1 flex justify-between text-sm">
               <span className="text-muted-foreground">
-                // Formata número como moeda/texto local (pt-BR)
                 R$ {goal.currentAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                 {goal.goalType === "saving" ? " em ganhos" : " gastos"}
               </span>
               <span className="font-medium tabular text-foreground">
-                // Formata número como moeda/texto local (pt-BR)
                 {livePct.toFixed(0)}% de R$ {target.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </span>
             </div>
@@ -279,7 +267,6 @@ function GoalCard({
               <p className="text-xs font-medium text-muted-foreground">Simulação de aporte mensal</p>
               <Slider value={simAmount} onValueChange={setSimAmount} min={100} max={5000} step={100} />
               <p className="text-xs text-muted-foreground">
-                // Formata número como moeda/texto local (pt-BR)
                 R$ {simAmount[0].toLocaleString("pt-BR")}/mês
                 {monthsToGoal ? ` → meta em ~${monthsToGoal} meses` : ""}
               </p>
@@ -304,7 +291,6 @@ function SummaryStat({
   iconBg: string;
   iconClass: string;
 }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   return (
@@ -339,11 +325,8 @@ function TemplateCard({
 }) {
   return (
     <button
-      // Botão comum (não envia formulário)
       type="button"
-      // Desabilita botão/campo (ex.: durante envio)
       disabled={loading}
-      // Executa ação quando o usuário clica
       onClick={onUse}
       className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-cgreen-500/50 hover:bg-cgreen-500/5 disabled:opacity-60"
     >
@@ -358,7 +341,6 @@ function TemplateCard({
           <p className="font-medium text-foreground">{template.name}</p>
           <p className="text-xs text-muted-foreground">
             {template.goalType === "limit" ? "Limite" : "Ganhos"} · R${" "}
-            // Formata número como moeda/texto local (pt-BR)
             {template.limitAmount.toLocaleString("pt-BR")}
           </p>
         </div>
@@ -369,9 +351,7 @@ function TemplateCard({
 }
 
 export default function Goals() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editGoal, setEditGoal] = useState<ApiGoal | null>(null);
@@ -382,7 +362,6 @@ export default function Goals() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editPeriod, setEditPeriod] = useState<"monthly" | "quarterly" | "yearly">("monthly");
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data, isLoading } = useQuery({
     queryKey: ["goals", token],
     queryFn: () => apiGetGoals(token!),
@@ -390,49 +369,39 @@ export default function Goals() {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: catRes } = useQuery({
     queryKey: ["categories", token],
     queryFn: () => apiGetCategories(token!),
     enabled: Boolean(token),
   });
   const categories = catRes?.categories ?? [];
-  // Mutação na API (criar/editar/excluir)
   const createMut = useMutation({
     mutationFn: (payload: Parameters<typeof apiCreateGoal>[1]) => apiCreateGoal(token!, payload),
     onSuccess: () => {
-      // Exibe notificação temporária (toast) na tela
       toast.success("Meta criada!");
       void qc.invalidateQueries({ queryKey: ["goals"] });
       setDialogOpen(false);
       setCustomName("");
       setCustomAmount("20000");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Mutação na API (criar/editar/excluir)
   const inactivateMut = useMutation({
     mutationFn: (id: string) => apiPatchGoal(token!, id, { isActive: false }),
     onSuccess: () => {
-      // Exibe notificação temporária (toast) na tela
       toast.success("Meta excluída (inativada)");
       void qc.invalidateQueries({ queryKey: ["goals"] });
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Mutação na API (criar/editar/excluir)
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Parameters<typeof apiPatchGoal>[2] }) =>
       apiPatchGoal(token!, id, body),
     onSuccess: () => {
-      // Exibe notificação temporária (toast) na tela
       toast.success("Meta atualizada — progresso recalculado");
       void qc.invalidateQueries({ queryKey: ["goals"] });
       setEditGoal(null);
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
   const createFromTemplate = (template: GoalTemplate) => {
@@ -450,12 +419,10 @@ export default function Goals() {
     e.preventDefault();
     const amount = Number(customAmount.replace(",", "."));
     if (!customName.trim() || !Number.isFinite(amount) || amount <= 0) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Preencha nome e valor válidos (maior que zero)");
       return;
     }
     createMut.mutate({
-      // Remove espaços no início/fim do texto
       name: customName.trim(),
       goalType: customType,
       limitAmount: amount,
@@ -475,14 +442,12 @@ export default function Goals() {
     if (!editGoal) return;
     const amount = Number(editAmount.replace(",", "."));
     if (!editName.trim() || !Number.isFinite(amount) || amount <= 0) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Nome e valor da meta são obrigatórios (valor > 0)");
       return;
     }
     updateMut.mutate({
       id: editGoal.id,
       body: {
-        // Remove espaços no início/fim do texto
         name: editName.trim(),
         limitAmount: amount,
         targetAmount: editGoal.goalType === "saving" ? amount : null,
@@ -519,9 +484,7 @@ export default function Goals() {
                 <Input
                   id="goal-name"
                   value={customName}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) => setCustomName(e.target.value)}
-                  // Texto cinza de exemplo dentro do campo vazio
                   placeholder="Ex.: Faturamento mensal R$ 20.000"
                   required
                 />
@@ -534,7 +497,6 @@ export default function Goals() {
                   min={1}
                   step={1}
                   value={customAmount}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) => setCustomAmount(e.target.value)}
                   required
                 />
@@ -553,13 +515,10 @@ export default function Goals() {
                 </Select>
               </div>
               <div className="flex gap-2">
-                // Percorre lista e renderiza um item para cada elemento
                 {(["saving", "limit"] as const).map((t) => (
                   <button
                     key={t}
-                    // Botão comum (não envia formulário)
                     type="button"
-                    // Executa ação quando o usuário clica
                     onClick={() => setCustomType(t)}
                     className={cn(
                       "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
@@ -602,7 +561,6 @@ export default function Goals() {
                 min={1}
                 step={1}
                 value={editAmount}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setEditAmount(e.target.value)}
                 required
               />
@@ -636,7 +594,6 @@ export default function Goals() {
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">Nenhuma meta ativa. Comece com um modelo pronto:</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            // Percorre lista e renderiza um item para cada elemento
             {GOAL_TEMPLATES.map((template) => (
               <TemplateCard
                 key={template.name}
@@ -656,7 +613,6 @@ export default function Goals() {
             <SummaryStat icon={TrendingUp} label="Excedidas / batidas" value={exceeded} iconBg="bg-cred-light dark:bg-red-900/25" iconClass="text-cred-main" />
           </div>
           <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
-            // Percorre lista e renderiza um item para cada elemento
             {goals.map((goal) => (
               <GoalCard
                 key={goal.id}

@@ -17,41 +17,23 @@ import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Toast Sonner (notificações)
 import { Toaster } from "@/components/ui/toaster"; // Toast shadcn legado
 import { TooltipProvider } from "@/components/ui/tooltip"; // Tooltips globais
-// Importa de @/components/Layout
 import Layout from "@/components/Layout"; // Shell com sidebar e outlet
-// Importa de @/pages/Dashboard
 import Dashboard from "@/pages/Dashboard";
-// Importa de @/pages/Goals
 import Goals from "@/pages/Goals";
-// Importa de @/pages/AiChat
 import AiChat from "@/pages/AiChat";
-// Importa de @/pages/Settings
 import SettingsPage from "@/pages/Settings";
-// Importa de @/pages/Login
 import Login from "@/pages/Login";
-// Importa de @/pages/Register
 import Register from "@/pages/Register";
-// Importa de @/pages/ForgotPassword
 import ForgotPassword from "@/pages/ForgotPassword";
-// Importa de @/pages/ResetPassword
 import ResetPassword from "@/pages/ResetPassword";
-// Importa de @/pages/NotFound
 import NotFound from "@/pages/NotFound";
-// Importa de @/pages/WhatsApp
 import WhatsAppPage from "@/pages/WhatsApp";
-// Importa de @/pages/AiLogs
 import AiLogsPage from "@/pages/AiLogs";
-// Importa de @/pages/AdminSubscribers
 import AdminSubscribersPage from "@/pages/AdminSubscribers";
-// Importa de @/pages/AdminAuditLogs
 import AdminAuditLogsPage from "@/pages/AdminAuditLogs";
-// Importa de @/pages/AdminLgpd
 import AdminLgpdPage from "@/pages/AdminLgpd";
-// Importa de @/components/RequireAdmin
 import RequireAdmin from "@/components/RequireAdmin"; // Guard WhatsApp / modelo
-// Importa de @/components/RequireStaff
 import RequireStaff from "@/components/RequireStaff"; // Guard governança
-// Importa de @/components/RequireAdminAuth
 import RequireAdminAuth from "@/components/RequireAdminAuth"; // Guard só admin@admin.com
 import { DocumentTitle } from "@/components/DocumentTitle"; // Título dinâmico da aba
 import { AppErrorBoundaryWithRouter } from "@/components/AppErrorBoundary"; // Captura erros de render
@@ -61,7 +43,6 @@ const queryClient = new QueryClient();
 
 /** Redireciona para /login se não houver token válido. */
 function RequireAuth() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, loading } = useAuth();
   if (loading) {
     return (

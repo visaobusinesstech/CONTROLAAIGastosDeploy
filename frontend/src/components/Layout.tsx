@@ -84,16 +84,13 @@ function mobileNavLabel(label: string) {
 }
 
 export default function Layout() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { user } = useAuth();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: caps } = useCapabilities();
   const location = useLocation();
   const navigate = useNavigate();
   const displayName = user?.name ?? "Usuário";
   const displayPlan = user ? planLabel(user.plan) : "—";
   const isSystemAdmin = isAdminUser(user?.email);
-  // Admin por sessão (e-mail/accessLevel) — não depende do Railway capabilities
   const isAdmin = userIsAdmin(user) || Boolean(caps?.isAdmin);
   const isStaff = Boolean(caps?.isStaff) || isAdmin;
   const billingBlocked = caps?.billing && !caps.billing.hasAccess && !isStaff;
@@ -106,24 +103,18 @@ export default function Layout() {
     settingsNavItem,
   ];
   const isAiChat = location.pathname === "/ai";
-  // Impede usuário comum de acessar URLs /admin/* via barra de endereço
   useEffect(() => {
     if (user && !isStaff && location.pathname.startsWith("/admin")) {
-      // Navega para outra página do app
       navigate("/", { replace: true });
     }
   }, [user, isStaff, location.pathname, navigate]);
-  // Assinantes: somente admin@admin.com
   useEffect(() => {
     if (user && location.pathname.startsWith("/admin/subscribers") && !isSystemAdmin) {
-      // Navega para outra página do app
       navigate("/", { replace: true });
     }
   }, [user, isSystemAdmin, location.pathname, navigate]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (billingBlocked && !onSettings) {
-      // Navega para outra página do app
       navigate("/settings#assinatura", { replace: true });
     }
   }, [billingBlocked, onSettings, navigate]);
@@ -137,7 +128,6 @@ export default function Layout() {
           </Link>
         </div>
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-          // Percorre lista e renderiza um item para cada elemento
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -158,12 +148,9 @@ export default function Layout() {
         </nav>
         <div className="p-4 border-t border-cgray-200 dark:border-cgray-800">
           <button
-            // Botão comum (não envia formulário)
             type="button"
-            // Navega para outra página do app
             onClick={() => navigate("/settings#renda-mensal")}
             className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-cgray-50 dark:hover:bg-muted"
-            // Texto acessível para leitores de tela
             aria-label="Abrir configurações e renda mensal"
           >
             <div className="w-10 h-10 rounded-full bg-cgreen-50 dark:bg-cgreen-900/40 text-cgreen-700 dark:text-cgreen-400 flex items-center justify-center text-sm font-semibold">
@@ -183,10 +170,8 @@ export default function Layout() {
             <LogoFull />
           </Link>
           <button
-            // Botão comum (não envia formulário)
             type="button"
             className="w-10 h-10 rounded-full bg-cgray-50 dark:bg-muted flex items-center justify-center"
-            // Texto acessível para leitores de tela
             aria-label="Notificações"
           >
             <Bell size={18} className="text-cgray-600 dark:text-muted-foreground" />
@@ -206,7 +191,6 @@ export default function Layout() {
       {/* Barra de navegação inferior — mobile */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/80 dark:bg-card/90 backdrop-blur-xl border-t border-cgray-200 dark:border-cgray-800 z-30 pb-[env(safe-area-inset-bottom)]">
         <div className="flex h-14 sm:h-[60px] items-center justify-around gap-0.5 overflow-x-auto px-1 sm:px-2 scrollbar-none">
-          // Percorre lista e renderiza um item para cada elemento
           {navItems.map((item) => (
             <NavLink
               key={item.to}

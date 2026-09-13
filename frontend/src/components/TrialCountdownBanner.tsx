@@ -37,23 +37,19 @@ type Props = {
 };
 
 export function TrialCountdownBanner({ className }: Props) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
   const [now, setNow] = useState(() => Date.now());
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: billing } = useQuery({
     queryKey: ["billing", token],
     queryFn: () => apiGetBillingStatus(token!),
     enabled: Boolean(token),
     staleTime: 60_000,
   });
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, []);
   if (!billing) return null;
-  // Trial ativo — banner laranja com contagem
   if (billing.reason === "trial" && billing.trialEndsAt) {
     const remaining = new Date(billing.trialEndsAt).getTime() - now;
     if (remaining <= 0) return null;
@@ -73,16 +69,13 @@ export function TrialCountdownBanner({ className }: Props) {
         </span>
         <span
           className="font-mono text-sm font-semibold tabular-nums tracking-tight sm:text-[15px]"
-          // Texto acessível para leitores de tela
           aria-label="Tempo restante do trial"
         >
           {formatCountdown(remaining)}
         </span>
         <span className="hidden text-xs text-white/85 sm:inline">· 30 dias de acesso completo</span>
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Executa ação quando o usuário clica
           onClick={() => navigateToPlans()}
           className="rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-semibold text-white transition-colors hover:bg-white/30 sm:text-xs"
         >
@@ -91,7 +84,6 @@ export function TrialCountdownBanner({ className }: Props) {
       </div>
     );
   }
-  // Trial expirado — CTA direto para checkout Stripe
   if (billing.requiresPayment && billing.reason === "expired" && token) {
     return (
       <div

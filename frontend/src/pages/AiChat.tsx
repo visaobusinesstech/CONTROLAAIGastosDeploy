@@ -68,11 +68,9 @@ function formatTime(isoOrTime?: string): string {
 function parseStoredMessages(raw: unknown): ChatMessage[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    // Filtra lista — mantém só itens que passam no teste
     .filter((m): m is { role: string; content: string; timestamp?: string } => {
       return Boolean(m && typeof m === "object" && "role" in m && "content" in m);
     })
-    // Percorre lista e renderiza um item para cada elemento
     .map((m) => ({
       role: m.role === "user" ? "user" : "assistant",
       content: stripMarkdown(String(m.content)),
@@ -94,11 +92,8 @@ const chatBgDark =
   "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")";
 
 export default function AiChat() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { resolvedTheme } = useTheme();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
   const isDark = resolvedTheme === "dark";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -108,19 +103,16 @@ export default function AiChat() {
   const [mobileListOpen, setMobileListOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const bootstrapped = useRef(false);
-  // Consulta à API com cache (React Query)
   const welcomeQuery = useQuery({
     queryKey: ["ai-welcome", token],
     queryFn: () => apiGetAiWelcome(token!),
     enabled: Boolean(token),
   });
-  // Consulta à API com cache (React Query)
   const convQuery = useQuery({
     queryKey: ["ai-conversations", token],
     queryFn: () => apiGetAiConversations(token!),
     enabled: Boolean(token),
   });
-  // Função memorizada — evita recriar a cada render
   const startNewChat = useCallback(() => {
     setConversationId(undefined);
     if (welcomeQuery.data?.message) {
@@ -130,14 +122,12 @@ export default function AiChat() {
     }
     setMobileListOpen(false);
   }, [welcomeQuery.data?.message]);
-  // Função memorizada — evita recriar a cada render
   const loadConversation = useCallback((id: string, rawMessages: unknown) => {
     const parsed = parseStoredMessages(rawMessages);
     setConversationId(id);
     setMessages(parsed.length ? parsed : welcomeQuery.data?.message ? [welcomeMessage(welcomeQuery.data.message)] : []);
     setMobileListOpen(false);
   }, [welcomeQuery.data?.message]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (bootstrapped.current || !welcomeQuery.data?.message) return;
     if (convQuery.isLoading) return;
@@ -149,7 +139,6 @@ export default function AiChat() {
       startNewChat();
     }
   }, [convQuery.data, convQuery.isLoading, welcomeQuery.data, loadConversation, startNewChat]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
@@ -165,7 +154,6 @@ export default function AiChat() {
     setInput("");
     setIsTyping(true);
     try {
-      // POST /api/ai/chat — envia mensagem e recebe resposta do agente
       const resp = await apiPostAiChat(token, { message: msg, conversationId });
       setConversationId(resp.conversationId);
       setMessages((prev) => [
@@ -180,11 +168,9 @@ export default function AiChat() {
       if (resp.transactionCreated) {
         void qc.invalidateQueries({ queryKey: ["transactions"] });
         void qc.invalidateQueries({ queryKey: ["kpis"] });
-        // Exibe notificação temporária (toast) na tela
         toast.success("Transação registrada — dashboard atualizado.");
       }
     } catch (err) {
-      // Exibe notificação temporária (toast) na tela
       toast.error(err instanceof Error ? err.message : "Erro ao enviar mensagem");
     } finally {
       setIsTyping(false);
@@ -194,11 +180,9 @@ export default function AiChat() {
     if (!token) return;
     if (conversationId) {
       try {
-        // Aguarda resposta assíncrona (API, timer)
         await apiDeleteAiConversation(token, conversationId);
         void qc.invalidateQueries({ queryKey: ["ai-conversations"] });
       } catch (err) {
-        // Exibe notificação temporária (toast) na tela
         toast.error(err instanceof Error ? err.message : "Erro ao inativar");
         return;
       }
@@ -212,23 +196,17 @@ export default function AiChat() {
         <h2 className="text-base font-medium text-foreground">Conversas</h2>
         <div className="flex items-center gap-1">
           <button
-            // Botão comum (não envia formulário)
             type="button"
-            // Executa ação quando o usuário clica
             onClick={startNewChat}
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-cgreen-50 text-cgreen-700 hover:bg-cgreen-100 dark:bg-cgreen-900/30 dark:text-cgreen-400"
-            // Texto acessível para leitores de tela
             aria-label="Nova conversa"
           >
             <Plus size={16} />
           </button>
           <button
-            // Botão comum (não envia formulário)
             type="button"
-            // Executa ação quando o usuário clica
             onClick={() => setMobileListOpen(false)}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
-            // Texto acessível para leitores de tela
             aria-label="Fechar lista"
           >
             <X size={16} />
@@ -239,13 +217,10 @@ export default function AiChat() {
         {sidebarConversations.length === 0 && (
           <p className="px-4 py-6 text-center text-xs text-muted-foreground">Nenhuma conversa salva ainda.</p>
         )}
-        // Percorre lista e renderiza um item para cada elemento
         {sidebarConversations.map((conv) => (
           <button
             key={conv.id}
-            // Botão comum (não envia formulário)
             type="button"
-            // Executa ação quando o usuário clica
             onClick={() => loadConversation(conv.id, conv.messages)}
             className={cn(
               "w-full border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted/60",
@@ -257,7 +232,6 @@ export default function AiChat() {
               <p className="truncate text-sm font-medium text-foreground">{conv.title ?? "Conversa"}</p>
             </div>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              // Cria objeto de data/hora
               {new Date(conv.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
             </p>
           </button>
@@ -275,12 +249,9 @@ export default function AiChat() {
       {mobileListOpen && (
         <div className="fixed inset-0 z-40 flex lg:hidden">
           <button
-            // Botão comum (não envia formulário)
             type="button"
             className="absolute inset-0 bg-black/50"
-            // Texto acessível para leitores de tela
             aria-label="Fechar"
-            // Executa ação quando o usuário clica
             onClick={() => setMobileListOpen(false)}
           />
           <div className="relative z-50 flex h-full w-[min(100%,280px)] flex-col bg-card shadow-xl">
@@ -292,12 +263,9 @@ export default function AiChat() {
         <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-5">
           <div className="flex items-center gap-2 sm:gap-3">
             <button
-              // Botão comum (não envia formulário)
               type="button"
-              // Executa ação quando o usuário clica
               onClick={() => setMobileListOpen(true)}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
-              // Texto acessível para leitores de tela
               aria-label="Abrir conversas"
             >
               <PanelLeft size={18} />
@@ -312,23 +280,17 @@ export default function AiChat() {
           </div>
           <div className="flex items-center gap-1">
             <button
-              // Botão comum (não envia formulário)
               type="button"
-              // Executa ação quando o usuário clica
               onClick={startNewChat}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
-              // Texto acessível para leitores de tela
               aria-label="Nova conversa"
             >
               <Plus size={16} />
             </button>
             <button
-              // Botão comum (não envia formulário)
               type="button"
-              // Executa ação quando o usuário clica
               onClick={handleDelete}
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-cred-main"
-              // Texto acessível para leitores de tela
               aria-label="Inativar conversa"
             >
               <Trash2 size={16} />
@@ -342,7 +304,6 @@ export default function AiChat() {
             backgroundImage: isDark ? chatBgDark : chatBgLight,
           }}
         >
-          // Percorre lista e renderiza um item para cada elemento
           {messages.map((msg, i) => (
             <motion.div
               key={`${msg.timestamp}-${i}`}
@@ -367,7 +328,6 @@ export default function AiChat() {
             <div className="flex justify-start">
               <div className="rounded-2xl border border-transparent bg-white px-4 py-3 shadow-sm dark:border-border/40 dark:bg-[#1f2c34]">
                 <div className="flex gap-1">
-                  // Percorre lista e renderiza um item para cada elemento
                   {[0, 150, 300].map((delay) => (
                     <span
                       key={delay}
@@ -387,16 +347,13 @@ export default function AiChat() {
             <span className="text-xs text-muted-foreground">Sugestões:</span>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
-            // Percorre lista e renderiza um item para cada elemento
             {suggestions.map((s) => {
               const Icon =
                 s.label.includes("gasto") ? PenLine : s.label.includes("Resumo") ? PieChart : s.label.includes("Dicas") ? Sparkles : Target;
               return (
                 <button
                   key={s.label}
-                  // Botão comum (não envia formulário)
                   type="button"
-                  // Executa ação quando o usuário clica
                   onClick={() => handleSend(s.send)}
                   className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-cgreen-500/40 hover:bg-muted hover:text-cgreen-700 dark:hover:text-cgreen-400"
                 >
@@ -411,19 +368,14 @@ export default function AiChat() {
           <div className="flex items-center gap-2 sm:gap-3">
             <input
               value={input}
-              // Atualiza estado quando o usuário digita/seleciona
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-              // Texto cinza de exemplo dentro do campo vazio
               placeholder="Digite um gasto ou pergunte algo..."
               className="h-10 min-w-0 flex-1 rounded-xl border border-transparent bg-muted/60 px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-cgreen-500 focus:bg-card sm:h-11 sm:px-4"
             />
             <button
-              // Botão comum (não envia formulário)
               type="button"
-              // Executa ação quando o usuário clica
               onClick={() => handleSend()}
-              // Desabilita botão/campo (ex.: durante envio)
               disabled={isTyping}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cgreen-500 text-white transition-all hover:bg-cgreen-700 active:scale-[0.97] disabled:opacity-60 sm:h-11 sm:w-11"
             >

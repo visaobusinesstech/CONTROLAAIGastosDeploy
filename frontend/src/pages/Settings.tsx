@@ -84,9 +84,7 @@ function SettingRow({
 }) {
   return (
     <button
-      // Botão comum (não envia formulário)
       type="button"
-      // Executa ação quando o usuário clica
       onClick={onClick}
       className="flex w-full items-center gap-3 border-b border-border bg-card px-5 py-3.5 text-left transition-colors hover:bg-muted/60"
     >
@@ -105,9 +103,7 @@ function SettingRow({
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
-      // Botão comum (não envia formulário)
       type="button"
-      // Executa ação quando o usuário clica
       onClick={() => onChange(!checked)}
       className={cn(
         "relative flex h-[26px] w-11 shrink-0 items-center rounded-full transition-colors duration-200",
@@ -166,11 +162,8 @@ export default function SettingsPage() {
   const [searchParams] = useSearchParams();
   const incomeSectionRef = useRef<HTMLDivElement>(null);
   const billingSectionRef = useRef<HTMLDivElement>(null);
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { user, token, logout, refreshUser } = useAuth();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { theme, setTheme } = useTheme();
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
   const [profileOpen, setProfileOpen] = useState(false);
   const [catOpen, setCatOpen] = useState(false);
@@ -184,40 +177,33 @@ export default function SettingsPage() {
   const [twoFaSubmitting, setTwoFaSubmitting] = useState(false);
   const [twoFaError, setTwoFaError] = useState("");
   const currentMonth = monthKey();
-  // GET /api/settings — alertas e preferências
   const { data: settingsData, isLoading: settingsLoading } = useQuery({
     queryKey: ["settings", token],
     queryFn: () => apiGetSettings(token!),
     enabled: !!token,
   });
-  // GET /api/categories — lista para modal de categorias
   const { data: catData } = useQuery({
     queryKey: ["categories", token],
     queryFn: () => apiGetCategories(token!),
     enabled: !!token,
   });
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: budgetData, isLoading: budgetLoading } = useQuery({
     queryKey: ["budget", token, currentMonth],
     queryFn: () => apiGetBudget(token!, currentMonth),
     enabled: !!token,
   });
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: billingData } = useQuery({
     queryKey: ["billing", token],
     queryFn: () => apiGetBillingStatus(token!),
     enabled: !!token,
   });
-  // Mutação na API (criar/editar/excluir)
   const patchSettingsMut = useMutation({
     mutationFn: (body: Parameters<typeof apiPatchSettings>[1]) => apiPatchSettings(token!, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["settings", token] });
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     const pref = settingsData?.settings?.themePreference;
     if (pref === "light" || pref === "dark" || pref === "system") {
@@ -225,7 +211,6 @@ export default function SettingsPage() {
     }
   }, [settingsData?.settings?.themePreference, setTheme]);
   const monthlyIncome = budgetData?.budget?.totalIncomeExpected ?? null;
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (monthlyIncome != null) {
       setIncomeEdit(String(monthlyIncome));
@@ -233,7 +218,6 @@ export default function SettingsPage() {
       setIncomeEdit("");
     }
   }, [monthlyIncome]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (location.hash !== "#renda-mensal") return;
     const t = window.setTimeout(() => {
@@ -241,7 +225,6 @@ export default function SettingsPage() {
     }, 120);
     return () => window.clearTimeout(t);
   }, [location.hash, budgetLoading, settingsLoading]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (location.hash !== "#assinatura") return;
     const t = window.setTimeout(() => {
@@ -249,17 +232,14 @@ export default function SettingsPage() {
     }, 120);
     return () => window.clearTimeout(t);
   }, [location.hash]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     const billing = searchParams.get("billing");
     if (billing === "success") {
-      // Exibe notificação temporária (toast) na tela
       toast.success("Assinatura ativada! Obrigado por assinar o Controla.ai.");
       void qc.invalidateQueries({ queryKey: ["billing"] });
       void qc.invalidateQueries({ queryKey: ["capabilities"] });
       void refreshUser();
     } else if (billing === "cancel") {
-      // Exibe notificação temporária (toast) na tela
       toast.message("Checkout cancelado. Você pode assinar quando quiser.");
     }
   }, [searchParams, qc, refreshUser]);
@@ -268,9 +248,7 @@ export default function SettingsPage() {
   const cycleTheme = () => {
     let next: "light" | "dark" | "system";
     if (theme === "light") next = "dark";
-    // Senão, se outra condição…
     else if (theme === "dark") next = "system";
-    // Senão — caminho alternativo
     else next = "light";
     setTheme(next);
     if (token) {
@@ -280,7 +258,6 @@ export default function SettingsPage() {
   const handleLogout = () => {
     logout();
     qc.clear();
-    // Navega para outra página do app
     navigate("/login");
   };
   const name = user?.name ?? "—";
@@ -305,20 +282,14 @@ export default function SettingsPage() {
     setSavingProfile(true);
     try {
       const digits = phoneEdit.replace(/\D/g, "");
-      // Aguarda resposta assíncrona (API, timer)
       await apiPatchProfile(token, {
-        // Remove espaços no início/fim do texto
         name: nameEdit.trim() || undefined,
-        // Remove espaços no início/fim do texto
         phone: phoneEdit.trim() === "" ? null : digits.length >= 10 ? digits : undefined,
       });
-      // Exibe notificação temporária (toast) na tela
       toast.success("Perfil atualizado.");
       setProfileOpen(false);
-      // Aguarda resposta assíncrona (API, timer)
       await refreshUser();
     } catch (e) {
-      // Exibe notificação temporária (toast) na tela
       toast.error(e instanceof Error ? e.message : "Erro ao salvar");
     } finally {
       setSavingProfile(false);
@@ -329,25 +300,21 @@ export default function SettingsPage() {
     const normalized = incomeEdit.replace(/\./g, "").replace(",", ".").trim();
     const amount = Number(normalized);
     if (!normalized || Number.isNaN(amount) || amount <= 0) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Informe um valor válido de renda mensal.");
       return;
     }
     setSavingIncome(true);
     try {
-      // Aguarda resposta assíncrona (API, timer)
       await apiPutBudget(token, {
         month: currentMonth,
         totalIncomeExpected: amount,
       });
-      // Exibe notificação temporária (toast) na tela
       toast.success("Renda mensal atualizada.");
       void qc.invalidateQueries({ queryKey: ["budget", token, currentMonth] });
       void qc.invalidateQueries({ queryKey: ["transactions", token] });
       void qc.invalidateQueries({ queryKey: ["settings", token] });
       void qc.invalidateQueries({ queryKey: ["dashboard"] });
     } catch (e) {
-      // Exibe notificação temporária (toast) na tela
       toast.error(e instanceof Error ? e.message : "Erro ao salvar renda");
     } finally {
       setSavingIncome(false);
@@ -366,7 +333,6 @@ export default function SettingsPage() {
         return;
       }
       setTwoFaWaiting(false);
-      // Exibe notificação temporária (toast) na tela
       toast.success(result.twoFactorEnabled ? "Verificação em 2 etapas ativada." : "Verificação em 2 etapas desativada.");
       void qc.invalidateQueries({ queryKey: ["settings", token] });
     } catch (e) {
@@ -377,7 +343,6 @@ export default function SettingsPage() {
           : e instanceof Error
             ? e.message
             : "Não foi possível alterar o 2FA.";
-      // Exibe notificação temporária (toast) na tela
       toast.error(msg || "Não foi possível alterar o 2FA.");
     } finally {
       setTwoFaSubmitting(false);
@@ -390,7 +355,6 @@ export default function SettingsPage() {
     try {
       const result = await verifyTwoFactorRequest({ challengeId: twoFaChallenge.challengeId, code });
       if ("twoFactorEnabled" in result) {
-        // Exibe notificação temporária (toast) na tela
         toast.success(result.twoFactorEnabled ? "Verificação em 2 etapas ativada." : "Verificação em 2 etapas desativada.");
         setTwoFaChallenge(null);
         void qc.invalidateQueries({ queryKey: ["settings", token] });
@@ -422,10 +386,8 @@ export default function SettingsPage() {
       a.download = "controla-transacoes.csv";
       a.click();
       URL.revokeObjectURL(url);
-      // Exibe notificação temporária (toast) na tela
       toast.success("Exportação concluída.");
     } catch (e) {
-      // Exibe notificação temporária (toast) na tela
       toast.error(e instanceof Error ? e.message : "Falha na exportação");
     }
   };
@@ -484,10 +446,8 @@ export default function SettingsPage() {
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {billingData?.subscription?.currentPeriodEnd
-                      // Cria objeto de data/hora
                       ? `Renova em ${new Date(billingData.subscription.currentPeriodEnd).toLocaleDateString("pt-BR")}`
                       : billingData?.trialEndsAt
-                        // Cria objeto de data/hora
                         ? `Trial até ${new Date(billingData.trialEndsAt).toLocaleDateString("pt-BR")}`
                         : "Sem cobrança no momento"}
                   </p>
@@ -495,18 +455,14 @@ export default function SettingsPage() {
               </div>
               {billingData?.reason === "subscription" && (
                 <Button
-                  // Botão comum (não envia formulário)
                   type="button"
                   variant="outline"
                   className="w-full sm:w-auto"
-                  // Executa ação quando o usuário clica
                   onClick={async () => {
                     try {
-                      // Desestrutura valores do hook/contexto (acesso direto às variáveis)
                       const { url } = await apiPostBillingPortal(token!);
                       window.location.href = url;
                     } catch (e) {
-                      // Exibe notificação temporária (toast) na tela
                       toast.error(e instanceof Error ? e.message : "Erro ao abrir portal");
                     }
                   }}
@@ -565,19 +521,14 @@ export default function SettingsPage() {
                   <Input
                     id="income-amount"
                     inputMode="decimal"
-                    // Texto cinza de exemplo dentro do campo vazio
                     placeholder="Ex: 4500"
                     value={incomeEdit}
-                    // Atualiza estado quando o usuário digita/seleciona
                     onChange={(e) => setIncomeEdit(e.target.value)}
                   />
                   <Button
-                    // Botão comum (não envia formulário)
                     type="button"
                     className="shrink-0 bg-cgreen-500 hover:bg-cgreen-700"
-                    // Desabilita botão/campo (ex.: durante envio)
                     disabled={savingIncome}
-                    // Executa ação quando o usuário clica
                     onClick={saveIncome}
                   >
                     Salvar renda
@@ -609,7 +560,6 @@ export default function SettingsPage() {
               </div>
               <Toggle
                 checked={s?.alertAt80 ?? true}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(v) => patchSettingsMut.mutate({ alertAt80: v })}
               />
             </div>
@@ -623,7 +573,6 @@ export default function SettingsPage() {
               </div>
               <Toggle
                 checked={s?.alertAt100 ?? true}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(v) => patchSettingsMut.mutate({ alertAt100: v })}
               />
             </div>
@@ -637,7 +586,6 @@ export default function SettingsPage() {
               </div>
               <Toggle
                 checked={s?.weeklyReport ?? false}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(v) => patchSettingsMut.mutate({ weeklyReport: v })}
               />
             </div>
@@ -658,7 +606,6 @@ export default function SettingsPage() {
           </div>
           <Toggle
             checked={s?.twoFactorEnabled ?? false}
-            // Atualiza estado quando o usuário digita/seleciona
             onChange={(v) => {
               if (twoFaSubmitting) return;
               void startTwoFactorChange(v);
@@ -675,7 +622,6 @@ export default function SettingsPage() {
           iconBg="bg-[#AB47BC]"
           title="Aparência"
           subtitle={themeSubtitle}
-          // Executa ação quando o usuário clica
           onClick={cycleTheme}
         />
         <SettingRow
@@ -683,7 +629,6 @@ export default function SettingsPage() {
           iconBg="bg-[#6366f1]"
           title="Categorias padrão"
           subtitle="Nomes e ícones do sistema"
-          // Executa ação quando o usuário clica
           onClick={() => setCatOpen(true)}
         />
       </div>
@@ -696,7 +641,6 @@ export default function SettingsPage() {
           iconBg="bg-zinc-800 dark:bg-zinc-700"
           title="Exportar transações"
           subtitle="CSV compatível com Excel"
-          // Executa ação quando o usuário clica
           onClick={exportCsv}
           action={<Download size={16} className="text-muted-foreground" />}
         />
@@ -707,7 +651,6 @@ export default function SettingsPage() {
           iconBg="bg-muted-foreground/80"
           title="Ajuda e suporte"
           subtitle="suporte@controla.ai"
-          // Executa ação quando o usuário clica
           onClick={() => window.open("mailto:suporte@controla.ai", "_blank")}
         />
         <SettingRow icon={LogOut} iconBg="bg-cred-main" title="Sair da conta" onClick={handleLogout} />
@@ -748,7 +691,6 @@ export default function SettingsPage() {
             <DialogTitle>Categorias</DialogTitle>
           </DialogHeader>
           <ul className="space-y-2 py-2">
-            // Percorre lista e renderiza um item para cada elemento
             {(catData?.categories ?? []).map((c) => (
               <li
                 key={c.id}

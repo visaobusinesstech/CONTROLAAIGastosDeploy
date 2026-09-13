@@ -27,7 +27,6 @@ export function RegisterTermsAcceptance({ onAccepted }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [accepted, setAccepted] = useState(false);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -69,9 +68,7 @@ export function RegisterTermsAcceptance({ onAccepted }: Props) {
       <div className="space-y-2 py-3 text-center">
         <p className="text-xs text-cred-main">{loadError || "Termos indisponíveis."}</p>
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Executa ação quando o usuário clica
           onClick={() => window.location.reload()}
           className="text-xs font-medium text-cgreen-500 hover:text-cgreen-700"
         >
@@ -93,13 +90,9 @@ export function RegisterTermsAcceptance({ onAccepted }: Props) {
       </div>
       <div className="flex items-stretch gap-1 sm:gap-1.5">
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Executa ação quando o usuário clica
           onClick={goPrev}
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={!canGoPrev}
-          // Texto acessível para leitores de tela
           aria-label="Documento anterior"
           className="flex h-auto w-7 shrink-0 items-center justify-center rounded-lg text-cgray-400 transition-colors hover:bg-surface-inset hover:text-cgray-900 disabled:pointer-events-none disabled:opacity-25 dark:hover:bg-muted dark:hover:text-foreground sm:w-8"
         >
@@ -119,13 +112,9 @@ export function RegisterTermsAcceptance({ onAccepted }: Props) {
           </div>
         </div>
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Executa ação quando o usuário clica
           onClick={goNext}
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={!canGoNext}
-          // Texto acessível para leitores de tela
           aria-label="Próximo documento"
           className="flex h-auto w-7 shrink-0 items-center justify-center rounded-lg text-cgray-400 transition-colors hover:bg-surface-inset hover:text-cgray-900 disabled:pointer-events-none disabled:opacity-25 dark:hover:bg-muted dark:hover:text-foreground sm:w-8"
         >
@@ -133,15 +122,11 @@ export function RegisterTermsAcceptance({ onAccepted }: Props) {
         </button>
       </div>
       <div className="flex justify-center gap-1">
-        // Percorre lista e renderiza um item para cada elemento
         {documents.map((doc, idx) => (
           <button
             key={doc.type}
-            // Botão comum (não envia formulário)
             type="button"
-            // Executa ação quando o usuário clica
             onClick={() => setActiveIndex(idx)}
-            // Texto acessível para leitores de tela
             aria-label={`Ir para ${doc.title}`}
             className={`h-1 rounded-full transition-all ${
               idx === activeIndex ? "w-4 bg-cgreen-500" : "w-1 bg-cgray-300 dark:bg-cgray-700"
@@ -160,11 +145,8 @@ export function RegisterTermsAcceptance({ onAccepted }: Props) {
         </span>
       </label>
       <button
-        // Botão comum (não envia formulário)
         type="button"
-        // Desabilita botão/campo (ex.: durante envio)
         disabled={!canContinue}
-        // Executa ação quando o usuário clica
         onClick={handleContinue}
         className="flex h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-cgreen-500 text-xs font-medium text-white transition-all hover:bg-cgreen-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:h-11 sm:text-sm"
       >

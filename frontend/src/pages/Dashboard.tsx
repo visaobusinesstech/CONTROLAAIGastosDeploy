@@ -93,7 +93,6 @@ function DashTooltip({
   payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
 }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { resolvedTheme } = useTheme();
   const dark = resolvedTheme === "dark";
   if (!active || !payload?.length) return null;
@@ -107,7 +106,6 @@ function DashTooltip({
       )}
     >
       <p className="font-medium text-foreground mb-1">{label}</p>
-      // Percorre lista e renderiza um item para cada elemento
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full" style={{ background: p.color }} />
@@ -132,32 +130,27 @@ function endOfDay(d: Date) {
 }
 
 function startOfMonthFromYm(ym: string) {
-  // Percorre lista e renderiza um item para cada elemento
   const [y, m] = ym.split("-").map(Number);
   return startOfDay(new Date(y, m - 1, 1));
 }
 
 function endOfMonthFromYm(ym: string) {
-  // Percorre lista e renderiza um item para cada elemento
   const [y, m] = ym.split("-").map(Number);
   return endOfDay(new Date(y, m, 0));
 }
 
 function monthLabelFromYm(ym: string) {
-  // Percorre lista e renderiza um item para cada elemento
   const [y, m] = ym.split("-").map(Number);
   return format(new Date(y, m - 1, 1), "MMMM 'de' yyyy", { locale: ptBR });
 }
 
 function shiftMonthYm(ym: string, delta: number) {
-  // Percorre lista e renderiza um item para cada elemento
   const [y, m] = ym.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function monthShortLabel(ym: string) {
-  // Percorre lista e renderiza um item para cada elemento
   const [y, mo] = ym.split("-").map(Number);
   return format(new Date(y, mo - 1, 1), "MMM", { locale: ptBR }).replace(".", "");
 }
@@ -169,7 +162,6 @@ function txAmount(t: ApiTransaction): number {
 
 function aggregateExpensesByCategory(txs: ApiTransaction[]) {
   const map = new Map<string, { value: number; color: string; icon: string | null }>();
-  // Loop — repete para cada item
   for (const t of txs) {
     if (t.type !== "expense") continue;
     const name = t.categoryName ?? "Sem categoria";
@@ -181,11 +173,9 @@ function aggregateExpensesByCategory(txs: ApiTransaction[]) {
   }
   return [...map.entries()].map(([name, v], i) => ({
     name,
-    // Operação matemática (arredondar, somar, etc.)
     value: Math.round(v.value * 100) / 100,
     color: v.color || CHART_COLORS[i % CHART_COLORS.length],
     icon: v.icon,
-    // Operação matemática (arredondar, somar, etc.)
     goal: Math.max(v.value * 1.1, 100),
   }));
 }
@@ -196,7 +186,6 @@ function periodSummary(
   expectedIncome: number | null,
   initialBalance = 0,
 ) {
-  // Fonte única: ganhos ≠ gastos; faturamento NÃO usa budget nem saldo inicial
   const core = computeFinancialPeriodSummary(txs);
   const income = core.ganhos;
   const expense = core.gastos;
@@ -210,7 +199,6 @@ function periodSummary(
   let topCat = "";
   let topVal = 0;
   const byCat = aggregateExpensesByCategory(txs);
-  // Loop — repete para cada item
   for (const c of byCat) {
     if (c.value > topVal) {
       topVal = c.value;
@@ -224,7 +212,6 @@ function periodSummary(
       : null;
   const score = Math.min(
     100,
-    // Operação matemática (arredondar, somar, etc.)
     Math.max(
       0,
       50 + (savingsRate > 20 ? 15 : 0) + (topShare < 45 ? 10 : 0) + (budgetVar != null && budgetVar >= 0 ? 10 : 0),
@@ -250,7 +237,6 @@ function periodSummary(
     budgetVar,
     score,
     txCount: txs.length,
-    // Percorre lista e renderiza um item para cada elemento
     activeDays: new Set(txs.map((t) => t.occurredAt.slice(0, 10))).size,
   };
 }
@@ -263,7 +249,6 @@ function largestExpense(txs: ApiTransaction[]) {
 
 function spendByDay(txs: ApiTransaction[]) {
   const map = new Map<string, { total: number; count: number }>();
-  // Loop — repete para cada item
   for (const t of txs) {
     if (t.type !== "expense") continue;
     const d = t.occurredAt.slice(0, 10);
@@ -273,7 +258,6 @@ function spendByDay(txs: ApiTransaction[]) {
     map.set(d, cur);
   }
   let best: { day: string; total: number; count: number } | null = null;
-  // Loop — repete para cada item
   for (const [day, v] of map) {
     if (!best || v.total > best.total) best = { day, total: v.total, count: v.count };
   }
@@ -296,7 +280,6 @@ function MetricCard({
   suffix?: string;
   trend?: "up" | "down" | "neutral";
 }) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const trendColor =
@@ -346,9 +329,7 @@ function FilterChip({
 }) {
   return (
     <button
-      // Botão comum (não envia formulário)
       type="button"
-      // Executa ação quando o usuário clica
       onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors duration-150",
@@ -367,7 +348,6 @@ function BulletChart({ data, isDark }: { data: Array<{ name: string; actual: num
   const line = isDark ? "bg-white/80" : "bg-cgray-900";
   return (
     <div className="space-y-4">
-      // Percorre lista e renderiza um item para cada elemento
       {data.map((item) => {
         const pct = (item.actual / item.target) * 100;
         const barColor = pct < 60 ? "#4CAF50" : pct < 90 ? "#FFB300" : "#EF5350";
@@ -376,7 +356,6 @@ function BulletChart({ data, isDark }: { data: Array<{ name: string; actual: num
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium text-foreground">{item.name}</span>
               <span className="tabular text-xs text-muted-foreground">
-                // Formata número como moeda/texto local (pt-BR)
                 R$ {item.actual.toLocaleString("pt-BR")} / R$ {item.target.toLocaleString("pt-BR")}
               </span>
             </div>
@@ -388,7 +367,6 @@ function BulletChart({ data, isDark }: { data: Array<{ name: string; actual: num
               </div>
               <motion.div
                 initial={{ width: 0 }}
-                // Operação matemática (arredondar, somar, etc.)
                 animate={{ width: `${Math.min(pct, 100)}%` }}
                 transition={{ duration: 0.6, ease: "easeOut" }}
                 className="absolute bottom-1 left-0 top-1 rounded"
@@ -405,10 +383,8 @@ function BulletChart({ data, isDark }: { data: Array<{ name: string; actual: num
 
 /* Heatmap calendário mensal */
 function SpendingHeatmap({ txs }: { txs: ApiTransaction[] }) {
-  // Valor memorizado — recalcula só quando dependências mudam
   const heatmapData = useMemo(() => {
     const byDay = new Map<number, number>();
-    // Loop — repete para cada item
     for (const t of txs) {
       if (t.type !== "expense") continue;
       const d = new Date(t.occurredAt).getDate();
@@ -416,7 +392,6 @@ function SpendingHeatmap({ txs }: { txs: ApiTransaction[] }) {
     }
     return [...byDay.entries()].map(([day, amount]) => ({
       day,
-      // Cria objeto de data/hora
       weekday: new Date(new Date().getFullYear(), new Date().getMonth(), day).getDay(),
       amount,
       categories: [],
@@ -428,7 +403,6 @@ function SpendingHeatmap({ txs }: { txs: ApiTransaction[] }) {
   let currentWeek: typeof heatmapData[number][] = [];
   /* Preenche dias vazios no início */
   const firstDay = heatmapData[0].weekday;
-  // Loop — repete para cada item
   for (let i = 0; i < firstDay; i++) {
     currentWeek.push({ day: 0, weekday: i, amount: -1, categories: [] });
   }
@@ -451,16 +425,13 @@ function SpendingHeatmap({ txs }: { txs: ApiTransaction[] }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
-        // Percorre lista e renderiza um item para cada elemento
         {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => (
           <span key={d}>{d}</span>
         ))}
       </div>
       <div className="space-y-1">
-        // Percorre lista e renderiza um item para cada elemento
         {weeks.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 gap-1">
-            // Percorre lista e renderiza um item para cada elemento
             {week.map((day, di) => (
               <div
                 key={di}
@@ -484,7 +455,6 @@ function SpendingHeatmap({ txs }: { txs: ApiTransaction[] }) {
       </div>
       <div className="flex items-center justify-end gap-2 text-xs text-muted-foreground">
         <span>Menos</span>
-        // Percorre lista e renderiza um item para cada elemento
         {['#C8E6C9', '#A5D6A7', '#FFB300', '#EF5350'].map(c => (
           <div key={c} className="w-3 h-3 rounded" style={{ background: c }} />
         ))}
@@ -495,12 +465,9 @@ function SpendingHeatmap({ txs }: { txs: ApiTransaction[] }) {
 }
 
 export default function Dashboard() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, user } = useAuth();
   const isRichDemoAccount = user?.email?.toLowerCase() === "leonardosena1010@hotmail.com";
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
-  // Mutação na API (criar/editar/excluir)
   const inactivateTx = useMutation({
     mutationFn: (id: string) => apiDeleteTransaction(token!, id),
     onSuccess: () => {
@@ -509,13 +476,10 @@ export default function Dashboard() {
       void qc.invalidateQueries({ queryKey: ["monthly"] });
       void qc.invalidateQueries({ queryKey: ["insights"] });
       void qc.invalidateQueries({ queryKey: ["goals"] });
-      // Exibe notificação temporária (toast) na tela
       toast.success("Despesa/ganho excluído — indicadores atualizados");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Mutação na API (criar/editar/excluir)
   const patchTx = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Parameters<typeof apiPatchTransaction>[2] }) =>
       apiPatchTransaction(token!, id, body),
@@ -526,14 +490,11 @@ export default function Dashboard() {
       void qc.invalidateQueries({ queryKey: ["insights"] });
       void qc.invalidateQueries({ queryKey: ["goals"] });
       setEditingTx(null);
-      // Exibe notificação temporária (toast) na tela
       toast.success("Lançamento atualizado — indicadores recalculados");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
   /* ── Estado local: mês, filtros, modais e calendário ── */
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const gridStroke = isDark ? "#48484A" : "#F0F0F2";
@@ -587,7 +548,6 @@ export default function Dashboard() {
     }
     if (preset === "ano") {
       setRangeOverride({
-        // Cria objeto de data/hora
         from: startOfDay(new Date(now.getFullYear(), 0, 1)),
         to: endOfDay(now),
       });
@@ -606,7 +566,6 @@ export default function Dashboard() {
       setRangeOverride({ from, to: endOfDay(now) });
     }
   };
-  // Valor memorizado — recalcula só quando dependências mudam
   const defaultRange = useMemo(
     () => ({ from: startOfMonthFromYm(currentMonth), to: endOfMonthFromYm(currentMonth) }),
     [currentMonth],
@@ -616,11 +575,9 @@ export default function Dashboard() {
   const toIso = activeRange.to.toISOString();
   const rangeDays = Math.max(
     1,
-    // Operação matemática (arredondar, somar, etc.)
     Math.ceil((activeRange.to.getTime() - activeRange.from.getTime()) / (24 * 60 * 60 * 1000)) + 1,
   );
   /* ── Queries React Query — dados financeiros da API ── */
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: catRes } = useQuery({
     queryKey: ["categories", token],
     queryFn: () => apiGetCategories(token!),
@@ -629,7 +586,6 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
   });
   const categories = catRes?.categories ?? [];
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: txRes, isLoading: txListLoading } = useQuery({
     queryKey: ["transactions", token, fromIso, toIso],
     queryFn: () => apiGetTransactions(token!, { from: fromIso, to: toIso }),
@@ -638,16 +594,13 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
   });
   const rawTxs = txRes?.transactions ?? [];
-  // Valor memorizado — recalcula só quando dependências mudam
   const txs = useMemo(() => {
     let t = rawTxs;
     if (typeFilter === "recurring") t = t.filter((x) => x.source === "recurring");
-    // Senão, se outra condição…
     else if (typeFilter === "income" || typeFilter === "expense") t = t.filter((x) => x.type === typeFilter);
     if (catFilter) t = t.filter((x) => (x.categoryName ?? "") === catFilter);
     return t;
   }, [rawTxs, catFilter, typeFilter]);
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: budgetRes } = useQuery({
     queryKey: ["budget", token, currentMonth],
     queryFn: () => apiGetBudget(token!, currentMonth),
@@ -656,7 +609,6 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
   });
   const expectedIncome = budgetRes?.budget?.totalIncomeExpected ?? null;
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: monthlyRes } = useQuery({
     queryKey: ["monthly", token],
     queryFn: () => apiGetMonthlyReport(token!),
@@ -664,7 +616,6 @@ export default function Dashboard() {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: kpisRes } = useQuery({
     queryKey: ["kpis", token],
     queryFn: () => apiGetKpis(token!),
@@ -672,7 +623,6 @@ export default function Dashboard() {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: insightsRes } = useQuery({
     queryKey: ["insights", token],
     queryFn: () => apiGetInsights(token!),
@@ -680,7 +630,6 @@ export default function Dashboard() {
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: settingsRes } = useQuery({
     queryKey: ["settings", token],
     queryFn: () => apiGetSettings(token!),
@@ -689,49 +638,37 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
   });
   const initialBalance = settingsRes?.settings.initialBalance ?? 0;
-  // Mutação na API (criar/editar/excluir)
   const seedRichMut = useMutation({
     mutationFn: () => apiSeedRichDemo(token!),
     onSuccess: (d) => {
-      // Exibe notificação temporária (toast) na tela
       toast.success(`${d.inserted ?? 0} transações no pacote completo. ${d.message ?? ""}`);
       void qc.invalidateQueries({ queryKey: ["transactions"] });
       void qc.invalidateQueries({ queryKey: ["budget"] });
       void qc.invalidateQueries({ queryKey: ["monthly"] });
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Valor memorizado — recalcula só quando dependências mudam
   const analytics = useMemo(
     () => periodSummary(txs, rangeDays, expectedIncome, initialBalance),
     [txs, rangeDays, expectedIncome, initialBalance],
   );
-  // Valor memorizado — recalcula só quando dependências mudam
   const pieFromApi = useMemo(() => aggregateExpensesByCategory(txs), [txs]);
   const pieData = pieFromApi;
-  // Valor memorizado — recalcula só quando dependências mudam
   const treemapExpenseData = useMemo(() => {
     const src = pieFromApi;
     return src.slice(0, 14).map((c) => ({
       name: c.name,
-      // Operação matemática (arredondar, somar, etc.)
       size: Math.max(typeof c.value === "number" ? c.value : 0, 1),
       fill: c.color,
     }));
   }, [pieFromApi]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const horizontalCategoryRank = useMemo(() => {
     const src = pieFromApi;
     return [...src]
-      // Ordena lista (ex.: por data ou valor)
       .sort((a, b) => b.value - a.value)
-      // Recorta parte da lista (paginação ou limite)
       .slice(0, 10)
-      // Percorre lista e renderiza um item para cada elemento
       .map((c) => ({ name: c.name.length > 14 ? `${c.name.slice(0, 12)}…` : c.name, total: c.value }));
   }, [pieFromApi]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const cumulativeExpenseData = useMemo(() => {
     const exp = [...txs].filter((t) => t.type === "expense").sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
     let acc = 0;
@@ -739,41 +676,30 @@ export default function Dashboard() {
       acc += txAmount(t);
       return {
         ord: idx + 1,
-        // Formata data em texto legível (pt-BR)
         label: format(new Date(t.occurredAt), "dd/MM", { locale: ptBR }),
-        // Operação matemática (arredondar, somar, etc.)
         acumulado: Math.round(acc * 100) / 100,
       };
     });
     return rows;
   }, [txs]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const scatterDespesas = useMemo(() => {
     return txs
-      // Filtra lista — mantém só itens que passam no teste
       .filter((t) => t.type === "expense")
-      // Percorre lista e renderiza um item para cada elemento
       .map((t) => ({
-        // Cria objeto de data/hora
         diaMes: new Date(t.occurredAt).getDate(),
         valor: txAmount(t),
-        // Recorta parte da lista (paginação ou limite)
         nome: (t.description ?? t.categoryName ?? "Despesa").slice(0, 28),
       }));
   }, [txs]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const gastosPorDiaSemana = useMemo(() => {
     const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
     const sums = [0, 0, 0, 0, 0, 0, 0];
-    // Loop — repete para cada item
     for (const t of txs) {
       if (t.type !== "expense") continue;
-      // Cria objeto de data/hora
       sums[new Date(t.occurredAt).getDay()] += txAmount(t);
     }
     return labels.map((dia, i) => ({ dia, total: Math.round(sums[i] * 100) / 100 }));
   }, [txs]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const despesasPorOrigem = useMemo(() => {
     const m = new Map<string, number>();
     const label: Record<string, string> = {
@@ -782,7 +708,6 @@ export default function Dashboard() {
       recurring: "Recorrente",
       manual: "Manual",
     };
-    // Loop — repete para cada item
     for (const t of txs) {
       if (t.type !== "expense") continue;
       const k = t.source in label ? label[t.source] : t.source;
@@ -790,21 +715,17 @@ export default function Dashboard() {
     }
     return [...m.entries()].map(([name, value], i) => ({
       name,
-      // Operação matemática (arredondar, somar, etc.)
       value: Math.round(value * 100) / 100,
       color: CHART_COLORS[i % CHART_COLORS.length],
     }));
   }, [txs]);
   /** Acumulado dia a dia — só lançamentos reais (sem renda esperada mockada). */
-  // Valor memorizado — recalcula só quando dependências mudam
   const balanceOverTime = useMemo(() => {
     const byDay = new Map<string, { income: number; expense: number }>();
-    // Loop — repete para cada item
     for (const t of txs) {
       const d = t.occurredAt.slice(0, 10);
       const cur = byDay.get(d) ?? { income: 0, expense: 0 };
       if (t.type === "income") cur.income += txAmount(t);
-      // Senão — caminho alternativo
       else cur.expense += txAmount(t);
       byDay.set(d, cur);
     }
@@ -813,18 +734,14 @@ export default function Dashboard() {
     return sorted.map(([day, v]) => {
       acc += v.income - v.expense;
       return {
-        // Formata data em texto legível (pt-BR)
         day: format(new Date(`${day}T12:00:00`), "dd/MM", { locale: ptBR }),
-        // Operação matemática (arredondar, somar, etc.)
         accumulated: Math.round(acc * 100) / 100,
       };
     });
   }, [txs, initialBalance]);
   /** Gastos diários com média móvel de 7 dias. */
-  // Valor memorizado — recalcula só quando dependências mudam
   const expenseDailyWithAvg = useMemo(() => {
     const byDay = new Map<string, number>();
-    // Loop — repete para cada item
     for (const t of txs) {
       if (t.type !== "expense") continue;
       const d = t.occurredAt.slice(0, 10);
@@ -836,29 +753,21 @@ export default function Dashboard() {
       const window = dailyValues.slice(Math.max(0, idx - 6), idx + 1);
       const avg7d = window.reduce((s, x) => s + x, 0) / window.length;
       return {
-        // Formata data em texto legível (pt-BR)
         label: format(new Date(`${day}T12:00:00`), "dd/MM", { locale: ptBR }),
-        // Operação matemática (arredondar, somar, etc.)
         daily: Math.round(daily * 100) / 100,
-        // Operação matemática (arredondar, somar, etc.)
         avg7d: Math.round(avg7d * 100) / 100,
       };
     });
   }, [txs]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const gastosPorDiaSemanaComposed = useMemo(() => {
     const avg =
-      // Filtra lista — mantém só itens que passam no teste
       gastosPorDiaSemana.reduce((s, r) => s + r.total, 0) / Math.max(gastosPorDiaSemana.filter((r) => r.total > 0).length, 1);
     return gastosPorDiaSemana.map((r) => ({ ...r, avg: Math.round(avg * 100) / 100 }));
   }, [gastosPorDiaSemana]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const radarCategoryData = useMemo(
-    // Percorre lista e renderiza um item para cada elemento
     () => pieFromApi.map((p) => ({ category: p.name, value: p.value, fullMark: Math.max(p.value * 1.2, 100) })),
     [pieFromApi],
   );
-  // Valor memorizado — recalcula só quando dependências mudam
   const barEvolution = useMemo(() => {
     const rows = monthlyRes?.months ?? [];
     if (rows.length < 1) return [];
@@ -870,7 +779,6 @@ export default function Dashboard() {
       balance: r.balance,
     }));
   }, [monthlyRes]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const stackedFromApi = useMemo(() => {
     const rows = monthlyRes?.months ?? [];
     if (rows.length < 1) return [];
@@ -883,15 +791,12 @@ export default function Dashboard() {
   }, [monthlyRes]);
   const largest = largestExpense(txs);
   const priciestDay = spendByDay(txs);
-  // Valor memorizado — recalcula só quando dependências mudam
   const concentrationLabel = useMemo(() => {
     if (analytics.topCat) return `${analytics.topCat} · ${analytics.topShare.toFixed(0)}%`;
     return "—";
   }, [analytics.topCat, analytics.topShare]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const expenseCount = useMemo(() => txs.filter((t) => t.type === "expense").length, [txs]);
   const hasExpenseData = expenseCount > 0;
-  // Valor memorizado — recalcula só quando dependências mudam
   const secondaryCards = useMemo(() => {
     const ticket = hasExpenseData ? analytics.avgTicket : 0;
     const ticketNote = hasExpenseData ? `${expenseCount} despesas` : "Sem despesas no período";
@@ -903,10 +808,8 @@ export default function Dashboard() {
     const plannedStr = `R$ ${planned.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
     let plannedNote: string;
     if (expectedIncome == null) plannedNote = "Defina o valor em Renda mensal";
-    // Senão, se outra condição…
     else if (txs.length && analytics.income > 0)
       plannedNote = analytics.budgetVar != null && analytics.budgetVar >= 0 ? "Receita acima do planejado" : "Receita abaixo do planejado";
-    // Senão — caminho alternativo
     else plannedNote = "Valor que você planejou receber";
     const liq = analytics.expense > 0 ? Math.round((analytics.balance / analytics.expense) * 100) : 0;
     const liqNote = analytics.expense > 0 ? "Sobra para cada R$ 1 de gasto" : "Sem gastos no período";
@@ -914,7 +817,6 @@ export default function Dashboard() {
     const projStr = `R$ ${proj.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
     return { ticket, ticketNote, topCat, topNote, days, daysNote, plannedStr, plannedNote, liq, liqNote, projStr };
   }, [txs, analytics, expenseCount, hasExpenseData, expectedIncome]);
-  // Valor memorizado — recalcula só quando dependências mudam
   const monthEndPreview = useMemo(() => {
     if (!txs.length) return 0;
     const rest = Math.max(0, 30 - analytics.activeDays);
@@ -928,9 +830,7 @@ export default function Dashboard() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center justify-center gap-2 sm:justify-start sm:gap-3">
             <button
-              // Botão comum (não envia formulário)
               type="button"
-              // Executa ação quando o usuário clica
               onClick={() => {
                 setCurrentMonth(shiftMonthYm(currentMonth, -1));
                 setRangeOverride(null);
@@ -941,9 +841,7 @@ export default function Dashboard() {
             </button>
             <h1 className="text-lg font-semibold capitalize tracking-tight text-foreground sm:text-xl">{monthLabel}</h1>
             <button
-              // Botão comum (não envia formulário)
               type="button"
-              // Executa ação quando o usuário clica
               onClick={() => {
                 setCurrentMonth(shiftMonthYm(currentMonth, 1));
                 setRangeOverride(null);
@@ -954,9 +852,7 @@ export default function Dashboard() {
             </button>
           </div>
           <button
-            // Botão comum (não envia formulário)
             type="button"
-            // Executa ação quando o usuário clica
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted"
           >
@@ -971,9 +867,7 @@ export default function Dashboard() {
               setCalOpen(o);
               if (o) {
                 setPickRange({ from: activeRange.from, to: activeRange.to });
-                // Formata data em texto legível (pt-BR)
                 setTimeStart(format(activeRange.from, "HH:mm"));
-                // Formata data em texto legível (pt-BR)
                 setTimeEnd(format(activeRange.to, "HH:mm"));
               }
             }}
@@ -984,9 +878,7 @@ export default function Dashboard() {
                 <span className="truncate">
                   <span className="sm:hidden">{format(activeRange.from, "dd/MM", { locale: ptBR })} — {format(activeRange.to, "dd/MM", { locale: ptBR })}</span>
                   <span className="hidden sm:inline">
-                    // Formata data em texto legível (pt-BR)
                     {format(activeRange.from, "dd/MM/yyyy HH:mm", { locale: ptBR })} —{" "}
-                    // Formata data em texto legível (pt-BR)
                     {format(activeRange.to, "dd/MM/yyyy HH:mm", { locale: ptBR })}
                   </span>
                 </span>
@@ -1008,7 +900,6 @@ export default function Dashboard() {
                     <input
                       type="time"
                       value={timeStart}
-                      // Atualiza estado quando o usuário digita/seleciona
                       onChange={(e) => setTimeStart(e.target.value)}
                       className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                     />
@@ -1018,7 +909,6 @@ export default function Dashboard() {
                     <input
                       type="time"
                       value={timeEnd}
-                      // Atualiza estado quando o usuário digita/seleciona
                       onChange={(e) => setTimeEnd(e.target.value)}
                       className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
                     />
@@ -1026,11 +916,9 @@ export default function Dashboard() {
                 </div>
                 <div className="flex gap-2 justify-end">
                   <Button
-                    // Botão comum (não envia formulário)
                     type="button"
                     variant="ghost"
                     size="sm"
-                    // Executa ação quando o usuário clica
                     onClick={() => {
                       setRangeOverride(null);
                       setCalOpen(false);
@@ -1039,16 +927,12 @@ export default function Dashboard() {
                     Mês atual
                   </Button>
                   <Button
-                    // Botão comum (não envia formulário)
                     type="button"
                     size="sm"
                     className="bg-cgreen-500 hover:bg-cgreen-700"
-                    // Executa ação quando o usuário clica
                     onClick={() => {
                       if (!pickRange?.from || !pickRange?.to) return;
-                      // Percorre lista e renderiza um item para cada elemento
                       const [sh, sm] = timeStart.split(":").map(Number);
-                      // Percorre lista e renderiza um item para cada elemento
                       const [eh, em] = timeEnd.split(":").map(Number);
                       const from = new Date(pickRange.from);
                       from.setHours(sh, sm, 0, 0);
@@ -1065,11 +949,9 @@ export default function Dashboard() {
             </PopoverContent>
           </Popover>
           <Button
-            // Botão comum (não envia formulário)
             type="button"
             size="sm"
             className="gap-1.5 bg-cgreen-500 hover:bg-cgreen-700"
-            // Executa ação quando o usuário clica
             onClick={() => setExpenseOpen(true)}
           >
             <Plus className="h-4 w-4" />
@@ -1083,14 +965,11 @@ export default function Dashboard() {
             Renda mensal
           </Button>
           <Button
-            // Botão comum (não envia formulário)
             type="button"
             size="sm"
             variant="outline"
             className="gap-1.5 border-border"
-            // Desabilita botão/campo (ex.: durante envio)
             disabled={!token}
-            // Executa ação quando o usuário clica
             onClick={async () => {
               try {
                 const blob = await apiExportTransactionsCsv(token!, { from: fromIso, to: toIso });
@@ -1100,10 +979,8 @@ export default function Dashboard() {
                 a.download = "controla-transacoes.csv";
                 a.click();
                 URL.revokeObjectURL(url);
-                // Exibe notificação temporária (toast) na tela
                 toast.success("Planilha exportada.");
               } catch (e) {
-                // Exibe notificação temporária (toast) na tela
                 toast.error(e instanceof Error ? e.message : "Falha ao exportar");
               }
             }}
@@ -1113,14 +990,11 @@ export default function Dashboard() {
           </Button>
           {isRichDemoAccount && (
             <Button
-              // Botão comum (não envia formulário)
               type="button"
               size="sm"
               variant="secondary"
               className="gap-1.5"
-              // Desabilita botão/campo (ex.: durante envio)
               disabled={seedRichMut.isPending || !token}
-              // Executa ação quando o usuário clica
               onClick={() => {
                 if (confirm("Substituir todas as transações pelo pacote completo de demonstração?")) seedRichMut.mutate();
               }}
@@ -1147,7 +1021,6 @@ export default function Dashboard() {
                   { l: "7 dias", v: "7d" },
                   { l: "30 dias", v: "30d" },
                   { l: "90 dias", v: "90d" },
-                // Percorre lista e renderiza um item para cada elemento
                 ].map((p) => (
                   <FilterChip key={p.v} active={periodFilter === p.v} onClick={() => applyPeriodPreset(p.v)}>
                     {p.l}
@@ -1158,7 +1031,6 @@ export default function Dashboard() {
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Tipo</p>
               <div className="flex gap-2 flex-wrap">
-                // Percorre lista e renderiza um item para cada elemento
                 {[{ l: 'Ganho', v: 'income' }, { l: 'Despesa', v: 'expense' }, { l: 'Recorrente', v: 'recurring' }].map(t => (
                   <FilterChip key={t.v} active={typeFilter === t.v} onClick={() => setTypeFilter(typeFilter === t.v ? null : t.v)}>
                     {t.l}
@@ -1169,12 +1041,10 @@ export default function Dashboard() {
             <div>
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Categorias</p>
               <div className="flex gap-2 flex-wrap">
-                // Percorre lista e renderiza um item para cada elemento
                 {categories.filter((c) => c.type === "expense").map(c => (
                   <FilterChip
                     key={c.name}
                     active={catFilter === c.name}
-                    // Executa ação quando o usuário clica
                     onClick={() => setCatFilter(catFilter === c.name ? null : c.name)}
                   >
                     <CategoryIcon name={c.icon} size={14} className="shrink-0 text-muted-foreground" />
@@ -1188,7 +1058,6 @@ export default function Dashboard() {
                 <input
                   type="checkbox"
                   checked={compareMode}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) => setCompareMode(e.target.checked)}
                   className="h-4 w-4 rounded border-border text-cgreen-500 focus:ring-cgreen-500"
                 />
@@ -1198,7 +1067,6 @@ export default function Dashboard() {
                 <input
                   type="checkbox"
                   checked={goalMode}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) => setGoalMode(e.target.checked)}
                   className="h-4 w-4 rounded border-border text-cgreen-500 focus:ring-cgreen-500"
                 />
@@ -1211,43 +1079,36 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           label="Ganhos no período"
-          // Formata número como moeda/texto local (pt-BR)
           value={analytics.ganhos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={analytics.ganhosCount}
           trend={analytics.ganhosCount ? "up" : "neutral"}
         />
         <MetricCard
           label="Gastos no período"
-          // Formata número como moeda/texto local (pt-BR)
           value={analytics.gastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={analytics.gastosCount}
           trend={analytics.gastosCount ? "down" : "neutral"}
         />
         <MetricCard
           label="Faturamento bruto"
-          // Formata número como moeda/texto local (pt-BR)
           value={analytics.faturamentoBruto.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={0}
           trend={analytics.faturamentoBruto > 0 ? "up" : "neutral"}
         />
         <MetricCard
           label="Faturamento líquido"
-          // Formata número como moeda/texto local (pt-BR)
           value={analytics.faturamentoLiquido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-          // Operação matemática (arredondar, somar, etc.)
           change={txs.length ? Math.min(99, Math.abs(analytics.savingsRate)) : 0}
           trend={analytics.faturamentoLiquido >= 0 ? "up" : "down"}
         />
         <MetricCard
           label="Gasto médio por dia"
-          // Formata número como moeda/texto local (pt-BR)
           value={analytics.dailyAvgExpense.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           change={0}
           trend="down"
         />
         <MetricCard
           label="Sua nota (0–100)"
-          // Operação matemática (arredondar, somar, etc.)
           value={(kpisRes?.kpis?.financialScore ?? Math.round(analytics.score)).toString()}
           change={0}
           prefix=""
@@ -1275,7 +1136,6 @@ export default function Dashboard() {
               {((kpisRes.kpis.expectedIncome ?? 0) > 0
                 ? kpisRes.kpis.projectedAvailable ?? 0
                 : kpisRes.kpis.endOfMonthBalanceProjection
-              // Formata número como moeda/texto local (pt-BR)
               ).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
             </p>
           </div>
@@ -1304,7 +1164,6 @@ export default function Dashboard() {
             <h3 className="text-sm font-semibold">Insights IA</h3>
           </div>
           <ul className="space-y-1 text-sm text-muted-foreground">
-            // Percorre lista e renderiza um item para cada elemento
             {insightsRes!.insights.map((insight, i) => (
               <li key={i}>• {insight}</li>
             ))}
@@ -1315,7 +1174,6 @@ export default function Dashboard() {
         <div className="flex min-h-[92px] flex-col justify-between rounded-xl border border-border bg-card p-4">
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Valor médio por compra</p>
           <p className="text-lg font-semibold tabular text-foreground">
-            // Formata número como moeda/texto local (pt-BR)
             R$ {secondaryCards.ticket.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </p>
           <p className="text-[11px] text-muted-foreground">{secondaryCards.ticketNote}</p>
@@ -1350,7 +1208,6 @@ export default function Dashboard() {
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Faturamento líquido</p>
           <p className="text-xl font-semibold tabular tracking-tight text-cgreen-500">
-            // Formata número como moeda/texto local (pt-BR)
             R$ {analytics.faturamentoLiquido.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </p>
           <p className="text-[11px] text-muted-foreground">Ganhos − gastos (dados reais)</p>
@@ -1365,7 +1222,6 @@ export default function Dashboard() {
         <div className="flex min-h-[100px] flex-col justify-between rounded-xl border border-border bg-card p-4">
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Projeção fim do mês</p>
           <p className="text-xl font-semibold tabular tracking-tight text-foreground">
-            // Formata número como moeda/texto local (pt-BR)
             R$ {(kpisRes?.kpis?.endOfMonthBalanceProjection ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </p>
           <p className="text-[11px] text-muted-foreground">Baseado nos gastos atuais</p>
@@ -1398,7 +1254,6 @@ export default function Dashboard() {
                   paddingAngle={2}
                   animationDuration={600}
                 >
-                  // Percorre lista e renderiza um item para cada elemento
                   {pieData.map((entry, i) => (
                     <Cell key={i} fill={entry.color} stroke="none" />
                   ))}
@@ -1408,7 +1263,6 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </ChartPlotArea>
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-            // Percorre lista e renderiza um item para cada elemento
             {pieData.map((c) => (
               <div key={c.name} className="flex items-center gap-2 text-sm">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
@@ -1417,7 +1271,6 @@ export default function Dashboard() {
                   {c.name}
                 </span>
                 <span className="ml-auto tabular text-xs font-medium text-foreground">
-                  // Formata número como moeda/texto local (pt-BR)
                   R$ {c.value.toLocaleString("pt-BR")}
                 </span>
               </div>
@@ -1499,7 +1352,6 @@ export default function Dashboard() {
         <p className="mb-4 text-xs text-muted-foreground">Barra colorida = quanto você já usou da meta da categoria (exemplo).</p>
         {pieData.length > 0 && (
           <BulletChart
-            // Percorre lista e renderiza um item para cada elemento
             data={pieData.map((p) => {
               const target = p.goal ?? p.value * 1.1;
               return { name: p.name, actual: p.value, target, ranges: [target * 0.5, target * 0.8, target] as [number, number, number] };
@@ -1579,7 +1431,6 @@ export default function Dashboard() {
                   outerRadius="75%"
                   animationDuration={600}
                 >
-                  // Percorre lista e renderiza um item para cada elemento
                   {despesasPorOrigem.map((entry, i) => (
                     <Cell key={i} fill={entry.color ?? CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
                   ))}
@@ -1595,7 +1446,6 @@ export default function Dashboard() {
         <h3 className="mb-1 text-base font-semibold tracking-tight text-foreground">Calendário: dias com mais gasto</h3>
         <p className="mb-4 text-xs text-muted-foreground">Quanto mais escuro, mais você gastou naquele dia (dados reais do período).</p>
         <ChartPlotArea className="p-4">
-          // Filtra lista — mantém só itens que passam no teste
           {txs.filter((t) => t.type === "expense").length > 0 ? (
             <SpendingHeatmap txs={txs} />
           ) : (
@@ -1626,11 +1476,9 @@ export default function Dashboard() {
                     <g>
                       <rect x={x} y={y} width={width} height={height} fill={fill} rx={4} ry={4} className="opacity-95" />
                       <text x={x + 6} y={y + 16} fill="white" fontSize={11} className="drop-shadow-sm">
-                        // Recorta parte da lista (paginação ou limite)
                         {String(name).slice(0, 12)}
                       </text>
                       <text x={x + 6} y={y + 28} fill="white" fontSize={10} opacity={0.9}>
-                        // Converte texto em número
                         R$ {Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
                       </text>
                     </g>
@@ -1642,7 +1490,6 @@ export default function Dashboard() {
                 }
               >
                 <Tooltip
-                  // Formata número como moeda/texto local (pt-BR)
                   formatter={(v: number) => [`R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, "Total"]}
                 />
               </Treemap>
@@ -1745,7 +1592,6 @@ export default function Dashboard() {
                   outerRadius="75%"
                   paddingAngle={2}
                 >
-                  // Percorre lista e renderiza um item para cada elemento
                   {despesasPorOrigem.map((_, i) => (
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} stroke="none" />
                   ))}
@@ -1766,12 +1612,10 @@ export default function Dashboard() {
             {largest ? (
               <>
                 <p className="text-base font-semibold text-foreground">
-                  // Formata número como moeda/texto local (pt-BR)
                   R$ {txAmount(largest).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                 </p>
                 <p className="flex items-center gap-1 text-xs text-muted-foreground">
                   <CategoryIcon name={largest.categoryIcon} size={14} />
-                  // Cria objeto de data/hora
                   {largest.description ?? largest.categoryName} — {new Date(largest.occurredAt).toLocaleDateString("pt-BR")}
                 </p>
               </>
@@ -1784,11 +1628,9 @@ export default function Dashboard() {
             {priciestDay ? (
               <>
                 <p className="text-base font-semibold text-foreground">
-                  // Cria objeto de data/hora
                   {new Date(priciestDay.day + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  // Formata número como moeda/texto local (pt-BR)
                   R$ {priciestDay.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} em {priciestDay.count}{" "}
                   transações
                 </p>
@@ -1815,7 +1657,6 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              // Percorre lista e renderiza um item para cada elemento
               {pieData.map((c) => {
                 const pct = c.goal ? Math.round((c.value / c.goal) * 100) : 0;
                 return (
@@ -1827,7 +1668,6 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="py-2.5 text-right tabular text-foreground">
-                      // Formata número como moeda/texto local (pt-BR)
                       R$ {c.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-2.5 text-right tabular text-muted-foreground">R$ {(c.goal ?? 0).toLocaleString("pt-BR")}</td>
@@ -1905,7 +1745,6 @@ export default function Dashboard() {
                 <p className="text-sm font-medium text-cgreen-700 dark:text-cgreen-400">Saldo estimado no último dia do mês</p>
               </div>
               <p className="text-xl font-semibold tabular tracking-tight text-cgreen-700 dark:text-cgreen-400">
-                // Formata número como moeda/texto local (pt-BR)
                 R$ {monthEndPreview.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}
               </p>
               <p className="mt-1 text-xs text-cgreen-600 dark:text-cgreen-500/90">
@@ -1930,12 +1769,10 @@ export default function Dashboard() {
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-cgreen-500"
-                    // Operação matemática (arredondar, somar, etc.)
                     style={{ width: `${kpisRes?.kpis?.financialScore ?? Math.round(analytics.score)}%` }}
                   />
                 </div>
                 <span className="text-base font-semibold tabular text-foreground">
-                  // Operação matemática (arredondar, somar, etc.)
                   {kpisRes?.kpis?.financialScore ?? Math.round(analytics.score)}/100
                 </span>
               </div>
@@ -1981,7 +1818,6 @@ export default function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                // Percorre lista e renderiza um item para cada elemento
                 {txs.map((t) => (
                   <tr key={t.id} className="border-b border-border/60 last:border-0">
                     <td className="py-3 pr-3">
@@ -2010,7 +1846,6 @@ export default function Dashboard() {
                       </span>
                     </td>
                     <td className="py-3 pr-3 tabular text-muted-foreground">
-                      // Cria objeto de data/hora
                       {new Date(t.occurredAt).toLocaleDateString("pt-BR")}
                     </td>
                     <td
@@ -2020,33 +1855,25 @@ export default function Dashboard() {
                       )}
                     >
                       {t.type === "income" ? "+" : "−"} R${" "}
-                      // Formata número como moeda/texto local (pt-BR)
                       {txAmount(t).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </td>
                     <td className="py-3 pl-3">
                       <div className="flex items-center justify-end gap-1">
                         <button
-                          // Botão comum (não envia formulário)
                           type="button"
                           className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                          // Texto acessível para leitores de tela
                           aria-label="Editar lançamento"
                           title="Editar"
-                          // Executa ação quando o usuário clica
                           onClick={() => setEditingTx(t)}
                         >
                           <Pencil size={14} />
                         </button>
                         <button
-                          // Botão comum (não envia formulário)
                           type="button"
                           className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
-                          // Texto acessível para leitores de tela
                           aria-label="Excluir lançamento"
                           title="Excluir"
-                          // Desabilita botão/campo (ex.: durante envio)
                           disabled={inactivateTx.isPending}
-                          // Executa ação quando o usuário clica
                           onClick={() => {
                             if (confirm(`Excluir "${t.description ?? "lançamento"}"? Os indicadores serão recalculados.`)) {
                               inactivateTx.mutate(t.id);
@@ -2070,12 +1897,10 @@ export default function Dashboard() {
         type="expense"
         categories={categories}
         loading={txLoading}
-        // Envia formulário quando usuário pressiona Enter ou botão
         onSubmit={async (data) => {
           if (!token) return;
           setTxLoading(true);
           try {
-            // Aguarda resposta assíncrona (API, timer)
             await apiPostTransaction(token, {
               amount: data.amount,
               description: data.description,
@@ -2084,7 +1909,6 @@ export default function Dashboard() {
               type: "expense",
               source: "manual",
             });
-            // Exibe notificação temporária (toast) na tela
             toast.success("Despesa registrada — gastos e líquido atualizados.");
             setExpenseOpen(false);
             void qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -2093,7 +1917,6 @@ export default function Dashboard() {
             void qc.invalidateQueries({ queryKey: ["insights"] });
             void qc.invalidateQueries({ queryKey: ["goals"] });
           } catch (e) {
-            // Exibe notificação temporária (toast) na tela
             toast.error(e instanceof Error ? e.message : "Erro ao salvar");
           } finally {
             setTxLoading(false);
@@ -2106,12 +1929,10 @@ export default function Dashboard() {
         type="income"
         categories={categories}
         loading={txLoading}
-        // Envia formulário quando usuário pressiona Enter ou botão
         onSubmit={async (data) => {
           if (!token) return;
           setTxLoading(true);
           try {
-            // Aguarda resposta assíncrona (API, timer)
             await apiPostTransaction(token, {
               amount: data.amount,
               description: data.description,
@@ -2121,7 +1942,6 @@ export default function Dashboard() {
               source: "manual",
               incomeFrequency: data.incomeFrequency ?? "monthly",
             });
-            // Exibe notificação temporária (toast) na tela
             toast.success("Ganho registrado — faturamento atualizado.");
             setIncomeOpen(false);
             void qc.invalidateQueries({ queryKey: ["transactions"] });
@@ -2130,7 +1950,6 @@ export default function Dashboard() {
             void qc.invalidateQueries({ queryKey: ["insights"] });
             void qc.invalidateQueries({ queryKey: ["goals"] });
           } catch (e) {
-            // Exibe notificação temporária (toast) na tela
             toast.error(e instanceof Error ? e.message : "Erro ao salvar");
           } finally {
             setTxLoading(false);
@@ -2147,10 +1966,8 @@ export default function Dashboard() {
         loading={patchTx.isPending}
         mode="edit"
         initial={editingTx}
-        // Envia formulário quando usuário pressiona Enter ou botão
         onSubmit={async (data) => {
           if (!editingTx) return;
-          // Aguarda resposta assíncrona (API, timer)
           await patchTx.mutateAsync({
             id: editingTx.id,
             body: {
@@ -2176,17 +1993,14 @@ export default function Dashboard() {
           if (!token) return;
           setBudgetLoading(true);
           try {
-            // Aguarda resposta assíncrona (API, timer)
             await apiPutBudget(token, {
               month: currentMonth,
               totalIncomeExpected: inc || null,
               totalExpenseLimit: lim || null,
             });
-            // Exibe notificação temporária (toast) na tela
             toast.success("Orçamento salvo.");
             void qc.invalidateQueries({ queryKey: ["budget", token, currentMonth] });
           } catch (e) {
-            // Exibe notificação temporária (toast) na tela
             toast.error(e instanceof Error ? e.message : "Erro");
           } finally {
             setBudgetLoading(false);

@@ -11,11 +11,8 @@
  *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-// NavLink nativo do react-router — sabe se a rota atual corresponde ao link
 import { NavLink as RouterNavLink, NavLinkProps } from "react-router-dom";
-// forwardRef permite que componentes pais acessem o elemento <a> interno
 import { forwardRef } from "react";
-// cn() mescla classes CSS sem conflito
 import { cn } from "@/lib/utils";
 
 /** Props extras: classes diferentes para link ativo ou carregando (pending). */
@@ -35,7 +32,6 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
       <RouterNavLink
         ref={ref} // Repassa referência ao elemento <a>
         to={to} // Destino do link (ex.: "/goals")
-        // className pode ser função — recebe isActive e isPending do react-router
         className={({ isActive, isPending }) =>
           cn(className, isActive && activeClassName, isPending && pendingClassName)
         }
@@ -45,7 +41,6 @@ const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
   },
 );
 
-// Nome para DevTools do React (debug)
 NavLink.displayName = "NavLink";
 
 export { NavLink };

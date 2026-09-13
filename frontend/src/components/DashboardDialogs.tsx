@@ -77,11 +77,9 @@ export function TransactionDialog({
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string>("");
-  // Cria objeto de data/hora
   const [occurredAt, setOccurredAt] = useState(() => toDatetimeLocalValue(new Date().toISOString()));
   const [incomeFrequency, setIncomeFrequency] = useState<IncomeFrequency>("monthly");
   const filtered = categories.filter((c) => c.type === type); // Categorias do tipo selecionado
-  // Reseta ou preenche formulário ao abrir o modal
   useEffect(() => {
     if (!open) return;
     if (initial && mode === "edit") {
@@ -100,7 +98,6 @@ export function TransactionDialog({
     setAmount("");
     setDescription("");
     setCategoryId("");
-    // Cria objeto de data/hora
     setOccurredAt(toDatetimeLocalValue(new Date().toISOString()));
     setIncomeFrequency("monthly");
   }, [open, type, initial, mode]);
@@ -109,24 +106,19 @@ export function TransactionDialog({
     const validation = validateFinancialEntry({
       description,
       amount,
-      // Cria objeto de data/hora
       occurredAt: new Date(occurredAt).toISOString(),
       type,
       incomeFrequency: type === "income" ? incomeFrequency : null,
     });
     if (!validation.ok) {
-      // Exibe notificação temporária (toast) na tela
       toast.error(validation.error);
       return;
     }
     const normalized = amount.replace(",", ".").trim();
-    // Aguarda resposta assíncrona (API, timer)
     await onSubmit({
       amount: normalized,
-      // Remove espaços no início/fim do texto
       description: description.trim(),
       categoryId: categoryId && categoryId !== "_none" ? categoryId : null,
-      // Cria objeto de data/hora
       occurredAt: new Date(occurredAt).toISOString(),
       incomeFrequency: type === "income" ? incomeFrequency : null,
     });
@@ -151,10 +143,8 @@ export function TransactionDialog({
               <Label htmlFor="tx-desc">Nome / descrição *</Label>
               <Input
                 id="tx-desc"
-                // Texto cinza de exemplo dentro do campo vazio
                 placeholder={type === "expense" ? "Ex.: Servidor VPS, Aluguel…" : "Ex.: Contrato Cliente X…"}
                 value={description}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
@@ -164,10 +154,8 @@ export function TransactionDialog({
               <Input
                 id="tx-amount"
                 inputMode="decimal"
-                // Texto cinza de exemplo dentro do campo vazio
                 placeholder="0,00"
                 value={amount}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setAmount(e.target.value)}
                 required
               />
@@ -183,7 +171,6 @@ export function TransactionDialog({
                     <SelectValue placeholder="Selecionar frequência" />
                   </SelectTrigger>
                   <SelectContent>
-                    // Percorre lista e renderiza um item para cada elemento
                     {INCOME_FREQUENCIES.map((f) => (
                       <SelectItem key={f} value={f}>
                         {INCOME_FREQUENCY_LABELS[f]}
@@ -201,7 +188,6 @@ export function TransactionDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">Sem categoria</SelectItem>
-                  // Percorre lista e renderiza um item para cada elemento
                   {filtered.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
@@ -216,7 +202,6 @@ export function TransactionDialog({
                 id="tx-when"
                 type="datetime-local"
                 value={occurredAt}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setOccurredAt(e.target.value)}
                 required
               />
@@ -256,7 +241,6 @@ export function MonthlyBudgetDialog({
 }) {
   const [income, setIncome] = useState(initialIncome);
   const [limit, setLimit] = useState(initialLimit);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (open) {
       setIncome(initialIncome);
@@ -280,9 +264,7 @@ export function MonthlyBudgetDialog({
               id="bud-inc"
               inputMode="decimal"
               value={income}
-              // Atualiza estado quando o usuário digita/seleciona
               onChange={(e) => setIncome(e.target.value)}
-              // Texto cinza de exemplo dentro do campo vazio
               placeholder="8500"
             />
           </div>
@@ -292,9 +274,7 @@ export function MonthlyBudgetDialog({
               id="bud-lim"
               inputMode="decimal"
               value={limit}
-              // Atualiza estado quando o usuário digita/seleciona
               onChange={(e) => setLimit(e.target.value)}
-              // Texto cinza de exemplo dentro do campo vazio
               placeholder="5000"
             />
           </div>
@@ -304,12 +284,9 @@ export function MonthlyBudgetDialog({
             Cancelar
           </Button>
           <Button
-            // Botão comum (não envia formulário)
             type="button"
-            // Desabilita botão/campo (ex.: durante envio)
             disabled={loading}
             className="bg-cgreen-500 hover:bg-cgreen-700"
-            // Executa ação quando o usuário clica
             onClick={() => void onSave(income, limit)}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}

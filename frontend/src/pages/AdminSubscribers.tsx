@@ -96,15 +96,12 @@ function fromDateInput(v: string): string | null {
 }
 
 export default function AdminSubscribersPage() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, user } = useAuth();
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
   const canManage = isAdminUser(user?.email);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ApiAdminSubscriber | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data, isLoading } = useQuery({
     queryKey: ["admin-subscribers", token],
     queryFn: () => apiGetAdminSubscribers(token!),
@@ -112,13 +109,10 @@ export default function AdminSubscribersPage() {
     refetchInterval: 30_000,
   });
   const invalidate = () => void qc.invalidateQueries({ queryKey: ["admin-subscribers"] });
-  // Mutação na API (criar/editar/excluir)
   const createMut = useMutation({
     mutationFn: () =>
       apiCreateAdminUser(token!, {
-        // Remove espaços no início/fim do texto
         name: form.name.trim(),
-        // Remove espaços no início/fim do texto
         email: form.email.trim().toLowerCase(),
         password: form.password,
         plan: form.plan,
@@ -130,13 +124,10 @@ export default function AdminSubscribersPage() {
     onSuccess: () => {
       invalidate();
       setDialogOpen(false);
-      // Exibe notificação temporária (toast) na tela
       toast.success("Assinante criado");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Mutação na API (criar/editar/excluir)
   const patchMut = useMutation({
     mutationFn: (payload: { id: string } & Partial<FormState> & { isActive?: boolean }) => {
       const body: Parameters<typeof apiPatchAdminUser>[2] = {};
@@ -153,21 +144,16 @@ export default function AdminSubscribersPage() {
     onSuccess: () => {
       invalidate();
       setDialogOpen(false);
-      // Exibe notificação temporária (toast) na tela
       toast.success("Cadastro atualizado");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Mutação na API (criar/editar/excluir)
   const deleteMut = useMutation({
     mutationFn: (id: string) => apiDeleteAdminUser(token!, id),
     onSuccess: () => {
       invalidate();
-      // Exibe notificação temporária (toast) na tela
       toast.success("Assinante excluído");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
   const openCreate = () => {
@@ -191,17 +177,14 @@ export default function AdminSubscribersPage() {
   };
   const saveForm = () => {
     if (!form.name.trim() || !form.email.trim()) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Nome e e-mail são obrigatórios");
       return;
     }
     if (!editing && form.password.length < 6) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Senha mínima de 6 caracteres");
       return;
     }
     if (editing && form.password && form.password.length < 6) {
-      // Exibe notificação temporária (toast) na tela
       toast.error("Senha mínima de 6 caracteres");
       return;
     }
@@ -213,7 +196,6 @@ export default function AdminSubscribersPage() {
   };
   const pending = createMut.isPending || patchMut.isPending || deleteMut.isPending;
   const stats = data?.stats;
-  // Valor memorizado — recalcula só quando dependências mudam
   const dialogTitle = useMemo(() => (editing ? "Editar assinante" : "Adicionar assinante"), [editing]);
   if (!canManage) {
     return (
@@ -285,7 +267,6 @@ export default function AdminSubscribersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                // Percorre lista e renderiza um item para cada elemento
                 {(data?.users ?? []).map((u) => {
                   const isSystemAdmin = isAdminUser(u.email);
                   return (
@@ -302,12 +283,10 @@ export default function AdminSubscribersPage() {
                       <TableCell className="capitalize">{u.subscription?.status ?? u.plan}</TableCell>
                       <TableCell>
                         {u.trialEndsAt
-                          // Formata data em texto legível (pt-BR)
                           ? format(new Date(u.trialEndsAt), "dd/MM/yyyy", { locale: ptBR })
                           : "—"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        // Formata data em texto legível (pt-BR)
                         {format(new Date(u.createdAt), "dd/MM/yy", { locale: ptBR })}
                       </TableCell>
                       <TableCell>
@@ -316,25 +295,19 @@ export default function AdminSubscribersPage() {
                             Editar
                           </Button>
                           <Button
-                            // Botão comum (não envia formulário)
                             type="button"
                             size="sm"
                             variant={u.isActive === false ? "default" : "outline"}
-                            // Desabilita botão/campo (ex.: durante envio)
                             disabled={pending || isSystemAdmin}
-                            // Executa ação quando o usuário clica
                             onClick={() => patchMut.mutate({ id: u.id, isActive: u.isActive === false })}
                           >
                             {u.isActive === false ? "Ativar" : "Inativar"}
                           </Button>
                           <Button
-                            // Botão comum (não envia formulário)
                             type="button"
                             size="sm"
                             variant="destructive"
-                            // Desabilita botão/campo (ex.: durante envio)
                             disabled={pending || isSystemAdmin}
-                            // Executa ação quando o usuário clica
                             onClick={() => {
                               if (!window.confirm(`Excluir permanentemente ${u.email}?`)) return;
                               deleteMut.mutate(u.id);
@@ -363,33 +336,26 @@ export default function AdminSubscribersPage() {
               <input
                 className="h-10 rounded-md border border-border bg-background px-3"
                 value={form.name}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               />
             </label>
             <label className="grid gap-1 text-sm">
               E-mail
               <input
-                // Campo de e-mail com validação do navegador
                 type="email"
                 className="h-10 rounded-md border border-border bg-background px-3"
                 value={form.email}
-                // Desabilita botão/campo (ex.: durante envio)
                 disabled={Boolean(editing && isAdminUser(editing.email))}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />
             </label>
             <label className="grid gap-1 text-sm">
               Senha {editing ? "(opcional)" : ""}
               <input
-                // Campo de senha (caracteres ocultos)
                 type="password"
                 className="h-10 rounded-md border border-border bg-background px-3"
                 value={form.password}
-                // Texto cinza de exemplo dentro do campo vazio
                 placeholder={editing ? "Deixe em branco para manter" : "Mínimo 6 caracteres"}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
               />
             </label>
@@ -399,7 +365,6 @@ export default function AdminSubscribersPage() {
                 <select
                   className="h-10 rounded-md border border-border bg-background px-2"
                   value={form.plan}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) => setForm((f) => ({ ...f, plan: e.target.value as FormState["plan"] }))}
                 >
                   <option value="free">Free</option>
@@ -412,9 +377,7 @@ export default function AdminSubscribersPage() {
                 <select
                   className="h-10 rounded-md border border-border bg-background px-2"
                   value={form.accessLevel}
-                  // Desabilita botão/campo (ex.: durante envio)
                   disabled={Boolean(editing && isAdminUser(editing.email))}
-                  // Atualiza estado quando o usuário digita/seleciona
                   onChange={(e) =>
                     setForm((f) => ({ ...f, accessLevel: e.target.value as FormState["accessLevel"] }))
                   }
@@ -432,7 +395,6 @@ export default function AdminSubscribersPage() {
                 type="date"
                 className="h-10 rounded-md border border-border bg-background px-3"
                 value={form.trialEndsAt}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setForm((f) => ({ ...f, trialEndsAt: e.target.value }))}
               />
             </label>
@@ -440,7 +402,6 @@ export default function AdminSubscribersPage() {
               <input
                 type="checkbox"
                 checked={form.isActive}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
               />
               Cadastro ativo
@@ -449,7 +410,6 @@ export default function AdminSubscribersPage() {
               <input
                 type="checkbox"
                 checked={form.billingGrandfathered}
-                // Atualiza estado quando o usuário digita/seleciona
                 onChange={(e) => setForm((f) => ({ ...f, billingGrandfathered: e.target.checked }))}
               />
               Acesso legado (sem cobrança)

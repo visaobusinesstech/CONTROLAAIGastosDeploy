@@ -26,9 +26,7 @@ const ACTION_LABEL: Record<string, string> = {
 };
 
 export default function AdminAuditLogsPage() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-  // Consulta à API com cache (React Query)
   const query = useQuery({
     queryKey: ["audit-logs", token],
     queryFn: () => apiGetAuditLogs(token!),
@@ -62,11 +60,9 @@ export default function AdminAuditLogsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                // Percorre lista e renderiza um item para cada elemento
                 {(query.data?.logs ?? []).map((log) => (
                   <TableRow key={log.id}>
                     <TableCell className="whitespace-nowrap text-xs">
-                      // Formata número como moeda/texto local (pt-BR)
                       {new Date(log.occurredAt).toLocaleString("pt-BR")}
                     </TableCell>
                     <TableCell>
@@ -81,7 +77,6 @@ export default function AdminAuditLogsPage() {
                     </TableCell>
                     <TableCell className="text-xs">
                       {log.entity}
-                      // Recorta parte da lista (paginação ou limite)
                       {log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ""}
                     </TableCell>
                   </TableRow>

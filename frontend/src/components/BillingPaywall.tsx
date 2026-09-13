@@ -23,9 +23,7 @@ type Props = {
 };
 
 export function BillingPaywall({ className }: Props) {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: billing, isLoading } = useQuery({
     queryKey: ["billing", token],
     queryFn: () => apiGetBillingStatus(token!),

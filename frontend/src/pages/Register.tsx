@@ -41,9 +41,7 @@ type AcceptedTerms = {
 };
 
 export default function Register() {
-  // Consulta à API com cache (React Query)
   const queryClient = useQueryClient();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { setSession, token, user, loading } = useAuth();
   const [step, setStep] = useState<RegisterStep>("terms");
   const [acceptedTerms, setAcceptedTerms] = useState<AcceptedTerms | null>(null);
@@ -70,29 +68,22 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!acceptedTerms) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError("Aceite os termos antes de criar a conta.");
       setStep("terms");
       return;
     }
     if (!phoneValid && digitsOnly(phone).length > 0) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError("Informe um número de WhatsApp válido com DDD");
       return;
     }
     if (password.length < 6) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError("A senha deve ter pelo menos 6 caracteres");
       return;
     }
-    // Atualiza mensagem de erro exibida ao usuário
     setError("");
-    // Liga/desliga indicador "carregando" no botão
     setSubmitting(true);
     const payload = {
-      // Remove espaços no início/fim do texto
       name: name.trim(),
-      // Remove espaços no início/fim do texto
       email: email.trim().toLowerCase(),
       password,
       phone: digitsOnly(phone) || undefined,
@@ -111,29 +102,24 @@ export default function Register() {
         result = await registerRequest({ ...payload, phone: undefined });
       }
       if (isAuthChallenge(result)) {
-        // Atualiza mensagem de erro exibida ao usuário
         setError("Resposta inesperada do servidor. Tente entrar com e-mail e senha.");
         return;
       }
       setSession(result.token, result.user);
-      // Gerencia cache de dados da API (React Query)
       queryClient.clear();
       window.location.assign(getHomePathForUser(result.user.email));
     } catch (err) {
       if (err instanceof ApiError) {
         if (err.status === 0) {
-          // Atualiza mensagem de erro exibida ao usuário
           setError(
             import.meta.env.PROD
               ? "Servidor da API offline. Configure BACKEND_URL no Vercel (URL pública do Railway) e redeploy."
               : "API offline. Inicie o backend: cd backend && npm run dev",
           );
         } else {
-          // Atualiza mensagem de erro exibida ao usuário
           setError(translateApiError(err.message));
         }
       } else {
-        // Atualiza mensagem de erro exibida ao usuário
         setError(
           import.meta.env.PROD
             ? "Não foi possível conectar ao servidor. Verifique BACKEND_URL no Vercel."
@@ -141,7 +127,6 @@ export default function Register() {
         );
       }
     } finally {
-      // Liga/desliga indicador "carregando" no botão
       setSubmitting(false);
     }
   };
@@ -181,9 +166,7 @@ export default function Register() {
                 className="space-y-5"
               >
                 <button
-                  // Botão comum (não envia formulário)
                   type="button"
-                  // Executa ação quando o usuário clica
                   onClick={() => setStep("terms")}
                   className="flex items-center gap-1.5 text-xs text-cgray-400 hover:text-cgreen-500 transition-colors"
                 >
@@ -202,9 +185,7 @@ export default function Register() {
                     <input
                       type="text"
                       value={name}
-                      // Atualiza estado quando o usuário digita/seleciona
                       onChange={(e) => setName(e.target.value)}
-                      // Texto cinza de exemplo dentro do campo vazio
                       placeholder="Seu nome"
                       required
                       autoComplete="name"
@@ -216,12 +197,9 @@ export default function Register() {
                       E-mail
                     </label>
                     <input
-                      // Campo de e-mail com validação do navegador
                       type="email"
                       value={email}
-                      // Atualiza estado quando o usuário digita/seleciona
                       onChange={(e) => setEmail(e.target.value)}
-                      // Texto cinza de exemplo dentro do campo vazio
                       placeholder="seu@email.com"
                       required
                       autoComplete="email"
@@ -236,9 +214,7 @@ export default function Register() {
                       <input
                         type="tel"
                         value={phone}
-                        // Atualiza estado quando o usuário digita/seleciona
                         onChange={(e) => handlePhoneChange(e.target.value)}
-                        // Texto cinza de exemplo dentro do campo vazio
                         placeholder="(11) 99999-9999"
                         autoComplete="tel"
                         className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-10 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
@@ -256,9 +232,7 @@ export default function Register() {
                       <input
                         type={showPw ? "text" : "password"}
                         value={password}
-                        // Atualiza estado quando o usuário digita/seleciona
                         onChange={(e) => setPassword(e.target.value)}
-                        // Texto cinza de exemplo dentro do campo vazio
                         placeholder="Mínimo 6 caracteres"
                         required
                         minLength={6}
@@ -266,12 +240,9 @@ export default function Register() {
                         className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-10 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                       />
                       <button
-                        // Botão comum (não envia formulário)
                         type="button"
-                        // Executa ação quando o usuário clica
                         onClick={() => setShowPw((v) => !v)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400 hover:text-cgray-600"
-                        // Texto acessível para leitores de tela
                         aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                       >
                         {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -280,9 +251,7 @@ export default function Register() {
                   </div>
                   {error && <p className="text-xs text-cred-main">{error}</p>}
                   <button
-                    // Botão que envia o formulário
                     type="submit"
-                    // Desabilita botão/campo (ex.: durante envio)
                     disabled={submitting}
                     className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
                   >

@@ -97,16 +97,12 @@ function levelBadge(level: string) {
 }
 
 export default function WhatsAppPage() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, user } = useAuth();
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { toast } = useToast();
   const isAdmin = userIsAdmin(user);
   const autoConnectTried = useRef(false);
   const [selectedModel, setSelectedModel] = useState("");
-  // GET /api/admin/whatsapp/status — QR, conexão e keep-alive
   const statusQuery = useQuery({
     queryKey: ["whatsapp-status"],
     queryFn: () => apiGetWhatsAppStatus(token!),
@@ -118,48 +114,41 @@ export default function WhatsAppPage() {
       return 5000;
     },
   });
-  // Consulta à API com cache (React Query)
   const statsQuery = useQuery({
     queryKey: ["whatsapp-stats"],
     queryFn: () => apiGetWhatsAppStats(token!),
     enabled: Boolean(token) && isAdmin,
     refetchInterval: 15000,
   });
-  // Consulta à API com cache (React Query)
   const modelQuery = useQuery({
     queryKey: ["openai-model"],
     queryFn: () => apiGetOpenAIModel(token!),
     enabled: Boolean(token) && isAdmin,
   });
-  // Consulta à API com cache (React Query)
   const aiLogsQuery = useQuery({
     queryKey: ["ai-logs-whatsapp"],
     queryFn: () => apiGetAiLogs(token!, 50, "whatsapp"),
     enabled: Boolean(token) && isAdmin,
     refetchInterval: 15000,
   });
-  // Consulta à API com cache (React Query)
   const baileysLogsQuery = useQuery({
     queryKey: ["baileys-logs"],
     queryFn: () => apiGetBaileysLogs(token!, 150),
     enabled: Boolean(token) && isAdmin,
     refetchInterval: 5000,
   });
-  // Consulta à API com cache (React Query)
   const messagesQuery = useQuery({
     queryKey: ["whatsapp-admin-messages"],
     queryFn: () => apiGetWhatsAppMessages(token!, 30),
     enabled: Boolean(token) && isAdmin,
     refetchInterval: 10000,
   });
-  // Mutação na API (criar/editar/excluir)
   const connectMut = useMutation({
     mutationFn: () => apiConnectWhatsApp(token!),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["whatsapp-status"] });
     },
     onError: (err: Error) => {
-      // Exibe notificação temporária (toast) na tela
       toast({
         title: "Não foi possível conectar",
         description: err.message,
@@ -167,32 +156,26 @@ export default function WhatsAppPage() {
       });
     },
   });
-  // Mutação na API (criar/editar/excluir)
   const disconnectMut = useMutation({
     mutationFn: () => apiDisconnectWhatsApp(token!),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["whatsapp-status"] }),
   });
-  // Mutação na API (criar/editar/excluir)
   const saveModelMut = useMutation({
     mutationFn: (model: string) => apiSetOpenAIModel(token!, model),
     onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["openai-model"] });
       void qc.invalidateQueries({ queryKey: ["whatsapp-stats"] });
-      // Exibe notificação temporária (toast) na tela
       toast({ title: "Modelo atualizado", description: `Usando ${data.model}` });
     },
     onError: (err: Error) => {
-      // Exibe notificação temporária (toast) na tela
       toast({ title: "Erro ao salvar modelo", description: err.message, variant: "destructive" });
     },
   });
-  // Mutação na API (criar/editar/excluir)
   const resetModelMut = useMutation({
     mutationFn: () => apiResetOpenAIModel(token!),
     onSuccess: (data) => {
       setSelectedModel(data.model);
       void qc.invalidateQueries({ queryKey: ["openai-model"] });
-      // Exibe notificação temporária (toast) na tela
       toast({ title: "Modelo resetado", description: `Voltou para ${data.model} (.env)` });
     },
   });
@@ -200,13 +183,11 @@ export default function WhatsAppPage() {
   const isConnected = conn?.status === "connected";
   const isWaitingQr = Boolean(conn?.qrCode) || conn?.status === "qr";
   const isConnecting = conn?.status === "connecting" && !conn?.qrCode;
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (modelQuery.data?.model) {
       setSelectedModel(modelQuery.data.model);
     }
   }, [modelQuery.data?.model]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (!token || !isAdmin || autoConnectTried.current || statusQuery.isLoading) return;
     const status = conn?.status;
@@ -271,9 +252,7 @@ export default function WhatsAppPage() {
                 <Button
                   size="lg"
                   className="shrink-0 bg-cgreen-500 hover:bg-cgreen-700"
-                  // Executa ação quando o usuário clica
                   onClick={() => connectMut.mutate()}
-                  // Desabilita botão/campo (ex.: durante envio)
                   disabled={connectMut.isPending || isConnecting}
                 >
                   {connectMut.isPending || isConnecting ? (
@@ -317,7 +296,6 @@ export default function WhatsAppPage() {
                     )}
                     {conn?.connectedAt && (
                       <p className="text-xs text-muted-foreground">
-                        // Formata número como moeda/texto local (pt-BR)
                         Conectado desde {new Date(conn.connectedAt).toLocaleString("pt-BR")}
                       </p>
                     )}
@@ -405,7 +383,6 @@ export default function WhatsAppPage() {
               <CardTitle className="text-base">Mensagens recentes</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2 max-h-80 overflow-y-auto">
-              // Percorre lista e renderiza um item para cada elemento
               {(messagesQuery.data?.messages ?? []).map((m) => (
                 <div key={m.id} className="text-sm border-b border-border pb-2">
                   <div className="flex justify-between text-xs text-muted-foreground">
@@ -443,7 +420,6 @@ export default function WhatsAppPage() {
                           <SelectValue placeholder="Selecione o modelo" />
                         </SelectTrigger>
                         <SelectContent>
-                          // Percorre lista e renderiza um item para cada elemento
                           {(modelQuery.data?.availableModels ?? []).map((m) => (
                             <SelectItem key={m.id} value={m.id}>
                               {m.label}
@@ -453,9 +429,7 @@ export default function WhatsAppPage() {
                       </Select>
                     </div>
                     <Button
-                      // Executa ação quando o usuário clica
                       onClick={() => saveModelMut.mutate(selectedModel)}
-                      // Desabilita botão/campo (ex.: durante envio)
                       disabled={saveModelMut.isPending || !selectedModel || selectedModel === modelQuery.data?.model}
                     >
                       {saveModelMut.isPending ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
@@ -490,7 +464,6 @@ export default function WhatsAppPage() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm">Tokens totais</CardTitle></CardHeader>
               <CardContent className="text-2xl font-bold">
-                // Formata número como moeda/texto local (pt-BR)
                 {stats?.aiTokens?.toLocaleString("pt-BR") ?? "—"}
               </CardContent>
             </Card>
@@ -528,11 +501,9 @@ export default function WhatsAppPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  // Percorre lista e renderiza um item para cada elemento
                   {(aiLogsQuery.data?.logs ?? []).map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs whitespace-nowrap">
-                        // Formata número como moeda/texto local (pt-BR)
                         {new Date(log.createdAt).toLocaleString("pt-BR")}
                       </TableCell>
                       <TableCell className="text-xs">{log.operation}</TableCell>
@@ -588,14 +559,12 @@ export default function WhatsAppPage() {
           <Card>
             <CardContent className="p-0">
               <div className="max-h-[32rem] overflow-y-auto divide-y divide-border">
-                // Percorre lista e renderiza um item para cada elemento
                 {(baileysLogsQuery.data?.logs ?? []).map((log) => (
                   <div key={log.id} className="px-4 py-3 text-sm hover:bg-muted/30">
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2">
                         {levelBadge(log.level)}
                         <span className="text-xs text-muted-foreground">
-                          // Formata número como moeda/texto local (pt-BR)
                           {new Date(log.createdAt).toLocaleString("pt-BR")}
                         </span>
                       </div>
@@ -603,7 +572,6 @@ export default function WhatsAppPage() {
                     <p className="text-foreground">{log.message}</p>
                     {log.meta && Object.keys(log.meta).length > 0 && (
                       <pre className="mt-1 text-xs text-muted-foreground overflow-x-auto">
-                        // Transforma objeto em texto JSON para enviar à API
                         {JSON.stringify(log.meta, null, 2)}
                       </pre>
                     )}

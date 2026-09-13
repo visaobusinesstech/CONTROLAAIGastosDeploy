@@ -19,9 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function AiLogsPage() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-  // Busca últimos 100 logs com resumo de tokens e custo
   const logsQuery = useQuery({
     queryKey: ["ai-logs"],
     queryFn: () => apiGetAiLogs(token!, 100),
@@ -72,7 +70,6 @@ export default function AiLogsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              // Percorre lista e renderiza um item para cada elemento
               {(logsQuery.data?.logs ?? []).map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="text-xs whitespace-nowrap">{new Date(log.createdAt).toLocaleString("pt-BR")}</TableCell>

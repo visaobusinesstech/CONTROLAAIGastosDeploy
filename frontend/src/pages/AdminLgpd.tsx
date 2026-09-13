@@ -25,11 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export default function AdminLgpdPage() {
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-  // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: caps } = useCapabilities();
-  // Consulta à API com cache (React Query)
   const qc = useQueryClient();
   const canEdit = Boolean(caps?.isAdmin);
   const [entity, setEntity] = useState("users");
@@ -37,25 +34,20 @@ export default function AdminLgpdPage() {
   const [label, setLabel] = useState("");
   const [hideOperator, setHideOperator] = useState(false);
   const [hideViewer, setHideViewer] = useState(true);
-  // Consulta à API com cache (React Query)
   const query = useQuery({
     queryKey: ["lgpd-fields", token],
     queryFn: () => apiGetLgpdFields(token!),
     enabled: Boolean(token),
   });
-  // Mutação na API (criar/editar/excluir)
   const patchMut = useMutation({
     mutationFn: (payload: { id: string; body: { hideFromOperator?: boolean; hideFromViewer?: boolean; isActive?: boolean } }) =>
       apiPatchLgpdField(token!, payload.id, payload.body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["lgpd-fields"] });
-      // Exibe notificação temporária (toast) na tela
       toast.success("Campo LGPD atualizado");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
-  // Mutação na API (criar/editar/excluir)
   const createMut = useMutation({
     mutationFn: () =>
       apiPostLgpdField(token!, {
@@ -67,12 +59,10 @@ export default function AdminLgpdPage() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["lgpd-fields"] });
-      // Exibe notificação temporária (toast) na tela
       toast.success("Campo cadastrado");
       setFieldName("");
       setLabel("");
     },
-    // Exibe notificação temporária (toast) na tela
     onError: (e: Error) => toast.error(e.message),
   });
   return (
@@ -91,11 +81,9 @@ export default function AdminLgpdPage() {
           <CardContent>
             <form
               className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5"
-              // Envia formulário quando usuário pressiona Enter ou botão
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!fieldName.trim() || !label.trim()) {
-                  // Exibe notificação temporária (toast) na tela
                   toast.error("Preencha entidade, campo e rótulo");
                   return;
                 }
@@ -153,7 +141,6 @@ export default function AdminLgpdPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                // Percorre lista e renderiza um item para cada elemento
                 {(query.data?.fields ?? []).map((field) => (
                   <TableRow key={field.id}>
                     <TableCell className="font-mono text-xs">{field.entity}</TableCell>
@@ -162,7 +149,6 @@ export default function AdminLgpdPage() {
                     <TableCell>
                       <Switch
                         checked={field.hideFromOperator}
-                        // Desabilita botão/campo (ex.: durante envio)
                         disabled={!canEdit || patchMut.isPending}
                         onCheckedChange={(v) => patchMut.mutate({ id: field.id, body: { hideFromOperator: v } })}
                       />
@@ -170,7 +156,6 @@ export default function AdminLgpdPage() {
                     <TableCell>
                       <Switch
                         checked={field.hideFromViewer}
-                        // Desabilita botão/campo (ex.: durante envio)
                         disabled={!canEdit || patchMut.isPending}
                         onCheckedChange={(v) => patchMut.mutate({ id: field.id, body: { hideFromViewer: v } })}
                       />
@@ -178,7 +163,6 @@ export default function AdminLgpdPage() {
                     <TableCell>
                       <Switch
                         checked={field.isActive}
-                        // Desabilita botão/campo (ex.: durante envio)
                         disabled={!canEdit || patchMut.isPending}
                         onCheckedChange={(v) => patchMut.mutate({ id: field.id, body: { isActive: v } })}
                       />

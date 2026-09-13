@@ -37,15 +37,12 @@ export default function ForgotPassword() {
   const [emailFailed, setEmailFailed] = useState(false);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Atualiza mensagem de erro exibida ao usuário
     setError("");
     setEmailFailed(false);
-    // Liga/desliga indicador "carregando" no botão
     setSubmitting(true);
     try {
       const normalized = email.trim().toLowerCase();
       try {
-        // Armazena dado temporário na sessão do navegador
         sessionStorage.setItem("controlaai.lastEmail", normalized);
       } catch {
         /* ignore */
@@ -58,10 +55,8 @@ export default function ForgotPassword() {
       }
       setSent(true);
     } catch (err) {
-      // Atualiza mensagem de erro exibida ao usuário
       setError(err instanceof ApiError ? translateApiError(err.message) : "Não foi possível enviar o e-mail.");
     } finally {
-      // Liga/desliga indicador "carregando" no botão
       setSubmitting(false);
     }
   };
@@ -100,7 +95,6 @@ export default function ForgotPassword() {
               <div className="text-center">
                 <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Verifique seu e-mail</h1>
                 <p className="text-sm text-cgray-400 mt-1">
-                  // Remove espaços no início/fim do texto
                   Se existir uma conta com <span className="text-cgray-600 dark:text-foreground">{email.trim()}</span>,
                   enviamos o link de redefinição.
                 </p>
@@ -113,9 +107,7 @@ export default function ForgotPassword() {
               </Link>
               {emailFailed && (
                 <button
-                  // Botão comum (não envia formulário)
                   type="button"
-                  // Executa ação quando o usuário clica
                   onClick={() => {
                     setSent(false);
                     setEmailFailed(false);
@@ -140,12 +132,9 @@ export default function ForgotPassword() {
                     E-mail
                   </label>
                   <input
-                    // Campo de e-mail com validação do navegador
                     type="email"
                     value={email}
-                    // Atualiza estado quando o usuário digita/seleciona
                     onChange={(e) => setEmail(e.target.value)}
-                    // Texto cinza de exemplo dentro do campo vazio
                     placeholder="seu@email.com"
                     required
                     autoComplete="email"
@@ -154,9 +143,7 @@ export default function ForgotPassword() {
                 </div>
                 {error && <p className="text-xs text-cred-main">{error}</p>}
                 <button
-                  // Botão que envia o formulário
                   type="submit"
-                  // Desabilita botão/campo (ex.: durante envio)
                   disabled={submitting}
                   className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
                 >

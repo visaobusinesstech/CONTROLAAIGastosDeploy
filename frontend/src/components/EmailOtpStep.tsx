@@ -76,13 +76,11 @@ export function EmailOtpStep({
   const [resendLeft, setResendLeft] = useState(60); // Cooldown de reenvio
   const [resendError, setResendError] = useState("");
   const copy = PURPOSE_COPY[challenge.purpose] ?? PURPOSE_COPY.login;
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     setCode("");
     setResendLeft(60);
     setResendError("");
   }, [challenge.challengeId]);
-  // Executa efeito colateral (API, título, redirect) ao montar/mudar deps
   useEffect(() => {
     if (resendLeft <= 0) return;
     const t = window.setTimeout(() => setResendLeft((s) => s - 1), 1000);
@@ -102,9 +100,7 @@ export function EmailOtpStep({
     <div className="space-y-4">
       {onBack && (
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Executa ação quando o usuário clica
           onClick={onBack}
           className="text-xs text-cgray-400 hover:text-cgreen-500 transition-colors"
         >
@@ -122,14 +118,11 @@ export function EmailOtpStep({
         <InputOTP
           maxLength={6}
           value={code}
-          // Recorta parte da lista (paginação ou limite)
           onChange={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))}
           onComplete={onCodeComplete}
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={submitting}
         >
           <InputOTPGroup>
-            // Percorre lista e renderiza um item para cada elemento
             {Array.from({ length: 6 }).map((_, i) => (
               <InputOTPSlot key={i} index={i} />
             ))}
@@ -150,11 +143,8 @@ export function EmailOtpStep({
         <p className="text-center text-xs text-cred-main">{error || resendError}</p>
       )}
       <button
-        // Botão comum (não envia formulário)
         type="button"
-        // Desabilita botão/campo (ex.: durante envio)
         disabled={submitting || code.length !== 6}
-        // Executa ação quando o usuário clica
         onClick={() => onCodeComplete(code)}
         className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
       >
@@ -163,11 +153,8 @@ export function EmailOtpStep({
       <p className="text-center text-xs text-cgray-400">
         Não chegou?{" "}
         <button
-          // Botão comum (não envia formulário)
           type="button"
-          // Executa ação quando o usuário clica
           onClick={handleResend}
-          // Desabilita botão/campo (ex.: durante envio)
           disabled={resendLeft > 0}
           className="text-cgreen-500 font-medium disabled:text-cgray-400"
         >
