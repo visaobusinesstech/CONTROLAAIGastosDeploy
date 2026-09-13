@@ -65,7 +65,6 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 /** Renderiza o ícone da categoria com fallback para círculo genérico. */
-// Exporta função usada por outros arquivos
 export function CategoryIcon({
   name,
   className,
@@ -81,7 +80,6 @@ export function CategoryIcon({
 }
 
 /** Retorna o componente Lucide (sem JSX) para uso em listas dinâmicas. */
-// Exporta função usada por outros arquivos
 export function getCategoryIconComponent(name: string | null | undefined): LucideIcon {
   const key = (name ?? "circle").toLowerCase().trim();
   return ICONS[key] ?? Circle;

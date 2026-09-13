@@ -67,74 +67,46 @@ export default function ResetPassword() {
     }
   };
   return (
-    // Tag HTML na interface
     <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4 overflow-y-auto overflow-x-hidden">
-      // Tag HTML na interface
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm min-w-0">
-        // Tag HTML na interface
         <div className="flex justify-center mb-6 sm:mb-8">
-          // Elemento/componente React na tela
           <LogoFull />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5 min-w-0">
-          // Tag HTML na interface
           <div className="text-center">
-            // Tag HTML na interface
             <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Nova senha</h1>
-            // Tag HTML na interface
             <p className="text-sm text-cgray-400 mt-1">Escolha uma senha de pelo menos 6 caracteres.</p>
-          // Tag HTML na interface
           </div>
           {!token ? (
-            // Tag HTML na interface
             <p className="text-sm text-cred-main text-center">
               Link inválido. Solicite um novo em{" "}
-              // Elemento/componente React na tela
               <Link to="/forgot-password" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                 esqueci a senha
-              // Elemento/componente React na tela
               </Link>
               .
-            // Tag HTML na interface
             </p>
           ) : done ? (
-            // Tag HTML na interface
             <div className="space-y-4 text-center">
-              // Tag HTML na interface
               <div
                 role="status"
-                // Classes CSS Tailwind — controla aparência visual
                 className="rounded-xl px-4 py-3 text-sm bg-cgreen-50 dark:bg-cgreen-950/30 text-cgreen-800 dark:text-cgreen-200 border border-cgreen-200 dark:border-cgreen-800"
               >
                 Senha atualizada! Redirecionando para o login…
-              // Tag HTML na interface
               </div>
-              // Elemento/componente React na tela
               <Link
                 to="/login?reset=1"
-                // Classes CSS Tailwind — controla aparência visual
                 className="block w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium leading-[44px] hover:bg-cgreen-700"
               >
                 Ir para o login
-              // Elemento/componente React na tela
               </Link>
-            // Tag HTML na interface
             </div>
           ) : (
-            // Tag HTML na interface
             <form onSubmit={handleSubmit} className="space-y-4">
-              // Tag HTML na interface
               <div>
-                // Tag HTML na interface
                 <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                   Nova senha
-                // Tag HTML na interface
                 </label>
-                // Tag HTML na interface
                 <div className="relative">
-                  // Tag HTML na interface
                   <input
                     type={showPw ? "text" : "password"}
                     value={password}
@@ -149,35 +121,25 @@ export default function ResetPassword() {
                     required
                     minLength={6}
                     autoComplete="new-password"
-                    // Classes CSS Tailwind — controla aparência visual
                     className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                   />
-                  // Tag HTML na interface
                   <button
                     // Botão comum (não envia formulário)
                     type="button"
                     // Executa ação quando o usuário clica
                     onClick={() => setShowPw(!showPw)}
-                    // Classes CSS Tailwind — controla aparência visual
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400"
                     // Texto acessível para leitores de tela
                     aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                   >
                     {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
-                  // Tag HTML na interface
                   </button>
-                // Tag HTML na interface
                 </div>
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div>
-                // Tag HTML na interface
                 <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                   Confirmar senha
-                // Tag HTML na interface
                 </label>
-                // Tag HTML na interface
                 <input
                   type={showPw ? "text" : "password"}
                   value={confirm}
@@ -192,45 +154,31 @@ export default function ResetPassword() {
                   required
                   minLength={6}
                   autoComplete="new-password"
-                  // Classes CSS Tailwind — controla aparência visual
                   className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                 />
-              // Tag HTML na interface
               </div>
-              // Classes CSS Tailwind — controla aparência visual
               {error && <p className="text-xs text-cred-main">{error}</p>}
-              // Tag HTML na interface
               <button
                 // Botão que envia o formulário
                 type="submit"
                 // Desabilita botão/campo (ex.: durante envio)
                 disabled={submitting}
-                // Classes CSS Tailwind — controla aparência visual
                 className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
               >
                 {submitting ? "Salvando…" : "Redefinir senha"}
-              // Tag HTML na interface
               </button>
-            // Tag HTML na interface
             </form>
           )}
           {!done && (
-            // Tag HTML na interface
             <p className="text-center text-sm text-cgray-400">
               Lembrou a senha?{" "}
-              // Elemento/componente React na tela
               <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                 Entrar
-              // Elemento/componente React na tela
               </Link>
-            // Tag HTML na interface
             </p>
           )}
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </motion.div>
-    // Tag HTML na interface
     </div>
   );
 }

@@ -23,12 +23,9 @@ export default function RequireAdminAuth({ children }: { children: React.ReactNo
   const location = useLocation();
   if (loading) {
     return (
-      // Tag HTML na interface
       <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        // Elemento/componente React na tela
         <Loader2 className="animate-spin mr-2" size={18} />
         Carregando…
-      // Tag HTML na interface
       </div>
     );
   }

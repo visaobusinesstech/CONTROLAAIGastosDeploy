@@ -22,7 +22,6 @@ import { useAuth } from "@/lib/auth";
 import { registerRequest, ApiError, translateApiError, isAuthChallenge, type ConsentType } from "@/lib/api";
 import { getHomePathForUser } from "@/lib/routes";
 
-// Declara função auxiliar interna
 function formatPhone(v: string) {
   const d = v.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 2) return d;
@@ -30,7 +29,6 @@ function formatPhone(v: string) {
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 }
 
-// Declara função auxiliar interna
 function digitsOnly(v: string) {
   return v.replace(/\D/g, "");
 }
@@ -148,89 +146,59 @@ export default function Register() {
     }
   };
   return (
-    // Tag HTML na interface
     <div className="flex min-h-[100dvh] min-h-screen flex-col items-center justify-start bg-surface-page px-3 py-4 dark:bg-background sm:justify-center sm:px-4 sm:py-6 overflow-y-auto overflow-x-hidden">
-      // Tag HTML na interface
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        // Classes CSS Tailwind — controla aparência visual
         className="w-full max-w-md min-w-0"
       >
-        // Tag HTML na interface
         <div className="mb-4 flex justify-center sm:mb-6">
-          // Elemento/componente React na tela
           <LogoFull />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="space-y-4 rounded-2xl border border-cgray-200 bg-surface-card p-3 min-w-0 overflow-hidden dark:border-cgray-800 dark:bg-card sm:space-y-5 sm:p-5">
-          // Elemento/componente React na tela
           <AnimatePresence mode="wait">
             {step === "terms" ? (
-              // Tag HTML na interface
               <motion.div
                 key="terms"
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 12 }}
               >
-                // Elemento/componente React na tela
                 <RegisterTermsAcceptance onAccepted={handleTermsAccepted} />
-                // Tag HTML na interface
                 <p className="pt-3 text-center text-xs text-cgray-400 sm:pt-4 sm:text-sm">
                   Já tem conta?{" "}
-                  // Elemento/componente React na tela
                   <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                     Entrar
-                  // Elemento/componente React na tela
                   </Link>
-                // Tag HTML na interface
                 </p>
-              // Tag HTML na interface
               </motion.div>
             ) : (
-              // Tag HTML na interface
               <motion.div
                 key="form"
                 initial={{ opacity: 0, x: 12 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -12 }}
-                // Classes CSS Tailwind — controla aparência visual
                 className="space-y-5"
               >
-                // Tag HTML na interface
                 <button
                   // Botão comum (não envia formulário)
                   type="button"
                   // Executa ação quando o usuário clica
                   onClick={() => setStep("terms")}
-                  // Classes CSS Tailwind — controla aparência visual
                   className="flex items-center gap-1.5 text-xs text-cgray-400 hover:text-cgreen-500 transition-colors"
                 >
-                  // Elemento/componente React na tela
                   <ArrowLeft size={14} />
                   Voltar aos termos
-                // Tag HTML na interface
                 </button>
-                // Tag HTML na interface
                 <div className="text-center">
-                  // Tag HTML na interface
                   <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Criar sua conta</h1>
-                  // Tag HTML na interface
                   <p className="text-sm text-cgray-400 mt-1">Termos aceitos — preencha seus dados</p>
-                // Tag HTML na interface
                 </div>
-                // Tag HTML na interface
                 <form onSubmit={handleRegister} className="space-y-4">
-                  // Tag HTML na interface
                   <div>
-                    // Tag HTML na interface
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                       Nome
-                    // Tag HTML na interface
                     </label>
-                    // Tag HTML na interface
                     <input
                       type="text"
                       value={name}
@@ -240,19 +208,13 @@ export default function Register() {
                       placeholder="Seu nome"
                       required
                       autoComplete="name"
-                      // Classes CSS Tailwind — controla aparência visual
                       className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                     />
-                  // Tag HTML na interface
                   </div>
-                  // Tag HTML na interface
                   <div>
-                    // Tag HTML na interface
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                       E-mail
-                    // Tag HTML na interface
                     </label>
-                    // Tag HTML na interface
                     <input
                       // Campo de e-mail com validação do navegador
                       type="email"
@@ -263,22 +225,14 @@ export default function Register() {
                       placeholder="seu@email.com"
                       required
                       autoComplete="email"
-                      // Classes CSS Tailwind — controla aparência visual
                       className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                     />
-                  // Tag HTML na interface
                   </div>
-                  // Tag HTML na interface
                   <div>
-                    // Tag HTML na interface
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
-                      // Classes CSS Tailwind — controla aparência visual
                       WhatsApp <span className="normal-case text-cgray-400">(opcional)</span>
-                    // Tag HTML na interface
                     </label>
-                    // Tag HTML na interface
                     <div className="relative">
-                      // Tag HTML na interface
                       <input
                         type="tel"
                         value={phone}
@@ -287,27 +241,18 @@ export default function Register() {
                         // Texto cinza de exemplo dentro do campo vazio
                         placeholder="(11) 99999-9999"
                         autoComplete="tel"
-                        // Classes CSS Tailwind — controla aparência visual
                         className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-10 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                       />
                       {phoneValid && (
-                        // Elemento/componente React na tela
                         <Check size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-cgreen-500" />
                       )}
-                    // Tag HTML na interface
                     </div>
-                  // Tag HTML na interface
                   </div>
-                  // Tag HTML na interface
                   <div>
-                    // Tag HTML na interface
                     <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                       Senha
-                    // Tag HTML na interface
                     </label>
-                    // Tag HTML na interface
                     <div className="relative">
-                      // Tag HTML na interface
                       <input
                         type={showPw ? "text" : "password"}
                         value={password}
@@ -318,63 +263,43 @@ export default function Register() {
                         required
                         minLength={6}
                         autoComplete="new-password"
-                        // Classes CSS Tailwind — controla aparência visual
                         className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-10 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                       />
-                      // Tag HTML na interface
                       <button
                         // Botão comum (não envia formulário)
                         type="button"
                         // Executa ação quando o usuário clica
                         onClick={() => setShowPw((v) => !v)}
-                        // Classes CSS Tailwind — controla aparência visual
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400 hover:text-cgray-600"
                         // Texto acessível para leitores de tela
                         aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                       >
                         {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                      // Tag HTML na interface
                       </button>
-                    // Tag HTML na interface
                     </div>
-                  // Tag HTML na interface
                   </div>
-                  // Classes CSS Tailwind — controla aparência visual
                   {error && <p className="text-xs text-cred-main">{error}</p>}
-                  // Tag HTML na interface
                   <button
                     // Botão que envia o formulário
                     type="submit"
                     // Desabilita botão/campo (ex.: durante envio)
                     disabled={submitting}
-                    // Classes CSS Tailwind — controla aparência visual
                     className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
                   >
                     {submitting ? "Criando…" : "Criar conta"}
-                  // Tag HTML na interface
                   </button>
-                // Tag HTML na interface
                 </form>
-                // Tag HTML na interface
                 <p className="text-center text-sm text-cgray-400">
                   Já tem conta?{" "}
-                  // Elemento/componente React na tela
                   <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                     Entrar
-                  // Elemento/componente React na tela
                   </Link>
-                // Tag HTML na interface
                 </p>
-              // Tag HTML na interface
               </motion.div>
             )}
-          // Elemento/componente React na tela
           </AnimatePresence>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </motion.div>
-    // Tag HTML na interface
     </div>
   );
 }

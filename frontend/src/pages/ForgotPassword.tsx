@@ -18,7 +18,6 @@ import { LogoFull } from "@/components/Logo";
 import { ApiError, forgotPasswordRequest, translateApiError } from "@/lib/api";
 
 /** E-mail já digitado no login/cadastro (query ou sessionStorage). */
-// Declara função auxiliar interna
 function initialEmail(query: string | null): string {
   const fromQuery = query?.trim() ?? "";
   if (fromQuery) return fromQuery;
@@ -67,25 +66,16 @@ export default function ForgotPassword() {
     }
   };
   return (
-    // Tag HTML na interface
     <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4 overflow-y-auto overflow-x-hidden">
-      // Tag HTML na interface
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm min-w-0">
-        // Tag HTML na interface
         <div className="flex justify-center mb-6 sm:mb-8">
-          // Elemento/componente React na tela
           <LogoFull />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="bg-surface-card dark:bg-card border border-cgray-200 dark:border-cgray-800 rounded-2xl p-4 sm:p-6 space-y-5 min-w-0">
           {sent ? (
-            // Tag HTML na interface
             <div className="space-y-4">
-              // Tag HTML na interface
               <div
                 role="status"
-                // Classes CSS Tailwind — controla aparência visual
                 className={`rounded-xl px-4 py-3 text-sm ${
                   emailFailed
                     ? "bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800"
@@ -99,42 +89,29 @@ export default function ForgotPassword() {
                   </>
                 ) : (
                   <>
-                    // Tag HTML na interface
                     <strong className="font-semibold">Confira sua caixa de entrada</strong>
-                    // Tag HTML na interface
                     <span className="block mt-1">
                       O e-mail de redefinição de senha do Controla.ai chegou (ou chegará em poucos segundos). Abra o
                       botão do e-mail para escolher a nova senha. Verifique também o Spam.
-                    // Tag HTML na interface
                     </span>
                   </>
                 )}
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="text-center">
-                // Tag HTML na interface
                 <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Verifique seu e-mail</h1>
-                // Tag HTML na interface
                 <p className="text-sm text-cgray-400 mt-1">
                   // Remove espaços no início/fim do texto
                   Se existir uma conta com <span className="text-cgray-600 dark:text-foreground">{email.trim()}</span>,
                   enviamos o link de redefinição.
-                // Tag HTML na interface
                 </p>
-              // Tag HTML na interface
               </div>
-              // Elemento/componente React na tela
               <Link
                 to="/login"
-                // Classes CSS Tailwind — controla aparência visual
                 className="block w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium text-center leading-[44px] hover:bg-cgreen-700"
               >
                 Voltar ao login
-              // Elemento/componente React na tela
               </Link>
               {emailFailed && (
-                // Tag HTML na interface
                 <button
                   // Botão comum (não envia formulário)
                   type="button"
@@ -143,38 +120,25 @@ export default function ForgotPassword() {
                     setSent(false);
                     setEmailFailed(false);
                   }}
-                  // Classes CSS Tailwind — controla aparência visual
                   className="w-full text-sm text-cgreen-500 font-medium"
                 >
                   Tentar novamente
-                // Tag HTML na interface
                 </button>
               )}
-            // Tag HTML na interface
             </div>
           ) : (
             <>
-              // Tag HTML na interface
               <div className="text-center">
-                // Tag HTML na interface
                 <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Esqueceu a senha?</h1>
-                // Tag HTML na interface
                 <p className="text-sm text-cgray-400 mt-1">
                   Enviaremos um e-mail com um botão para abrir a página de nova senha no Controla.ai.
-                // Tag HTML na interface
                 </p>
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <form onSubmit={handleSubmit} className="space-y-4">
-                // Tag HTML na interface
                 <div>
-                  // Tag HTML na interface
                   <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                     E-mail
-                  // Tag HTML na interface
                   </label>
-                  // Tag HTML na interface
                   <input
                     // Campo de e-mail com validação do navegador
                     type="email"
@@ -185,44 +149,30 @@ export default function ForgotPassword() {
                     placeholder="seu@email.com"
                     required
                     autoComplete="email"
-                    // Classes CSS Tailwind — controla aparência visual
                     className="w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 focus:border-cgreen-500 focus:bg-white dark:focus:bg-card outline-none transition-colors"
                   />
-                // Tag HTML na interface
                 </div>
-                // Classes CSS Tailwind — controla aparência visual
                 {error && <p className="text-xs text-cred-main">{error}</p>}
-                // Tag HTML na interface
                 <button
                   // Botão que envia o formulário
                   type="submit"
                   // Desabilita botão/campo (ex.: durante envio)
                   disabled={submitting}
-                  // Classes CSS Tailwind — controla aparência visual
                   className="w-full h-11 rounded-xl bg-cgreen-500 text-white text-sm font-medium hover:bg-cgreen-700 active:scale-[0.98] transition-all disabled:opacity-60"
                 >
                   {submitting ? "Enviando…" : "Enviar link de redefinição"}
-                // Tag HTML na interface
                 </button>
-              // Tag HTML na interface
               </form>
             </>
           )}
-          // Tag HTML na interface
           <p className="text-center text-sm text-cgray-400">
             Lembrou a senha?{" "}
-            // Elemento/componente React na tela
             <Link to="/login" className="text-cgreen-500 font-medium hover:text-cgreen-700">
               Entrar
-            // Elemento/componente React na tela
             </Link>
-          // Tag HTML na interface
           </p>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </motion.div>
-    // Tag HTML na interface
     </div>
   );
 }

@@ -28,30 +28,20 @@ export default function RequireStaff({ children }: { children: React.ReactNode }
   }
   if (authLoading || isLoading) {
     return (
-      // Tag HTML na interface
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        // Elemento/componente React na tela
         <Loader2 className="animate-spin" size={24} />
-        // Tag HTML na interface
         <p className="text-sm">Verificando permissões…</p>
-      // Tag HTML na interface
       </div>
     );
   }
   if (isError || !caps?.isStaff) {
     return (
-      // Tag HTML na interface
       <div className="mx-auto flex max-w-md flex-col items-center gap-4 py-16 text-center">
-        // Elemento/componente React na tela
         <ShieldAlert className="text-destructive" size={40} />
-        // Tag HTML na interface
         <h1 className="text-xl font-semibold text-foreground">Acesso restrito</h1>
-        // Tag HTML na interface
         <p className="text-sm text-muted-foreground">
           Esta área é exclusiva para equipe interna (admin, operador ou visualizador).
-        // Tag HTML na interface
         </p>
-      // Tag HTML na interface
       </div>
     );
   }

@@ -51,12 +51,10 @@ const suggestions: { label: string; send: string }[] = [
   { label: "Menu do agente", send: "Oi" },
 ];
 
-// Declara função auxiliar interna
 function stripMarkdown(text: string): string {
   return text.replace(/\*\*/g, "").replace(/\*/g, "");
 }
 
-// Declara função auxiliar interna
 function formatTime(isoOrTime?: string): string {
   if (!isoOrTime) {
     return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
@@ -67,7 +65,6 @@ function formatTime(isoOrTime?: string): string {
   return isoOrTime;
 }
 
-// Declara função auxiliar interna
 function parseStoredMessages(raw: unknown): ChatMessage[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -83,7 +80,6 @@ function parseStoredMessages(raw: unknown): ChatMessage[] {
     }));
 }
 
-// Declara função auxiliar interna
 function welcomeMessage(content: string): ChatMessage {
   return {
     role: "assistant",
@@ -212,195 +208,134 @@ export default function AiChat() {
   const sidebarConversations = convQuery.data?.conversations ?? [];
   const conversationList = (
     <>
-      // Tag HTML na interface
       <div className="flex items-center justify-between border-b border-border p-4">
-        // Tag HTML na interface
         <h2 className="text-base font-medium text-foreground">Conversas</h2>
-        // Tag HTML na interface
         <div className="flex items-center gap-1">
-          // Tag HTML na interface
           <button
             // Botão comum (não envia formulário)
             type="button"
             // Executa ação quando o usuário clica
             onClick={startNewChat}
-            // Classes CSS Tailwind — controla aparência visual
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-cgreen-50 text-cgreen-700 hover:bg-cgreen-100 dark:bg-cgreen-900/30 dark:text-cgreen-400"
             // Texto acessível para leitores de tela
             aria-label="Nova conversa"
           >
-            // Elemento/componente React na tela
             <Plus size={16} />
-          // Tag HTML na interface
           </button>
-          // Tag HTML na interface
           <button
             // Botão comum (não envia formulário)
             type="button"
             // Executa ação quando o usuário clica
             onClick={() => setMobileListOpen(false)}
-            // Classes CSS Tailwind — controla aparência visual
             className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
             // Texto acessível para leitores de tela
             aria-label="Fechar lista"
           >
-            // Elemento/componente React na tela
             <X size={16} />
-          // Tag HTML na interface
           </button>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="flex-1 overflow-y-auto">
         {sidebarConversations.length === 0 && (
-          // Tag HTML na interface
           <p className="px-4 py-6 text-center text-xs text-muted-foreground">Nenhuma conversa salva ainda.</p>
         )}
         // Percorre lista e renderiza um item para cada elemento
         {sidebarConversations.map((conv) => (
-          // Tag HTML na interface
           <button
             key={conv.id}
             // Botão comum (não envia formulário)
             type="button"
             // Executa ação quando o usuário clica
             onClick={() => loadConversation(conv.id, conv.messages)}
-            // Classes CSS Tailwind — controla aparência visual
             className={cn(
               "w-full border-b border-border px-4 py-3 text-left transition-colors hover:bg-muted/60",
               conversationId === conv.id && "bg-cgreen-50 dark:bg-cgreen-900/20",
             )}
           >
-            // Tag HTML na interface
             <div className="flex items-center gap-2">
-              // Elemento/componente React na tela
               <MessageCircle size={14} className="shrink-0 text-muted-foreground" />
-              // Tag HTML na interface
               <p className="truncate text-sm font-medium text-foreground">{conv.title ?? "Conversa"}</p>
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <p className="mt-0.5 text-xs text-muted-foreground">
               // Cria objeto de data/hora
               {new Date(conv.updatedAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-            // Tag HTML na interface
             </p>
-          // Tag HTML na interface
           </button>
         ))}
-      // Tag HTML na interface
       </div>
     </>
   );
   return (
-    // Tag HTML na interface
     <div className="flex min-h-0 flex-1 flex-col gap-0 lg:gap-4 lg:h-[calc(100vh-8rem)]">
       {/* Sidebar desktop */}
       <div className="hidden overflow-hidden rounded-xl border border-border bg-card lg:flex lg:w-[280px] lg:flex-col">
         {conversationList}
-      // Tag HTML na interface
       </div>
       {/* Sidebar mobile overlay */}
       {mobileListOpen && (
-        // Tag HTML na interface
         <div className="fixed inset-0 z-40 flex lg:hidden">
-          // Tag HTML na interface
           <button
             // Botão comum (não envia formulário)
             type="button"
-            // Classes CSS Tailwind — controla aparência visual
             className="absolute inset-0 bg-black/50"
             // Texto acessível para leitores de tela
             aria-label="Fechar"
             // Executa ação quando o usuário clica
             onClick={() => setMobileListOpen(false)}
           />
-          // Tag HTML na interface
           <div className="relative z-50 flex h-full w-[min(100%,280px)] flex-col bg-card shadow-xl">
             {conversationList}
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
       )}
-      // Tag HTML na interface
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-border bg-card lg:rounded-xl lg:border">
-        // Tag HTML na interface
         <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-5">
-          // Tag HTML na interface
           <div className="flex items-center gap-2 sm:gap-3">
-            // Tag HTML na interface
             <button
               // Botão comum (não envia formulário)
               type="button"
               // Executa ação quando o usuário clica
               onClick={() => setMobileListOpen(true)}
-              // Classes CSS Tailwind — controla aparência visual
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
               // Texto acessível para leitores de tela
               aria-label="Abrir conversas"
             >
-              // Elemento/componente React na tela
               <PanelLeft size={18} />
-            // Tag HTML na interface
             </button>
-            // Tag HTML na interface
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-cgreen-500">
-              // Elemento/componente React na tela
               <MessageCircle size={16} className="text-white" />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="min-w-0">
-              // Tag HTML na interface
               <p className="truncate text-sm font-medium text-foreground">Controla.ai — Agente IA</p>
-              // Tag HTML na interface
               <p className="text-xs text-cgreen-500 dark:text-cgreen-400">Sincronizado com WhatsApp</p>
-            // Tag HTML na interface
             </div>
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div className="flex items-center gap-1">
-            // Tag HTML na interface
             <button
               // Botão comum (não envia formulário)
               type="button"
               // Executa ação quando o usuário clica
               onClick={startNewChat}
-              // Classes CSS Tailwind — controla aparência visual
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted lg:hidden"
               // Texto acessível para leitores de tela
               aria-label="Nova conversa"
             >
-              // Elemento/componente React na tela
               <Plus size={16} />
-            // Tag HTML na interface
             </button>
-            // Tag HTML na interface
             <button
               // Botão comum (não envia formulário)
               type="button"
               // Executa ação quando o usuário clica
               onClick={handleDelete}
-              // Classes CSS Tailwind — controla aparência visual
               className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-cred-main"
               // Texto acessível para leitores de tela
               aria-label="Inativar conversa"
             >
-              // Elemento/componente React na tela
               <Trash2 size={16} />
-            // Tag HTML na interface
             </button>
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div
-          // Classes CSS Tailwind — controla aparência visual
           className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5"
           style={{
             backgroundColor: isDark ? "#0b141a" : "#ECE5DD",
@@ -409,17 +344,13 @@ export default function AiChat() {
         >
           // Percorre lista e renderiza um item para cada elemento
           {messages.map((msg, i) => (
-            // Tag HTML na interface
             <motion.div
               key={`${msg.timestamp}-${i}`}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              // Classes CSS Tailwind — controla aparência visual
               className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}
             >
-              // Tag HTML na interface
               <div
-                // Classes CSS Tailwind — controla aparência visual
                 className={cn(
                   "max-w-[92%] rounded-2xl px-4 py-3 shadow-sm sm:max-w-[80%]",
                   msg.role === "user"
@@ -427,86 +358,57 @@ export default function AiChat() {
                     : "border border-transparent bg-white text-foreground dark:border-border/40 dark:bg-[#1f2c34] dark:text-white",
                 )}
               >
-                // Tag HTML na interface
                 <div className="whitespace-pre-line text-sm leading-relaxed">{msg.content}</div>
-                // Tag HTML na interface
                 <p className="mt-1 text-right text-[10px] text-muted-foreground sm:text-xs">{msg.timestamp}</p>
-              // Tag HTML na interface
               </div>
-            // Tag HTML na interface
             </motion.div>
           ))}
           {isTyping && (
-            // Tag HTML na interface
             <div className="flex justify-start">
-              // Tag HTML na interface
               <div className="rounded-2xl border border-transparent bg-white px-4 py-3 shadow-sm dark:border-border/40 dark:bg-[#1f2c34]">
-                // Tag HTML na interface
                 <div className="flex gap-1">
                   // Percorre lista e renderiza um item para cada elemento
                   {[0, 150, 300].map((delay) => (
-                    // Tag HTML na interface
                     <span
                       key={delay}
-                      // Classes CSS Tailwind — controla aparência visual
                       className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/60"
                       style={{ animationDelay: `${delay}ms` }}
                     />
                   ))}
-                // Tag HTML na interface
                 </div>
-              // Tag HTML na interface
               </div>
-            // Tag HTML na interface
             </div>
           )}
-          // Tag HTML na interface
           <div ref={messagesEndRef} />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="border-t border-border bg-card px-3 py-2 sm:px-4">
-          // Tag HTML na interface
           <div className="mb-2 flex items-center gap-2">
-            // Elemento/componente React na tela
             <Lightbulb size={14} className="text-camber-main shrink-0" />
-            // Tag HTML na interface
             <span className="text-xs text-muted-foreground">Sugestões:</span>
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
             // Percorre lista e renderiza um item para cada elemento
             {suggestions.map((s) => {
               const Icon =
                 s.label.includes("gasto") ? PenLine : s.label.includes("Resumo") ? PieChart : s.label.includes("Dicas") ? Sparkles : Target;
               return (
-                // Tag HTML na interface
                 <button
                   key={s.label}
                   // Botão comum (não envia formulário)
                   type="button"
                   // Executa ação quando o usuário clica
                   onClick={() => handleSend(s.send)}
-                  // Classes CSS Tailwind — controla aparência visual
                   className="flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-cgreen-500/40 hover:bg-muted hover:text-cgreen-700 dark:hover:text-cgreen-400"
                 >
-                  // Elemento/componente React na tela
                   <Icon className="h-3.5 w-3.5 shrink-0 opacity-80" />
                   {s.label}
-                // Tag HTML na interface
                 </button>
               );
             })}
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="border-t border-border bg-card p-3 sm:p-4">
-          // Tag HTML na interface
           <div className="flex items-center gap-2 sm:gap-3">
-            // Tag HTML na interface
             <input
               value={input}
               // Atualiza estado quando o usuário digita/seleciona
@@ -514,10 +416,8 @@ export default function AiChat() {
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
               // Texto cinza de exemplo dentro do campo vazio
               placeholder="Digite um gasto ou pergunte algo..."
-              // Classes CSS Tailwind — controla aparência visual
               className="h-10 min-w-0 flex-1 rounded-xl border border-transparent bg-muted/60 px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-cgreen-500 focus:bg-card sm:h-11 sm:px-4"
             />
-            // Tag HTML na interface
             <button
               // Botão comum (não envia formulário)
               type="button"
@@ -525,20 +425,13 @@ export default function AiChat() {
               onClick={() => handleSend()}
               // Desabilita botão/campo (ex.: durante envio)
               disabled={isTyping}
-              // Classes CSS Tailwind — controla aparência visual
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cgreen-500 text-white transition-all hover:bg-cgreen-700 active:scale-[0.97] disabled:opacity-60 sm:h-11 sm:w-11"
             >
-              // Elemento/componente React na tela
               <Send size={18} />
-            // Tag HTML na interface
             </button>
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div>
-    // Tag HTML na interface
     </div>
   );
 }

@@ -127,35 +127,28 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
   },
 ];
 
-// Declara função auxiliar interna
 function findCategoryId(categories: ApiCategory[], name?: string): string | null {
   if (!name) return null;
   const hit = categories.find((c) => c.name.toLowerCase() === name.toLowerCase());
   return hit?.id ?? null;
 }
 
-// Declara função auxiliar interna
 function GoalProgressBar({ percentage }: { percentage: number }) {
   const color = percentage < 60 ? "#4CAF50" : percentage < 90 ? "#FFB300" : "#EF5350";
   return (
-    // Tag HTML na interface
     <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-      // Tag HTML na interface
       <motion.div
         initial={{ width: 0 }}
         // Operação matemática (arredondar, somar, etc.)
         animate={{ width: `${Math.min(percentage, 100)}%` }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        // Classes CSS Tailwind — controla aparência visual
         className="h-full rounded-full"
         style={{ background: color }}
       />
-    // Tag HTML na interface
     </div>
   );
 }
 
-// Declara função auxiliar interna
 function GoalCard({
   goal,
   onInactivate,
@@ -190,67 +183,43 @@ function GoalCard({
       ? Math.ceil(Math.max(target - goal.currentAmount, 0) / simAmount[0])
       : null;
   return (
-    // Tag HTML na interface
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="h-full min-h-0 rounded-xl">
-      // Elemento/componente React na tela
       <MagicCard
-        // Classes CSS Tailwind — controla aparência visual
         className="h-full rounded-xl border border-border/60"
         gradientFrom="#6ee7b7"
         gradientTo="#22c55e"
         gradientColor={isDark ? "#1c1c1e" : "#e4e4e7"}
         gradientSize={200}
       >
-        // Tag HTML na interface
         <div className="flex h-full flex-col space-y-4 p-5">
-          // Tag HTML na interface
           <div className="flex items-start justify-between gap-3">
-            // Tag HTML na interface
             <div className="flex min-w-0 items-center gap-3">
-              // Tag HTML na interface
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-foreground">
-                // Elemento/componente React na tela
                 <CategoryIcon name={goal.categoryIcon ?? "wallet"} size={20} />
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="min-w-0">
-                // Tag HTML na interface
                 <h3 className="text-base font-semibold tracking-tight text-foreground">{goal.name}</h3>
-                // Tag HTML na interface
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
-                  // Tag HTML na interface
                   <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                     {goal.goalType === "limit" ? "Limite de gasto" : "Meta de ganhos/faturamento"}
-                  // Tag HTML na interface
                   </span>
-                  // Tag HTML na interface
                   <span className="rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs font-medium text-muted-foreground">
                     {goal.periodType === "monthly"
                       ? "Mensal"
                       : goal.periodType === "quarterly"
                         ? "Trimestral"
                         : "Anual"}
-                  // Tag HTML na interface
                   </span>
-                  // Tag HTML na interface
                   <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", riskColors[goal.riskLevel])}>
                     Risco {riskLabels[goal.riskLevel]}
-                  // Tag HTML na interface
                   </span>
-                // Tag HTML na interface
                 </div>
-              // Tag HTML na interface
               </div>
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="flex items-center gap-1">
-              // Tag HTML na interface
               <button
                 // Botão comum (não envia formulário)
                 type="button"
-                // Classes CSS Tailwind — controla aparência visual
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                 // Texto acessível para leitores de tela
                 aria-label="Editar meta"
@@ -258,15 +227,11 @@ function GoalCard({
                 // Executa ação quando o usuário clica
                 onClick={onEdit}
               >
-                // Elemento/componente React na tela
                 <Pencil size={16} />
-              // Tag HTML na interface
               </button>
-              // Tag HTML na interface
               <button
                 // Botão comum (não envia formulário)
                 type="button"
-                // Classes CSS Tailwind — controla aparência visual
                 className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-cred-main"
                 // Texto acessível para leitores de tela
                 aria-label="Excluir meta"
@@ -274,93 +239,58 @@ function GoalCard({
                 // Executa ação quando o usuário clica
                 onClick={onInactivate}
               >
-                // Elemento/componente React na tela
                 <Ban size={16} />
-              // Tag HTML na interface
               </button>
-            // Tag HTML na interface
             </div>
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div>
-            // Tag HTML na interface
             <div className="mb-1 flex justify-between text-sm">
-              // Tag HTML na interface
               <span className="text-muted-foreground">
                 // Formata número como moeda/texto local (pt-BR)
                 R$ {goal.currentAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                 {goal.goalType === "saving" ? " em ganhos" : " gastos"}
-              // Tag HTML na interface
               </span>
-              // Tag HTML na interface
               <span className="font-medium tabular text-foreground">
                 // Formata número como moeda/texto local (pt-BR)
                 {livePct.toFixed(0)}% de R$ {target.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              // Tag HTML na interface
               </span>
-            // Tag HTML na interface
             </div>
-            // Elemento/componente React na tela
             <GoalProgressBar percentage={livePct} />
             {goal.currentAmount === 0 && (
-              // Tag HTML na interface
               <p className="mt-2 text-xs text-muted-foreground">
                 {goal.goalType === "saving"
                   ? "Você ainda não possui ganhos registrados neste período da meta."
                   : "Nenhuma despesa registrada neste período da meta."}
-              // Tag HTML na interface
               </p>
             )}
-          // Tag HTML na interface
           </div>
-          // Elemento/componente React na tela
           <ChartPlotArea className="h-[120px]">
-            // Elemento/componente React na tela
             <ResponsiveContainer width="100%" height="100%">
-              // Elemento/componente React na tela
               <LineChart data={evolutionData}>
-                // Elemento/componente React na tela
                 <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
-                // Elemento/componente React na tela
                 <XAxis dataKey="month" tick={{ fill: tickFill, fontSize: 11 }} />
-                // Elemento/componente React na tela
                 <YAxis tick={{ fill: tickFill, fontSize: 11 }} width={48} />
-                // Elemento/componente React na tela
                 <Line type="monotone" dataKey="value" stroke={goal.color} strokeWidth={2} dot />
-              // Elemento/componente React na tela
               </LineChart>
-            // Elemento/componente React na tela
             </ResponsiveContainer>
-          // Elemento/componente React na tela
           </ChartPlotArea>
           {goal.goalType === "saving" && (
-            // Tag HTML na interface
             <div className="space-y-2 border-t border-border pt-3">
-              // Tag HTML na interface
               <p className="text-xs font-medium text-muted-foreground">Simulação de aporte mensal</p>
-              // Elemento/componente React na tela
               <Slider value={simAmount} onValueChange={setSimAmount} min={100} max={5000} step={100} />
-              // Tag HTML na interface
               <p className="text-xs text-muted-foreground">
                 // Formata número como moeda/texto local (pt-BR)
                 R$ {simAmount[0].toLocaleString("pt-BR")}/mês
                 {monthsToGoal ? ` → meta em ~${monthsToGoal} meses` : ""}
-              // Tag HTML na interface
               </p>
-            // Tag HTML na interface
             </div>
           )}
-        // Tag HTML na interface
         </div>
-      // Elemento/componente React na tela
       </MagicCard>
-    // Tag HTML na interface
     </motion.div>
   );
 }
 
-// Declara função auxiliar interna
 function SummaryStat({
   icon: Icon,
   label,
@@ -378,39 +308,26 @@ function SummaryStat({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   return (
-    // Elemento/componente React na tela
     <MagicCard
-      // Classes CSS Tailwind — controla aparência visual
       className="min-h-[92px] rounded-xl border border-border/60"
       gradientFrom="#6ee7b7"
       gradientTo="#22c55e"
       gradientColor={isDark ? "#1c1c1e" : "#e4e4e7"}
       gradientSize={180}
     >
-      // Tag HTML na interface
       <div className="flex items-center gap-3 p-4">
-        // Tag HTML na interface
         <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", iconBg)}>
-          // Elemento/componente React na tela
           <Icon size={18} className={iconClass} />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="min-w-0">
-          // Tag HTML na interface
           <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
-          // Tag HTML na interface
           <p className="text-lg font-semibold tabular tracking-tight text-foreground">{value}</p>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div>
-    // Elemento/componente React na tela
     </MagicCard>
   );
 }
 
-// Declara função auxiliar interna
 function TemplateCard({
   template,
   onUse,
@@ -421,7 +338,6 @@ function TemplateCard({
   loading: boolean;
 }) {
   return (
-    // Tag HTML na interface
     <button
       // Botão comum (não envia formulário)
       type="button"
@@ -429,39 +345,25 @@ function TemplateCard({
       disabled={loading}
       // Executa ação quando o usuário clica
       onClick={onUse}
-      // Classes CSS Tailwind — controla aparência visual
       className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-cgreen-500/50 hover:bg-cgreen-500/5 disabled:opacity-60"
     >
-      // Tag HTML na interface
       <div className="flex items-center gap-3">
-        // Tag HTML na interface
         <div
-          // Classes CSS Tailwind — controla aparência visual
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
           style={{ backgroundColor: `${template.color}22`, color: template.color }}
         >
-          // Elemento/componente React na tela
           <CategoryIcon name={template.icon} size={20} />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="min-w-0">
-          // Tag HTML na interface
           <p className="font-medium text-foreground">{template.name}</p>
-          // Tag HTML na interface
           <p className="text-xs text-muted-foreground">
             {template.goalType === "limit" ? "Limite" : "Ganhos"} · R${" "}
             // Formata número como moeda/texto local (pt-BR)
             {template.limitAmount.toLocaleString("pt-BR")}
-          // Tag HTML na interface
           </p>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <p className="text-xs text-muted-foreground">{template.description}</p>
-    // Tag HTML na interface
     </button>
   );
 }
@@ -592,49 +494,28 @@ export default function Goals() {
   const onTrack = goals.filter((g) => g.percentage < 90 && !g.exceeded).length;
   const exceeded = goals.filter((g) => g.exceeded || g.percentage >= 100).length;
   return (
-    // Tag HTML na interface
     <div className="space-y-6 min-w-0 max-w-full">
-      // Tag HTML na interface
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        // Tag HTML na interface
         <div>
-          // Tag HTML na interface
           <h1 className="text-xl font-semibold tracking-tight text-foreground">Metas Financeiras</h1>
-          // Tag HTML na interface
           <p className="mt-0.5 text-sm text-muted-foreground">
             Crie, edite e acompanhe — progresso baseado em ganhos/despesas reais
-          // Tag HTML na interface
           </p>
-        // Tag HTML na interface
         </div>
-        // Elemento/componente React na tela
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          // Elemento/componente React na tela
           <DialogTrigger asChild>
-            // Elemento/componente React na tela
             <Button className="gap-2 bg-cgreen-500 hover:bg-cgreen-700">
-              // Elemento/componente React na tela
               <Plus size={16} />
               Nova meta
-            // Elemento/componente React na tela
             </Button>
-          // Elemento/componente React na tela
           </DialogTrigger>
-          // Elemento/componente React na tela
           <DialogContent className="sm:max-w-md">
-            // Elemento/componente React na tela
             <DialogHeader>
-              // Elemento/componente React na tela
               <DialogTitle>Criar meta personalizada</DialogTitle>
-            // Elemento/componente React na tela
             </DialogHeader>
-            // Tag HTML na interface
             <form onSubmit={createCustom} className="space-y-4 pt-2">
-              // Tag HTML na interface
               <div>
-                // Elemento/componente React na tela
                 <Label htmlFor="goal-name">Nome *</Label>
-                // Elemento/componente React na tela
                 <Input
                   id="goal-name"
                   value={customName}
@@ -644,13 +525,9 @@ export default function Goals() {
                   placeholder="Ex.: Faturamento mensal R$ 20.000"
                   required
                 />
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div>
-                // Elemento/componente React na tela
                 <Label htmlFor="goal-amount">Valor (R$) *</Label>
-                // Elemento/componente React na tela
                 <Input
                   id="goal-amount"
                   type="number"
@@ -661,46 +538,29 @@ export default function Goals() {
                   onChange={(e) => setCustomAmount(e.target.value)}
                   required
                 />
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div>
-                // Elemento/componente React na tela
                 <Label>Período</Label>
-                // Elemento/componente React na tela
                 <Select value={customPeriod} onValueChange={(v) => setCustomPeriod(v as typeof customPeriod)}>
-                  // Elemento/componente React na tela
                   <SelectTrigger>
-                    // Elemento/componente React na tela
                     <SelectValue />
-                  // Elemento/componente React na tela
                   </SelectTrigger>
-                  // Elemento/componente React na tela
                   <SelectContent>
-                    // Elemento/componente React na tela
                     <SelectItem value="monthly">Mensal</SelectItem>
-                    // Elemento/componente React na tela
                     <SelectItem value="quarterly">Trimestral</SelectItem>
-                    // Elemento/componente React na tela
                     <SelectItem value="yearly">Anual</SelectItem>
-                  // Elemento/componente React na tela
                   </SelectContent>
-                // Elemento/componente React na tela
                 </Select>
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="flex gap-2">
                 // Percorre lista e renderiza um item para cada elemento
                 {(["saving", "limit"] as const).map((t) => (
-                  // Tag HTML na interface
                   <button
                     key={t}
                     // Botão comum (não envia formulário)
                     type="button"
                     // Executa ação quando o usuário clica
                     onClick={() => setCustomType(t)}
-                    // Classes CSS Tailwind — controla aparência visual
                     className={cn(
                       "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
                       customType === t
@@ -709,54 +569,33 @@ export default function Goals() {
                     )}
                   >
                     {t === "limit" ? "Limite de gasto" : "Meta de ganhos"}
-                  // Tag HTML na interface
                   </button>
                 ))}
-              // Tag HTML na interface
               </div>
-              // Elemento/componente React na tela
               <Button type="submit" className="w-full bg-cgreen-500 hover:bg-cgreen-700" disabled={createMut.isPending}>
                 {createMut.isPending ? "Salvando…" : "Criar meta"}
-              // Elemento/componente React na tela
               </Button>
-            // Tag HTML na interface
             </form>
-          // Elemento/componente React na tela
           </DialogContent>
-        // Elemento/componente React na tela
         </Dialog>
-      // Tag HTML na interface
       </div>
-      // Elemento/componente React na tela
       <Dialog
         open={Boolean(editGoal)}
         onOpenChange={(v) => {
           if (!v) setEditGoal(null);
         }}
       >
-        // Elemento/componente React na tela
         <DialogContent className="sm:max-w-md">
-          // Elemento/componente React na tela
           <DialogHeader>
-            // Elemento/componente React na tela
             <DialogTitle>Editar meta</DialogTitle>
-          // Elemento/componente React na tela
           </DialogHeader>
-          // Tag HTML na interface
           <form onSubmit={saveEdit} className="space-y-4 pt-2">
-            // Tag HTML na interface
             <div>
-              // Elemento/componente React na tela
               <Label htmlFor="edit-goal-name">Nome *</Label>
-              // Elemento/componente React na tela
               <Input id="edit-goal-name" value={editName} onChange={(e) => setEditName(e.target.value)} required />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div>
-              // Elemento/componente React na tela
               <Label htmlFor="edit-goal-amount">Valor (R$) *</Label>
-              // Elemento/componente React na tela
               <Input
                 id="edit-goal-amount"
                 type="number"
@@ -767,66 +606,38 @@ export default function Goals() {
                 onChange={(e) => setEditAmount(e.target.value)}
                 required
               />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div>
-              // Elemento/componente React na tela
               <Label>Período</Label>
-              // Elemento/componente React na tela
               <Select value={editPeriod} onValueChange={(v) => setEditPeriod(v as typeof editPeriod)}>
-                // Elemento/componente React na tela
                 <SelectTrigger>
-                  // Elemento/componente React na tela
                   <SelectValue />
-                // Elemento/componente React na tela
                 </SelectTrigger>
-                // Elemento/componente React na tela
                 <SelectContent>
-                  // Elemento/componente React na tela
                   <SelectItem value="monthly">Mensal</SelectItem>
-                  // Elemento/componente React na tela
                   <SelectItem value="quarterly">Trimestral</SelectItem>
-                  // Elemento/componente React na tela
                   <SelectItem value="yearly">Anual</SelectItem>
-                // Elemento/componente React na tela
                 </SelectContent>
-              // Elemento/componente React na tela
               </Select>
-            // Tag HTML na interface
             </div>
-            // Elemento/componente React na tela
             <DialogFooter>
-              // Elemento/componente React na tela
               <Button type="button" variant="outline" onClick={() => setEditGoal(null)}>
                 Cancelar
-              // Elemento/componente React na tela
               </Button>
-              // Elemento/componente React na tela
               <Button type="submit" className="bg-cgreen-500 hover:bg-cgreen-700" disabled={updateMut.isPending}>
                 {updateMut.isPending ? "Salvando…" : "Salvar"}
-              // Elemento/componente React na tela
               </Button>
-            // Elemento/componente React na tela
             </DialogFooter>
-          // Tag HTML na interface
           </form>
-        // Elemento/componente React na tela
         </DialogContent>
-      // Elemento/componente React na tela
       </Dialog>
-      // Classes CSS Tailwind — controla aparência visual
       {isLoading && <p className="text-sm text-muted-foreground">Carregando metas…</p>}
       {!isLoading && goals.length === 0 && (
-        // Tag HTML na interface
         <div className="space-y-4">
-          // Tag HTML na interface
           <p className="text-sm text-muted-foreground">Nenhuma meta ativa. Comece com um modelo pronto:</p>
-          // Tag HTML na interface
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             // Percorre lista e renderiza um item para cada elemento
             {GOAL_TEMPLATES.map((template) => (
-              // Elemento/componente React na tela
               <TemplateCard
                 key={template.name}
                 template={template}
@@ -834,28 +645,19 @@ export default function Goals() {
                 loading={createMut.isPending}
               />
             ))}
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
       )}
       {goals.length > 0 && (
         <>
-          // Tag HTML na interface
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            // Elemento/componente React na tela
             <SummaryStat icon={CheckCircle2} label="No prazo" value={onTrack} iconBg="bg-cgreen-50 dark:bg-cgreen-900/30" iconClass="text-cgreen-500" />
-            // Elemento/componente React na tela
             <SummaryStat icon={AlertTriangle} label="Atenção" value={goals.length - onTrack - exceeded} iconBg="bg-camber-light dark:bg-amber-900/25" iconClass="text-camber-main" />
-            // Elemento/componente React na tela
             <SummaryStat icon={TrendingUp} label="Excedidas / batidas" value={exceeded} iconBg="bg-cred-light dark:bg-red-900/25" iconClass="text-cred-main" />
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div className="grid grid-cols-1 items-stretch gap-4 lg:grid-cols-2">
             // Percorre lista e renderiza um item para cada elemento
             {goals.map((goal) => (
-              // Elemento/componente React na tela
               <GoalCard
                 key={goal.id}
                 goal={goal}
@@ -865,11 +667,9 @@ export default function Goals() {
                 }}
               />
             ))}
-          // Tag HTML na interface
           </div>
         </>
       )}
-    // Tag HTML na interface
     </div>
   );
 }

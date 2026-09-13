@@ -30,7 +30,6 @@ const TOKEN_KEY = "controla_token";
 const USER_KEY = "controla_user";
 
 /** Lê o usuário serializado do localStorage (ou null se inválido). */
-// Declara função auxiliar interna
 function loadStoredUser(): ApiUser | null {
   try {
     const raw = localStorage.getItem(USER_KEY);
@@ -54,7 +53,6 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /** Provider que envolve a aplicação em main.tsx. */
-// Exporta função usada por outros arquivos
 export function AuthProvider({ children }: { children: ReactNode }) {
   // Armazena dado no navegador (persiste após fechar aba)
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
@@ -153,7 +151,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 /** Hook para consumir o contexto — lança erro se usado fora do AuthProvider. */
-// Exporta função usada por outros arquivos
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");

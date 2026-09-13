@@ -58,21 +58,18 @@ const adminOnlyNavItems = [
   { to: "/admin/whatsapp", icon: Smartphone, label: "WhatsApp" },
 ];
 
-// Declara função auxiliar interna
 function initials(name: string) {
   const p = name.trim().split(/\s+/).filter(Boolean);
   if (p.length >= 2) return `${p[0][0]}${p[p.length - 1][0]}`.toUpperCase();
   return name.slice(0, 2).toUpperCase() || "?";
 }
 
-// Declara função auxiliar interna
 function planLabel(plan: string) {
   const m: Record<string, string> = { free: "Free", pro: "Pro", premium: "Premium" };
   return m[plan] ?? plan;
 }
 
 /** Rótulo curto para a barra inferior no mobile. */
-// Declara função auxiliar interna
 function mobileNavLabel(label: string) {
   const map: Record<string, string> = {
     Dashboard: "Início",
@@ -131,30 +128,21 @@ export default function Layout() {
     }
   }, [billingBlocked, onSettings, navigate]);
   return (
-    // Tag HTML na interface
     <div className="flex min-h-[100dvh] min-h-screen min-w-0 max-w-full bg-background overflow-x-hidden">
       {/* Sidebar desktop — navegação principal */}
       <aside className="hidden lg:flex lg:flex-col lg:w-[240px] bg-surface-card dark:bg-card border-r border-cgray-200 dark:border-cgray-800 fixed inset-y-0 left-0 z-30">
-        // Tag HTML na interface
         <div className="p-6 pb-4">
-          // Elemento/componente React na tela
           <Link to="/" className="inline-flex rounded-lg outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-cgreen-500" aria-label="Ir para o Dashboard">
-            // Elemento/componente React na tela
             <LogoFull />
-          // Elemento/componente React na tela
           </Link>
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
           // Percorre lista e renderiza um item para cada elemento
           {navItems.map((item) => (
-            // Elemento/componente React na tela
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === "/"}
-              // Classes CSS Tailwind — controla aparência visual
               className={({ isActive }) =>
                 `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors duration-150 ${
                   isActive
@@ -163,99 +151,67 @@ export default function Layout() {
                 }`
               }
             >
-              // Tag HTML na interface
               <item.icon size={20} />
               {item.label}
-            // Elemento/componente React na tela
             </NavLink>
           ))}
-        // Tag HTML na interface
         </nav>
-        // Tag HTML na interface
         <div className="p-4 border-t border-cgray-200 dark:border-cgray-800">
-          // Tag HTML na interface
           <button
             // Botão comum (não envia formulário)
             type="button"
             // Navega para outra página do app
             onClick={() => navigate("/settings#renda-mensal")}
-            // Classes CSS Tailwind — controla aparência visual
             className="flex w-full items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-cgray-50 dark:hover:bg-muted"
             // Texto acessível para leitores de tela
             aria-label="Abrir configurações e renda mensal"
           >
-            // Tag HTML na interface
             <div className="w-10 h-10 rounded-full bg-cgreen-50 dark:bg-cgreen-900/40 text-cgreen-700 dark:text-cgreen-400 flex items-center justify-center text-sm font-semibold">
               {initials(displayName)}
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="flex-1 min-w-0">
-              // Tag HTML na interface
               <p className="text-sm font-medium text-cgray-900 dark:text-foreground truncate">{displayName}</p>
-              // Tag HTML na interface
               <p className="text-xs text-cgray-400">Plano {displayPlan}</p>
-            // Tag HTML na interface
             </div>
-          // Tag HTML na interface
           </button>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </aside>
-      // Tag HTML na interface
       <div className="flex min-w-0 flex-1 flex-col min-h-[100dvh] min-h-screen lg:ml-[240px]">
         {/* Cabeçalho mobile */}
         <header className="lg:hidden flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 bg-surface-card dark:bg-card border-b border-cgray-200 dark:border-cgray-800 sticky top-0 z-20 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          // Elemento/componente React na tela
           <Link to="/" className="inline-flex" aria-label="Ir para o Dashboard">
-            // Elemento/componente React na tela
             <LogoFull />
-          // Elemento/componente React na tela
           </Link>
-          // Tag HTML na interface
           <button
             // Botão comum (não envia formulário)
             type="button"
-            // Classes CSS Tailwind — controla aparência visual
             className="w-10 h-10 rounded-full bg-cgray-50 dark:bg-muted flex items-center justify-center"
             // Texto acessível para leitores de tela
             aria-label="Notificações"
           >
-            // Elemento/componente React na tela
             <Bell size={18} className="text-cgray-600 dark:text-muted-foreground" />
-          // Tag HTML na interface
           </button>
-        // Tag HTML na interface
         </header>
-        // Elemento/componente React na tela
         <TrialCountdownBanner />
         {/* Área de conteúdo — chat IA ocupa altura total no mobile */}
         <main
-          // Classes CSS Tailwind — controla aparência visual
           className={cn(
             "flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden max-w-full",
             isAiChat ? "p-0 pb-0 lg:p-8 lg:pb-8" : "p-3 sm:p-5 lg:p-8 pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-8",
           )}
         >
-          // Elemento/componente React na tela
           <Outlet />
-        // Tag HTML na interface
         </main>
-      // Tag HTML na interface
       </div>
       {/* Barra de navegação inferior — mobile */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white/80 dark:bg-card/90 backdrop-blur-xl border-t border-cgray-200 dark:border-cgray-800 z-30 pb-[env(safe-area-inset-bottom)]">
-        // Tag HTML na interface
         <div className="flex h-14 sm:h-[60px] items-center justify-around gap-0.5 overflow-x-auto px-1 sm:px-2 scrollbar-none">
           // Percorre lista e renderiza um item para cada elemento
           {navItems.map((item) => (
-            // Elemento/componente React na tela
             <NavLink
               key={item.to}
               to={item.to}
               end={item.to === "/"}
-              // Classes CSS Tailwind — controla aparência visual
               className={({ isActive }) =>
                 cn(
                   "flex min-w-[56px] sm:min-w-[64px] flex-shrink-0 flex-col items-center justify-center gap-0.5 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-medium transition-colors",
@@ -263,18 +219,12 @@ export default function Layout() {
                 )
               }
             >
-              // Tag HTML na interface
               <item.icon size={20} className="sm:w-[22px] sm:h-[22px]" />
-              // Tag HTML na interface
               <span className="max-w-[56px] sm:max-w-[64px] truncate">{mobileNavLabel(item.label)}</span>
-            // Elemento/componente React na tela
             </NavLink>
           ))}
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </nav>
-    // Tag HTML na interface
     </div>
   );
 }

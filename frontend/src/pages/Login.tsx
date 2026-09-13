@@ -47,42 +47,29 @@ export default function Login() {
   const header = useMemo(
     () =>
       isAdminMode ? (
-        // Tag HTML na interface
         <motion.div
           key="admin-header"
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
-          // Classes CSS Tailwind — controla aparência visual
           className="text-center"
         >
-          // Tag HTML na interface
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/25">
-            // Elemento/componente React na tela
             <Shield className="text-amber-700 dark:text-amber-400" size={22} />
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Área administrativa</h1>
-          // Tag HTML na interface
           <p className="text-sm text-cgray-400 mt-1">WhatsApp, logs IA e recursos premium</p>
-        // Tag HTML na interface
         </motion.div>
       ) : (
-        // Tag HTML na interface
         <motion.div
           key="user-header"
           initial={{ opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 6 }}
-          // Classes CSS Tailwind — controla aparência visual
           className="text-center"
         >
-          // Tag HTML na interface
           <h1 className="text-xl font-medium text-cgray-900 dark:text-foreground">Entrar na sua conta</h1>
-          // Tag HTML na interface
           <p className="text-sm text-cgray-400 mt-1">Acesse seu dashboard financeiro</p>
-        // Tag HTML na interface
         </motion.div>
       ),
     [isAdminMode],
@@ -170,45 +157,32 @@ export default function Login() {
     }
   };
   return (
-    // Tag HTML na interface
     <div className="min-h-[100dvh] min-h-screen bg-surface-page dark:bg-background flex flex-col items-center justify-center py-6 px-4 overflow-y-auto overflow-x-hidden">
-      // Tag HTML na interface
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        // Classes CSS Tailwind — controla aparência visual
         className="w-full max-w-sm min-w-0"
       >
-        // Tag HTML na interface
         <div className="flex justify-center mb-6 sm:mb-8">
-          // Elemento/componente React na tela
           <LogoFull />
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div
-          // Classes CSS Tailwind — controla aparência visual
           className={`bg-surface-card dark:bg-card border rounded-2xl p-4 sm:p-6 space-y-5 min-w-0 transition-colors duration-300 ${
             isAdminMode
               ? "border-amber-200 dark:border-amber-800/60"
               : "border-cgray-200 dark:border-cgray-800"
           }`}
         >
-          // Elemento/componente React na tela
           <AnimatePresence mode="wait">{challenge ? null : header}</AnimatePresence>
           {justReset && !challenge && (
-            // Tag HTML na interface
             <div
               role="status"
-              // Classes CSS Tailwind — controla aparência visual
               className="rounded-xl px-4 py-3 text-sm bg-cgreen-50 dark:bg-cgreen-950/30 text-cgreen-800 dark:text-cgreen-200 border border-cgreen-200 dark:border-cgreen-800"
             >
               Senha redefinida com sucesso. Entre com a nova senha.
-            // Tag HTML na interface
             </div>
           )}
           {challenge ? (
-            // Elemento/componente React na tela
             <EmailOtpStep
               challenge={challenge}
               submitting={submitting}
@@ -222,16 +196,11 @@ export default function Login() {
               }}
             />
           ) : (
-          // Tag HTML na interface
           <form onSubmit={handleLogin} className="space-y-4">
-            // Tag HTML na interface
             <div>
-              // Tag HTML na interface
               <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                 {isAdminMode ? "E-mail admin" : "E-mail"}
-              // Tag HTML na interface
               </label>
-              // Tag HTML na interface
               <input
                 // Campo de e-mail com validação do navegador
                 type="email"
@@ -252,21 +221,14 @@ export default function Login() {
                 placeholder={isAdminMode ? "admin@admin.com" : "seu@email.com"}
                 required
                 autoComplete="email"
-                // Classes CSS Tailwind — controla aparência visual
                 className={`w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 ${inputFocusClass} focus:bg-white dark:focus:bg-card outline-none transition-colors`}
               />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div>
-              // Tag HTML na interface
               <label className="text-xs text-cgray-400 uppercase tracking-wider font-medium mb-1.5 block">
                 Senha
-              // Tag HTML na interface
               </label>
-              // Tag HTML na interface
               <div className="relative">
-                // Tag HTML na interface
                 <input
                   type={showPw ? "text" : "password"}
                   value={password}
@@ -276,29 +238,22 @@ export default function Login() {
                   placeholder="••••••"
                   required
                   autoComplete="current-password"
-                  // Classes CSS Tailwind — controla aparência visual
                   className={`w-full h-11 bg-surface-inset dark:bg-muted border border-cgray-200 dark:border-cgray-800 rounded-xl px-4 pr-11 text-sm text-cgray-900 dark:text-foreground placeholder:text-cgray-400 ${inputFocusClass} focus:bg-white dark:focus:bg-card outline-none transition-colors`}
                 />
-                // Tag HTML na interface
                 <button
                   // Botão comum (não envia formulário)
                   type="button"
                   // Executa ação quando o usuário clica
                   onClick={() => setShowPw(!showPw)}
-                  // Classes CSS Tailwind — controla aparência visual
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-cgray-400"
                   // Texto acessível para leitores de tela
                   aria-label={showPw ? "Ocultar senha" : "Mostrar senha"}
                 >
                   {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
-                // Tag HTML na interface
                 </button>
-              // Tag HTML na interface
               </div>
               {!isAdminMode && (
-                // Tag HTML na interface
                 <div className="text-right">
-                  // Elemento/componente React na tela
                   <Link
                     to={
                       // Remove espaços no início/fim do texto
@@ -307,26 +262,19 @@ export default function Login() {
                         ? `/forgot-password?email=${encodeURIComponent(email.trim())}`
                         : "/forgot-password"
                     }
-                    // Classes CSS Tailwind — controla aparência visual
                     className="text-xs text-cgreen-500 font-medium hover:text-cgreen-700"
                   >
                     Esqueceu a senha?
-                  // Elemento/componente React na tela
                   </Link>
-                // Tag HTML na interface
                 </div>
               )}
-            // Tag HTML na interface
             </div>
-            // Classes CSS Tailwind — controla aparência visual
             {error && <p className="text-xs text-cred-main">{error}</p>}
-            // Tag HTML na interface
             <button
               // Botão que envia o formulário
               type="submit"
               // Desabilita botão/campo (ex.: durante envio)
               disabled={submitting}
-              // Classes CSS Tailwind — controla aparência visual
               className={`w-full h-11 rounded-xl text-white text-sm font-medium active:scale-[0.98] transition-all disabled:opacity-60 ${
                 isAdminMode
                   ? "bg-amber-600 hover:bg-amber-700"
@@ -334,54 +282,39 @@ export default function Login() {
               }`}
             >
               {submitting ? "Entrando…" : isAdminMode ? "Entrar como administrador" : "Entrar"}
-            // Tag HTML na interface
             </button>
-          // Tag HTML na interface
           </form>
           )}
           {!challenge && (
-          // Elemento/componente React na tela
           <AnimatePresence mode="wait">
             {isAdminMode ? (
-              // Tag HTML na interface
               <motion.p
                 key="admin-foot"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                // Classes CSS Tailwind — controla aparência visual
                 className="text-center text-xs text-cgray-400"
               >
                 Usuário comum? Altere o e-mail acima para acessar sua conta.
-              // Tag HTML na interface
               </motion.p>
             ) : (
-              // Tag HTML na interface
               <motion.p
                 key="user-foot"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                // Classes CSS Tailwind — controla aparência visual
                 className="text-center text-sm text-cgray-400"
               >
                 Não tem conta?{" "}
-                // Elemento/componente React na tela
                 <Link to="/register" className="text-cgreen-500 font-medium hover:text-cgreen-700">
                   Criar conta
-                // Elemento/componente React na tela
                 </Link>
-              // Tag HTML na interface
               </motion.p>
             )}
-          // Elemento/componente React na tela
           </AnimatePresence>
           )}
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </motion.div>
-    // Tag HTML na interface
     </div>
   );
 }

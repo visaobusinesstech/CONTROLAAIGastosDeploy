@@ -60,16 +60,13 @@ import { useAuth } from "@/lib/auth"; // Hook de sessão JWT
 const queryClient = new QueryClient();
 
 /** Redireciona para /login se não houver token válido. */
-// Declara função auxiliar interna
 function RequireAuth() {
   // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, loading } = useAuth();
   if (loading) {
     return (
-      // Tag HTML na interface
       <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
         Carregando…
-      // Tag HTML na interface
       </div>
     );
   }
@@ -78,127 +75,81 @@ function RequireAuth() {
 }
 
 /** Layout com sidebar para rotas autenticadas. */
-// Declara função auxiliar interna
 function AuthenticatedShell() {
   return <Layout />;
 }
 
 const App = () => (
-  // Elemento/componente React na tela
   <QueryClientProvider client={queryClient}>
-    // Elemento/componente React na tela
     <TooltipProvider>
-      // Elemento/componente React na tela
       <Toaster />
-      // Elemento/componente React na tela
       <Sonner />
-      // Elemento/componente React na tela
       <BrowserRouter>
-        // Elemento/componente React na tela
         <AppErrorBoundaryWithRouter>
-          // Elemento/componente React na tela
           <DocumentTitle />
-          // Elemento/componente React na tela
           <Routes>
             {/* Rotas públicas — autenticação */}
             <Route path="/login" element={<Login />} />
-            // Elemento/componente React na tela
             <Route path="/register" element={<Register />} />
-            // Elemento/componente React na tela
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            // Elemento/componente React na tela
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* Rotas protegidas — exigem JWT */}
             <Route element={<RequireAuth />}>
-              // Elemento/componente React na tela
               <Route element={<AuthenticatedShell />}>
-                // Elemento/componente React na tela
                 <Route index element={<Dashboard />} />
-                // Elemento/componente React na tela
                 <Route path="goals" element={<Goals />} />
-                // Elemento/componente React na tela
                 <Route path="ai" element={<AiChat />} />
-                // Elemento/componente React na tela
                 <Route path="settings" element={<SettingsPage />} />
                 {/* Rotas admin — WhatsApp Baileys e logs OpenAI */}
                 <Route
                   path="admin/whatsapp"
                   element={
-                    // Elemento/componente React na tela
                     <RequireAdmin>
-                      // Elemento/componente React na tela
                       <WhatsAppPage />
-                    // Elemento/componente React na tela
                     </RequireAdmin>
                   }
                 />
-                // Elemento/componente React na tela
                 <Route
                   path="admin/subscribers"
                   element={
-                    // Elemento/componente React na tela
                     <RequireAdminAuth>
-                      // Elemento/componente React na tela
                       <AdminSubscribersPage />
-                    // Elemento/componente React na tela
                     </RequireAdminAuth>
                   }
                 />
-                // Elemento/componente React na tela
                 <Route
                   path="admin/audit"
                   element={
-                    // Elemento/componente React na tela
                     <RequireStaff>
-                      // Elemento/componente React na tela
                       <AdminAuditLogsPage />
-                    // Elemento/componente React na tela
                     </RequireStaff>
                   }
                 />
-                // Elemento/componente React na tela
                 <Route
                   path="admin/lgpd"
                   element={
-                    // Elemento/componente React na tela
                     <RequireStaff>
-                      // Elemento/componente React na tela
                       <AdminLgpdPage />
-                    // Elemento/componente React na tela
                     </RequireStaff>
                   }
                 />
-                // Elemento/componente React na tela
                 <Route
                   path="admin/ai-logs"
                   element={
-                    // Elemento/componente React na tela
                     <RequireStaff>
-                      // Elemento/componente React na tela
                       <AiLogsPage />
-                    // Elemento/componente React na tela
                     </RequireStaff>
                   }
                 />
-              // Elemento/componente React na tela
               </Route>
-            // Elemento/componente React na tela
             </Route>
-            // Elemento/componente React na tela
             <Route path="/admin/login" element={<Navigate to="/login" replace />} />
-            // Elemento/componente React na tela
             <Route path="/admin" element={<Navigate to="/login" replace />} />
-            // Elemento/componente React na tela
             <Route path="*" element={<NotFound />} /> {/* 404 */}
-          // Elemento/componente React na tela
           </Routes>
-        // Elemento/componente React na tela
         </AppErrorBoundaryWithRouter>
-      // Elemento/componente React na tela
       </BrowserRouter>
-    // Elemento/componente React na tela
     </TooltipProvider>
-  // Elemento/componente React na tela
   </QueryClientProvider>
 );
 

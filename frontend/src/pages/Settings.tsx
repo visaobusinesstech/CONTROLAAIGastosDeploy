@@ -67,7 +67,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
-// Declara função auxiliar interna
 function SettingRow({
   icon: Icon,
   iconBg,
@@ -84,95 +83,72 @@ function SettingRow({
   onClick?: () => void;
 }) {
   return (
-    // Tag HTML na interface
     <button
       // Botão comum (não envia formulário)
       type="button"
       // Executa ação quando o usuário clica
       onClick={onClick}
-      // Classes CSS Tailwind — controla aparência visual
       className="flex w-full items-center gap-3 border-b border-border bg-card px-5 py-3.5 text-left transition-colors hover:bg-muted/60"
     >
-      // Tag HTML na interface
       <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]", iconBg)}>
-        // Elemento/componente React na tela
         <Icon size={16} className="text-white" />
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="min-w-0 flex-1">
-        // Tag HTML na interface
         <p className="text-base font-medium text-foreground">{title}</p>
-        // Classes CSS Tailwind — controla aparência visual
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-      // Tag HTML na interface
       </div>
-      // Classes CSS Tailwind — controla aparência visual
       {action ?? <ChevronRight size={16} className="shrink-0 text-muted-foreground" />}
-    // Tag HTML na interface
     </button>
   );
 }
 
-// Declara função auxiliar interna
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
-    // Tag HTML na interface
     <button
       // Botão comum (não envia formulário)
       type="button"
       // Executa ação quando o usuário clica
       onClick={() => onChange(!checked)}
-      // Classes CSS Tailwind — controla aparência visual
       className={cn(
         "relative flex h-[26px] w-11 shrink-0 items-center rounded-full transition-colors duration-200",
         checked ? "bg-cgreen-500" : "bg-muted",
       )}
     >
-      // Tag HTML na interface
       <div
-        // Classes CSS Tailwind — controla aparência visual
         className={cn(
           "absolute top-[2px] h-[22px] w-[22px] rounded-full bg-white shadow-sm transition-transform duration-200",
           checked ? "translate-x-[22px]" : "translate-x-[2px]",
         )}
       />
-    // Tag HTML na interface
     </button>
   );
 }
 
-// Declara função auxiliar interna
 function initials(name: string) {
   const p = name.trim().split(/\s+/).filter(Boolean);
   if (p.length >= 2) return `${p[0][0]}${p[p.length - 1][0]}`.toUpperCase();
   return name.slice(0, 2).toUpperCase() || "?";
 }
 
-// Declara função auxiliar interna
 function planLabel(plan: string) {
   const m: Record<string, string> = { free: "Free", pro: "Pro", premium: "Premium" };
   return m[plan] ?? plan;
 }
 
-// Declara função auxiliar interna
 function formatBrPhone(d: string) {
   if (d.length === 11) return d.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
   if (d.length === 10) return d.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
   return d;
 }
 
-// Declara função auxiliar interna
 function monthKey(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-// Declara função auxiliar interna
 function formatBrl(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-// Declara função auxiliar interna
 function incomeRecurrenceLabel(recurrence?: string | null) {
   const map: Record<string, string> = {
     monthly_fixed: "Fixa mensal",
@@ -454,74 +430,47 @@ export default function SettingsPage() {
     }
   };
   return (
-    // Tag HTML na interface
     <div className="mx-auto w-full max-w-2xl min-w-0 space-y-6">
-      // Tag HTML na interface
       <h1 className="text-xl font-medium text-foreground">Configurações</h1>
       {/* Seção perfil — avatar, nome, e-mail e WhatsApp */}
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        // Tag HTML na interface
         <div className="flex items-center gap-4 border-b border-border px-5 py-4">
-          // Tag HTML na interface
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-cgreen-50 text-lg font-medium text-cgreen-700 dark:bg-cgreen-900/40 dark:text-cgreen-400">
             {initials(name)}
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div className="min-w-0 flex-1">
-            // Tag HTML na interface
             <p className="truncate text-base font-medium text-foreground">{name}</p>
-            // Tag HTML na interface
             <p className="truncate text-sm text-muted-foreground">{email}</p>
-            // Tag HTML na interface
             <p className="mt-0.5 text-xs text-muted-foreground">Plano {user ? planLabel(user.plan) : "—"}</p>
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
-        // Elemento/componente React na tela
         <SettingRow icon={User} iconBg="bg-cgreen-500" title="Editar perfil" subtitle="Nome e telefone" onClick={openProfile} />
-        // Elemento/componente React na tela
         <SettingRow
           icon={Smartphone}
           iconBg="bg-[#AB47BC]"
           title="WhatsApp"
           subtitle={phone === "Não informado" ? "Cadastrado no registro" : `+55 ${phone}`}
         />
-      // Tag HTML na interface
       </div>
       {/* Assinatura e pagamento */}
       <div
         id="assinatura"
         ref={billingSectionRef}
-        // Classes CSS Tailwind — controla aparência visual
         className="scroll-mt-24 space-y-4"
       >
         {billingData?.requiresPayment ? (
-          // Elemento/componente React na tela
           <BillingPaywall />
         ) : (
-          // Tag HTML na interface
           <div className="overflow-hidden rounded-xl border border-border bg-card">
-            // Tag HTML na interface
             <div className="border-b border-border px-5 py-3">
-              // Tag HTML na interface
               <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Assinatura</p>
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="px-5 py-4 space-y-3">
-              // Tag HTML na interface
               <div className="flex items-start gap-3">
-                // Tag HTML na interface
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-cgreen-500">
-                  // Elemento/componente React na tela
                   <CreditCard size={18} className="text-white" />
-                // Tag HTML na interface
                 </div>
-                // Tag HTML na interface
                 <div className="min-w-0 flex-1">
-                  // Tag HTML na interface
                   <p className="text-base font-medium text-foreground">
                     {billingData?.reason === "subscription"
                       ? `Plano ${billingData.subscription?.interval === "yearly" ? "Anual" : "Mensal"} ativo`
@@ -532,9 +481,7 @@ export default function SettingsPage() {
                           : user
                             ? `Plano ${planLabel(user.plan)}`
                             : "Plano gratuito"}
-                  // Tag HTML na interface
                   </p>
-                  // Tag HTML na interface
                   <p className="text-sm text-muted-foreground">
                     {billingData?.subscription?.currentPeriodEnd
                       // Cria objeto de data/hora
@@ -543,19 +490,14 @@ export default function SettingsPage() {
                         // Cria objeto de data/hora
                         ? `Trial até ${new Date(billingData.trialEndsAt).toLocaleDateString("pt-BR")}`
                         : "Sem cobrança no momento"}
-                  // Tag HTML na interface
                   </p>
-                // Tag HTML na interface
                 </div>
-              // Tag HTML na interface
               </div>
               {billingData?.reason === "subscription" && (
-                // Elemento/componente React na tela
                 <Button
                   // Botão comum (não envia formulário)
                   type="button"
                   variant="outline"
-                  // Classes CSS Tailwind — controla aparência visual
                   className="w-full sm:w-auto"
                   // Executa ação quando o usuário clica
                   onClick={async () => {
@@ -570,89 +512,56 @@ export default function SettingsPage() {
                   }}
                 >
                   Gerenciar pagamento
-                // Elemento/componente React na tela
                 </Button>
               )}
               {billingData?.reason === "trial" && token && billingData && (
-                // Tag HTML na interface
                 <div className="pt-2">
-                  // Tag HTML na interface
                   <p className="mb-3 text-sm text-muted-foreground">
                     Antecipe sua assinatura ou aguarde o fim do trial. Pagamento com cartão via Stripe.
-                  // Tag HTML na interface
                   </p>
-                  // Elemento/componente React na tela
                   <BillingPlanCards billing={billingData} token={token} />
-                // Tag HTML na interface
                 </div>
               )}
-            // Tag HTML na interface
             </div>
-          // Tag HTML na interface
           </div>
         )}
-      // Tag HTML na interface
       </div>
       {/* Seção renda mensal — valor informado via WhatsApp ou painel */}
       <div
         id="renda-mensal"
         ref={incomeSectionRef}
-        // Classes CSS Tailwind — controla aparência visual
         className="scroll-mt-24 overflow-hidden rounded-xl border border-border bg-card ring-offset-background focus-within:ring-2 focus-within:ring-cgreen-500/40"
       >
-        // Tag HTML na interface
         <div className="border-b border-border px-5 py-3">
-          // Tag HTML na interface
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Renda mensal</p>
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="space-y-4 px-5 py-4">
           {budgetLoading ? (
-            // Tag HTML na interface
             <p className="text-sm text-muted-foreground">Carregando…</p>
           ) : (
             <>
-              // Tag HTML na interface
               <div className="flex items-start gap-3">
-                // Tag HTML na interface
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-cgreen-500">
-                  // Elemento/componente React na tela
                   <Wallet size={18} className="text-white" />
-                // Tag HTML na interface
                 </div>
-                // Tag HTML na interface
                 <div className="min-w-0 flex-1">
-                  // Tag HTML na interface
                   <p className="text-base font-medium text-foreground">
                     {monthlyIncome != null ? formatBrl(monthlyIncome) : "Não informada"}
-                  // Tag HTML na interface
                   </p>
-                  // Tag HTML na interface
                   <p className="text-sm text-muted-foreground">
                     Referência: {currentMonth.replace("-", "/")} · {incomeRecurrenceLabel(incomeRecurrence)}
-                  // Tag HTML na interface
                   </p>
-                  // Classes CSS Tailwind — controla aparência visual
                   {payTimingLabel && <p className="text-xs text-muted-foreground">{payTimingLabel}</p>}
                   {s?.initialBalance != null && (
-                    // Tag HTML na interface
                     <p className="text-xs text-muted-foreground">
                       Saldo inicial: {formatBrl(s.initialBalance)}
-                    // Tag HTML na interface
                     </p>
                   )}
-                // Tag HTML na interface
                 </div>
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="grid gap-2">
-                // Elemento/componente React na tela
                 <Label htmlFor="income-amount">Atualizar renda mensal (R$)</Label>
-                // Tag HTML na interface
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  // Elemento/componente React na tela
                   <Input
                     id="income-amount"
                     inputMode="decimal"
@@ -662,11 +571,9 @@ export default function SettingsPage() {
                     // Atualiza estado quando o usuário digita/seleciona
                     onChange={(e) => setIncomeEdit(e.target.value)}
                   />
-                  // Elemento/componente React na tela
                   <Button
                     // Botão comum (não envia formulário)
                     type="button"
-                    // Classes CSS Tailwind — controla aparência visual
                     className="shrink-0 bg-cgreen-500 hover:bg-cgreen-700"
                     // Desabilita botão/campo (ex.: durante envio)
                     disabled={savingIncome}
@@ -674,137 +581,81 @@ export default function SettingsPage() {
                     onClick={saveIncome}
                   >
                     Salvar renda
-                  // Elemento/componente React na tela
                   </Button>
-                // Tag HTML na interface
                 </div>
-                // Tag HTML na interface
                 <p className="text-xs text-muted-foreground">
                   Também pode informar pelo WhatsApp: &quot;Minha renda é 4500&quot; ou &quot;configurar renda&quot;.
-                // Tag HTML na interface
                 </p>
-              // Tag HTML na interface
               </div>
             </>
           )}
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        // Tag HTML na interface
         <div className="border-b border-border px-5 py-3">
-          // Tag HTML na interface
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Notificações</p>
-        // Tag HTML na interface
         </div>
         {settingsLoading ? (
-          // Tag HTML na interface
           <p className="px-5 py-4 text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <>
-            // Tag HTML na interface
             <div className="flex w-full items-center gap-3 border-b border-border bg-card px-5 py-3.5">
-              // Tag HTML na interface
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-camber-main">
-                // Elemento/componente React na tela
                 <Bell size={16} className="text-white" />
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="min-w-0 flex-1 text-left">
-                // Tag HTML na interface
                 <p className="text-base font-medium text-foreground">Alerta ao atingir 80%</p>
-                // Tag HTML na interface
                 <p className="text-sm text-muted-foreground">WhatsApp / e-mail (em breve)</p>
-              // Tag HTML na interface
               </div>
-              // Elemento/componente React na tela
               <Toggle
                 checked={s?.alertAt80 ?? true}
                 // Atualiza estado quando o usuário digita/seleciona
                 onChange={(v) => patchSettingsMut.mutate({ alertAt80: v })}
               />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="flex w-full items-center gap-3 border-b border-border bg-card px-5 py-3.5">
-              // Tag HTML na interface
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-cred-main">
-                // Elemento/componente React na tela
                 <Bell size={16} className="text-white" />
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="min-w-0 flex-1 text-left">
-                // Tag HTML na interface
                 <p className="text-base font-medium text-foreground">Alerta ao atingir 100%</p>
-                // Tag HTML na interface
                 <p className="text-sm text-muted-foreground">WhatsApp / e-mail (em breve)</p>
-              // Tag HTML na interface
               </div>
-              // Elemento/componente React na tela
               <Toggle
                 checked={s?.alertAt100 ?? true}
                 // Atualiza estado quando o usuário digita/seleciona
                 onChange={(v) => patchSettingsMut.mutate({ alertAt100: v })}
               />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="flex w-full items-center gap-3 border-b border-border bg-card px-5 py-3.5">
-              // Tag HTML na interface
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#42A5F5]">
-                // Elemento/componente React na tela
                 <Bell size={16} className="text-white" />
-              // Tag HTML na interface
               </div>
-              // Tag HTML na interface
               <div className="min-w-0 flex-1 text-left">
-                // Tag HTML na interface
                 <p className="text-base font-medium text-foreground">Relatório semanal</p>
-                // Tag HTML na interface
                 <p className="text-sm text-muted-foreground">Resumo automático</p>
-              // Tag HTML na interface
               </div>
-              // Elemento/componente React na tela
               <Toggle
                 checked={s?.weeklyReport ?? false}
                 // Atualiza estado quando o usuário digita/seleciona
                 onChange={(v) => patchSettingsMut.mutate({ weeklyReport: v })}
               />
-            // Tag HTML na interface
             </div>
           </>
         )}
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        // Tag HTML na interface
         <div className="border-b border-border px-5 py-3">
-          // Tag HTML na interface
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Segurança</p>
-        // Tag HTML na interface
         </div>
-        // Tag HTML na interface
         <div className="flex w-full items-center gap-3 bg-card px-5 py-3.5">
-          // Tag HTML na interface
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-cgreen-500">
-            // Elemento/componente React na tela
             <ShieldCheck size={16} className="text-white" />
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div className="min-w-0 flex-1 text-left">
-            // Tag HTML na interface
             <p className="text-base font-medium text-foreground">Verificação em 2 etapas</p>
-            // Tag HTML na interface
             <p className="text-sm text-muted-foreground">Código por e-mail após a senha no login</p>
-          // Tag HTML na interface
           </div>
-          // Elemento/componente React na tela
           <Toggle
             checked={s?.twoFactorEnabled ?? false}
             // Atualiza estado quando o usuário digita/seleciona
@@ -813,19 +664,12 @@ export default function SettingsPage() {
               void startTwoFactorChange(v);
             }}
           />
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        // Tag HTML na interface
         <div className="border-b border-border px-5 py-3">
-          // Tag HTML na interface
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Personalização</p>
-        // Tag HTML na interface
         </div>
-        // Elemento/componente React na tela
         <SettingRow
           icon={Palette}
           iconBg="bg-[#AB47BC]"
@@ -834,7 +678,6 @@ export default function SettingsPage() {
           // Executa ação quando o usuário clica
           onClick={cycleTheme}
         />
-        // Elemento/componente React na tela
         <SettingRow
           icon={Tags}
           iconBg="bg-[#6366f1]"
@@ -843,17 +686,11 @@ export default function SettingsPage() {
           // Executa ação quando o usuário clica
           onClick={() => setCatOpen(true)}
         />
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        // Tag HTML na interface
         <div className="border-b border-border px-5 py-3">
-          // Tag HTML na interface
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Privacidade e dados</p>
-        // Tag HTML na interface
         </div>
-        // Elemento/componente React na tela
         <SettingRow
           icon={Shield}
           iconBg="bg-zinc-800 dark:bg-zinc-700"
@@ -861,14 +698,10 @@ export default function SettingsPage() {
           subtitle="CSV compatível com Excel"
           // Executa ação quando o usuário clica
           onClick={exportCsv}
-          // Classes CSS Tailwind — controla aparência visual
           action={<Download size={16} className="text-muted-foreground" />}
         />
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="overflow-hidden rounded-xl border border-border bg-card">
-        // Elemento/componente React na tela
         <SettingRow
           icon={HelpCircle}
           iconBg="bg-muted-foreground/80"
@@ -877,115 +710,64 @@ export default function SettingsPage() {
           // Executa ação quando o usuário clica
           onClick={() => window.open("mailto:suporte@controla.ai", "_blank")}
         />
-        // Elemento/componente React na tela
         <SettingRow icon={LogOut} iconBg="bg-cred-main" title="Sair da conta" onClick={handleLogout} />
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <div className="flex items-center justify-center py-4">
-        // Elemento/componente React na tela
         <LogoFull />
-      // Tag HTML na interface
       </div>
-      // Tag HTML na interface
       <p className="text-center text-xs text-muted-foreground">Versão 1.0.0 · Controla.AI © 2026</p>
-      // Elemento/componente React na tela
       <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
-        // Elemento/componente React na tela
         <DialogContent>
-          // Elemento/componente React na tela
           <DialogHeader>
-            // Elemento/componente React na tela
             <DialogTitle>Editar perfil</DialogTitle>
-          // Elemento/componente React na tela
           </DialogHeader>
-          // Tag HTML na interface
           <div className="grid gap-3 py-2">
-            // Tag HTML na interface
             <div className="grid gap-2">
-              // Elemento/componente React na tela
               <Label htmlFor="p-name">Nome</Label>
-              // Elemento/componente React na tela
               <Input id="p-name" value={nameEdit} onChange={(e) => setNameEdit(e.target.value)} />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="grid gap-2">
-              // Elemento/componente React na tela
               <Label htmlFor="p-phone">Telefone (apenas números)</Label>
-              // Elemento/componente React na tela
               <Input id="p-phone" value={phoneEdit} onChange={(e) => setPhoneEdit(e.target.value)} placeholder="11999990000" />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <p className="text-xs text-muted-foreground">E-mail: {email} (não editável nesta versão)</p>
-          // Tag HTML na interface
           </div>
-          // Elemento/componente React na tela
           <DialogFooter>
-            // Elemento/componente React na tela
             <Button variant="outline" type="button" onClick={() => setProfileOpen(false)}>
               Cancelar
-            // Elemento/componente React na tela
             </Button>
-            // Elemento/componente React na tela
             <Button type="button" className="bg-cgreen-500 hover:bg-cgreen-700" disabled={savingProfile} onClick={saveProfile}>
               Salvar
-            // Elemento/componente React na tela
             </Button>
-          // Elemento/componente React na tela
           </DialogFooter>
-        // Elemento/componente React na tela
         </DialogContent>
-      // Elemento/componente React na tela
       </Dialog>
-      // Elemento/componente React na tela
       <Dialog open={catOpen} onOpenChange={setCatOpen}>
-        // Elemento/componente React na tela
         <DialogContent className="max-h-[80vh] overflow-y-auto sm:max-w-md">
-          // Elemento/componente React na tela
           <DialogHeader>
-            // Elemento/componente React na tela
             <DialogTitle>Categorias</DialogTitle>
-          // Elemento/componente React na tela
           </DialogHeader>
-          // Tag HTML na interface
           <ul className="space-y-2 py-2">
             // Percorre lista e renderiza um item para cada elemento
             {(catData?.categories ?? []).map((c) => (
-              // Tag HTML na interface
               <li
                 key={c.id}
-                // Classes CSS Tailwind — controla aparência visual
                 className="flex items-center gap-3 rounded-lg border border-border px-3 py-2 text-sm"
               >
-                // Tag HTML na interface
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: c.color }} />
-                // Elemento/componente React na tela
                 <CategoryIcon name={c.icon} size={18} className="text-foreground" />
-                // Tag HTML na interface
                 <span className="font-medium text-foreground">{c.name}</span>
-                // Tag HTML na interface
                 <span className="ml-auto text-xs capitalize text-muted-foreground">{c.type}</span>
-              // Tag HTML na interface
               </li>
             ))}
-          // Tag HTML na interface
           </ul>
-          // Elemento/componente React na tela
           <DialogFooter>
-            // Elemento/componente React na tela
             <Button type="button" onClick={() => setCatOpen(false)}>
               Fechar
-            // Elemento/componente React na tela
             </Button>
-          // Elemento/componente React na tela
           </DialogFooter>
-        // Elemento/componente React na tela
         </DialogContent>
-      // Elemento/componente React na tela
       </Dialog>
-      // Elemento/componente React na tela
       <Dialog
         open={Boolean(twoFaChallenge) || twoFaWaiting}
         onOpenChange={(open) => {
@@ -995,20 +777,14 @@ export default function SettingsPage() {
           }
         }}
       >
-        // Elemento/componente React na tela
         <DialogContent>
-          // Elemento/componente React na tela
           <DialogHeader>
-            // Elemento/componente React na tela
             <DialogTitle>Confirmação por e-mail</DialogTitle>
-          // Elemento/componente React na tela
           </DialogHeader>
           {twoFaWaiting && !twoFaChallenge && (
-            // Tag HTML na interface
             <p className="text-sm text-muted-foreground">Enviando o código para o seu e-mail…</p>
           )}
           {twoFaChallenge && (
-            // Elemento/componente React na tela
             <EmailOtpStep
               challenge={twoFaChallenge}
               submitting={twoFaSubmitting}
@@ -1020,11 +796,8 @@ export default function SettingsPage() {
               onCodeComplete={confirmTwoFactorCode}
             />
           )}
-        // Elemento/componente React na tela
         </DialogContent>
-      // Elemento/componente React na tela
       </Dialog>
-    // Tag HTML na interface
     </div>
   );
 }

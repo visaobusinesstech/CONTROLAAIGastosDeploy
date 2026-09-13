@@ -27,5 +27,4 @@ const PlaceholderIndex = () => {
 // Alias — export default usa o mesmo componente placeholder
 const Index = PlaceholderIndex;
 
-// Exportação padrão para import em App.tsx (se alguma rota apontar aqui)
 export default Index;

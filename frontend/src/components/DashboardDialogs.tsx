@@ -40,14 +40,12 @@ import {
 } from "@/lib/financial-summary"; // Validações e frequências canônicas
 
 /** Converte ISO para valor aceito pelo input datetime-local. */
-// Declara função auxiliar interna
 function toDatetimeLocalValue(iso: string) {
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Exporta constante/tipo/classe pública
 export type TransactionFormPayload = {
   amount: string;
   description: string;
@@ -57,7 +55,6 @@ export type TransactionFormPayload = {
 };
 
 /** Modal para registrar ou editar gasto/ganho no dashboard. */
-// Exporta função usada por outros arquivos
 export function TransactionDialog({
   open,
   onOpenChange,
@@ -143,25 +140,15 @@ export function TransactionDialog({
         ? "Adicionar despesa"
         : "Registrar ganho/faturamento";
   return (
-    // Elemento/componente React na tela
     <Dialog open={open} onOpenChange={onOpenChange}>
-      // Elemento/componente React na tela
       <DialogContent className="sm:max-w-md">
-        // Tag HTML na interface
         <form onSubmit={handleSubmit}>
-          // Elemento/componente React na tela
           <DialogHeader>
-            // Elemento/componente React na tela
             <DialogTitle>{title}</DialogTitle>
-          // Elemento/componente React na tela
           </DialogHeader>
-          // Tag HTML na interface
           <div className="grid gap-4 py-4">
-            // Tag HTML na interface
             <div className="grid gap-2">
-              // Elemento/componente React na tela
               <Label htmlFor="tx-desc">Nome / descrição *</Label>
-              // Elemento/componente React na tela
               <Input
                 id="tx-desc"
                 // Texto cinza de exemplo dentro do campo vazio
@@ -171,13 +158,9 @@ export function TransactionDialog({
                 onChange={(e) => setDescription(e.target.value)}
                 required
               />
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="grid gap-2">
-              // Elemento/componente React na tela
               <Label htmlFor="tx-amount">Valor (R$) *</Label>
-              // Elemento/componente React na tela
               <Input
                 id="tx-amount"
                 inputMode="decimal"
@@ -188,76 +171,47 @@ export function TransactionDialog({
                 onChange={(e) => setAmount(e.target.value)}
                 required
               />
-            // Tag HTML na interface
             </div>
             {type === "income" && (
-              // Tag HTML na interface
               <div className="grid gap-2">
-                // Elemento/componente React na tela
                 <Label>Tipo / frequência *</Label>
-                // Elemento/componente React na tela
                 <Select
                   value={incomeFrequency}
                   onValueChange={(v) => setIncomeFrequency(v as IncomeFrequency)}
                 >
-                  // Elemento/componente React na tela
                   <SelectTrigger>
-                    // Elemento/componente React na tela
                     <SelectValue placeholder="Selecionar frequência" />
-                  // Elemento/componente React na tela
                   </SelectTrigger>
-                  // Elemento/componente React na tela
                   <SelectContent>
                     // Percorre lista e renderiza um item para cada elemento
                     {INCOME_FREQUENCIES.map((f) => (
-                      // Elemento/componente React na tela
                       <SelectItem key={f} value={f}>
                         {INCOME_FREQUENCY_LABELS[f]}
-                      // Elemento/componente React na tela
                       </SelectItem>
                     ))}
-                  // Elemento/componente React na tela
                   </SelectContent>
-                // Elemento/componente React na tela
                 </Select>
-              // Tag HTML na interface
               </div>
             )}
-            // Tag HTML na interface
             <div className="grid gap-2">
-              // Elemento/componente React na tela
               <Label>Categoria{type === "expense" ? "" : " (opcional)"}</Label>
-              // Elemento/componente React na tela
               <Select value={categoryId || undefined} onValueChange={setCategoryId}>
-                // Elemento/componente React na tela
                 <SelectTrigger>
-                  // Elemento/componente React na tela
                   <SelectValue placeholder="Selecionar" />
-                // Elemento/componente React na tela
                 </SelectTrigger>
-                // Elemento/componente React na tela
                 <SelectContent>
-                  // Elemento/componente React na tela
                   <SelectItem value="_none">Sem categoria</SelectItem>
                   // Percorre lista e renderiza um item para cada elemento
                   {filtered.map((c) => (
-                    // Elemento/componente React na tela
                     <SelectItem key={c.id} value={c.id}>
                       {c.name}
-                    // Elemento/componente React na tela
                     </SelectItem>
                   ))}
-                // Elemento/componente React na tela
                 </SelectContent>
-              // Elemento/componente React na tela
               </Select>
-            // Tag HTML na interface
             </div>
-            // Tag HTML na interface
             <div className="grid gap-2">
-              // Elemento/componente React na tela
               <Label htmlFor="tx-when">Data e hora *</Label>
-              // Elemento/componente React na tela
               <Input
                 id="tx-when"
                 type="datetime-local"
@@ -266,36 +220,23 @@ export function TransactionDialog({
                 onChange={(e) => setOccurredAt(e.target.value)}
                 required
               />
-            // Tag HTML na interface
             </div>
-          // Tag HTML na interface
           </div>
-          // Elemento/componente React na tela
           <DialogFooter>
-            // Elemento/componente React na tela
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
-            // Elemento/componente React na tela
             </Button>
-            // Elemento/componente React na tela
             <Button type="submit" disabled={loading} className="bg-cgreen-500 hover:bg-cgreen-700">
-              // Classes CSS Tailwind — controla aparência visual
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === "edit" ? "Salvar alterações" : "Salvar"}
-            // Elemento/componente React na tela
             </Button>
-          // Elemento/componente React na tela
           </DialogFooter>
-        // Tag HTML na interface
         </form>
-      // Elemento/componente React na tela
       </DialogContent>
-    // Elemento/componente React na tela
     </Dialog>
   );
 }
 
 /** Modal para definir renda esperada e teto de despesas do mês. */
-// Exporta função usada por outros arquivos
 export function MonthlyBudgetDialog({
   open,
   onOpenChange,
@@ -323,29 +264,18 @@ export function MonthlyBudgetDialog({
     }
   }, [open, initialIncome, initialLimit]);
   return (
-    // Elemento/componente React na tela
     <Dialog open={open} onOpenChange={onOpenChange}>
-      // Elemento/componente React na tela
       <DialogContent className="sm:max-w-md">
-        // Elemento/componente React na tela
         <DialogHeader>
-          // Elemento/componente React na tela
           <DialogTitle>Renda planejada — {month}</DialogTitle>
-        // Elemento/componente React na tela
         </DialogHeader>
-        // Tag HTML na interface
         <div className="grid gap-4 py-2">
-          // Tag HTML na interface
           <p className="text-xs text-muted-foreground">
             Isto é planejamento — não substitui ganhos/faturamentos registrados. Os indicadores usam
             lançamentos reais.
-          // Tag HTML na interface
           </p>
-          // Tag HTML na interface
           <div className="grid gap-2">
-            // Elemento/componente React na tela
             <Label htmlFor="bud-inc">Renda mensal esperada (R$)</Label>
-            // Elemento/componente React na tela
             <Input
               id="bud-inc"
               inputMode="decimal"
@@ -355,13 +285,9 @@ export function MonthlyBudgetDialog({
               // Texto cinza de exemplo dentro do campo vazio
               placeholder="8500"
             />
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <div className="grid gap-2">
-            // Elemento/componente React na tela
             <Label htmlFor="bud-lim">Teto de despesas (opcional)</Label>
-            // Elemento/componente React na tela
             <Input
               id="bud-lim"
               inputMode="decimal"
@@ -371,37 +297,25 @@ export function MonthlyBudgetDialog({
               // Texto cinza de exemplo dentro do campo vazio
               placeholder="5000"
             />
-          // Tag HTML na interface
           </div>
-        // Tag HTML na interface
         </div>
-        // Elemento/componente React na tela
         <DialogFooter>
-          // Elemento/componente React na tela
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
-          // Elemento/componente React na tela
           </Button>
-          // Elemento/componente React na tela
           <Button
             // Botão comum (não envia formulário)
             type="button"
             // Desabilita botão/campo (ex.: durante envio)
             disabled={loading}
-            // Classes CSS Tailwind — controla aparência visual
             className="bg-cgreen-500 hover:bg-cgreen-700"
             // Executa ação quando o usuário clica
             onClick={() => void onSave(income, limit)}
           >
-            // Classes CSS Tailwind — controla aparência visual
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
-          // Elemento/componente React na tela
           </Button>
-        // Elemento/componente React na tela
         </DialogFooter>
-      // Elemento/componente React na tela
       </DialogContent>
-    // Elemento/componente React na tela
     </Dialog>
   );
 }
