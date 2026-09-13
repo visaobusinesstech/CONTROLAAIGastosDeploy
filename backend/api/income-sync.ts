@@ -2,28 +2,28 @@
  * Sincroniza renda mensal do perfil com transações, orçamentos e recorrência — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { and, eq, gte, lte } from "drizzle-orm";
-import { db } from "../src/db/index.js";
-import { budgets, recurringTransactions, transactions } from "../src/db/schema.js";
-import { findCategoryId } from "./category-resolver.js";
-import { monthKey, num } from "../src/utils/money.js";
-import type { IncomeRecurrence, IncomeType } from "./onboarding-agent.js";
+import { and, eq, gte, lte } from "drizzle-orm"; // Operadores de filtro por período
+import { db } from "../src/db/index.js"; // Cliente PostgreSQL
+import { budgets, recurringTransactions, transactions } from "../src/db/schema.js"; // Tabelas financeiras
+import { findCategoryId } from "./category-resolver.js"; // Resolve categoria Salário/Freelance
+import { monthKey, num } from "../src/utils/money.js"; // Chave YYYY-MM e parse numérico
+import type { IncomeRecurrence, IncomeType } from "./onboarding-agent.js"; // Tipos do perfil de renda
 
 /** Marcador em raw_message para identificar receita gerada pelo perfil (evita duplicar). */
 export const INCOME_PROFILE_MARKER = "[renda-mensal-perfil]";
 
 /** Descrição amigável da transação conforme tipo de renda informado no onboarding. */
 function incomeDescription(incomeType?: IncomeType | null): string {
-  if (incomeType === "salary") return "Salário";
-  if (incomeType === "freelance") return "Renda freelance";
-  if (incomeType === "mixed") return "Renda mista";
-  return "Renda mensal";
+  if (incomeType === "salary") return "Salário"; // CLT
+  if (incomeType === "freelance") return "Renda freelance"; // Autônomo
+  if (incomeType === "mixed") return "Renda mista"; // CLT + freela
+  return "Renda mensal"; // Genérico
 }
 
-/** Data de recebimento no mês (dia do pagamento ou dia 1). */
+/** Data de recebimento no mês (dia do pagamento ou dia 1 se não informado). */
 function payDateForMonth(month: string, payDay: number | null | undefined): Date {
-  const day = payDay != null && payDay >= 1 && payDay <= 28 ? payDay : 1;
-  return new Date(`${month}-${String(day).padStart(2, "0")}T12:00:00.000Z`);
+  const day = payDay != null && payDay >= 1 && payDay <= 28 ? payDay : 1; // Evita dia 31 inválido
+  return new Date(`${month}-${String(day).padStart(2, "0")}T12:00:00.000Z`); // Meio-dia UTC
 }
 
 /** Cria ou atualiza transação de receita do mês para alimentar gráficos e saldo no painel. */
@@ -37,12 +37,12 @@ export async function syncIncomeToDashboard(
     month?: string;
   },
 ): Promise<void> {
-  if (amount <= 0) return;
+  if (amount <= 0) return; // Ignora valores inválidos
 
-  const month = options?.month ?? monthKey(new Date());
-  const monthStart = new Date(`${month}-01T00:00:00.000Z`);
+  const month = options?.month ?? monthKey(new Date()); // Mês alvo (atual ou informado)
+  const monthStart = new Date(`${month}-01T00:00:00.000Z`); // Início do mês UTC
   const monthEnd = new Date(monthStart);
-  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
+  monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1); // Primeiro dia do mês seguinte
 
   const [existing] = await db
     .select({ id: transactions.id })
@@ -51,7 +51,7 @@ export async function syncIncomeToDashboard(
       and(
         eq(transactions.userId, userId),
         eq(transactions.type, "income"),
-        eq(transactions.rawMessage, INCOME_PROFILE_MARKER),
+        eq(transactions.rawMessage, INCOME_PROFILE_MARKER), // Só receita do perfil
         gte(transactions.occurredAt, monthStart),
         lte(transactions.occurredAt, monthEnd),
       ),
@@ -66,7 +66,7 @@ export async function syncIncomeToDashboard(
   );
   const occurredAt = payDateForMonth(month, options?.payDay);
   const description = incomeDescription(options?.incomeType);
-  const source = options?.recurrence === "monthly_fixed" ? "recurring" : "manual";
+  const source = options?.recurrence === "monthly_fixed" ? "recurring" : "manual"; // Origem no banco
 
   if (existing) {
     await db
@@ -79,7 +79,7 @@ export async function syncIncomeToDashboard(
         source,
         isActive: true,
       })
-      .where(eq(transactions.id, existing.id));
+      .where(eq(transactions.id, existing.id)); // Atualiza em vez de duplicar
     return;
   }
 
@@ -91,22 +91,22 @@ export async function syncIncomeToDashboard(
     description,
     occurredAt,
     source,
-    rawMessage: INCOME_PROFILE_MARKER,
+    rawMessage: INCOME_PROFILE_MARKER, // Marca como gerada pelo perfil
   });
 }
 
 /** Replica orçamento de renda para meses futuros (renda fixa mensal). */
 export async function propagateMonthlyBudgets(userId: string, amount: number, monthsAhead = 11): Promise<void> {
   if (amount <= 0) return;
-  const base = new Date();
+  const base = new Date(); // A partir de hoje
   for (let i = 1; i <= monthsAhead; i++) {
-    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + i, 1));
+    const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + i, 1)); // Mês futuro
     const m = monthKey(d);
     await db
       .insert(budgets)
       .values({ userId, month: m, totalIncomeExpected: String(amount) })
       .onConflictDoUpdate({
-        target: [budgets.userId, budgets.month],
+        target: [budgets.userId, budgets.month], // PK composta
         set: { totalIncomeExpected: String(amount) },
       });
   }
@@ -124,7 +124,7 @@ export async function upsertIncomeRecurring(
   const desc = incomeDescription(incomeType);
   const day = payDay >= 1 && payDay <= 28 ? payDay : 1;
   const month = monthKey(new Date());
-  const nextDue = payDateForMonth(month, day).toISOString().slice(0, 10);
+  const nextDue = payDateForMonth(month, day).toISOString().slice(0, 10); // Próximo vencimento YYYY-MM-DD
 
   const rows = await db
     .select()
@@ -168,7 +168,7 @@ export async function upsertIncomeRecurring(
 
 /** Materializa receitas recorrentes vencidas — chamado ao listar transações/relatórios. */
 export async function materializeDueRecurringIncomes(userId: string): Promise<number> {
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = new Date().toISOString().slice(0, 10); // Data de hoje YYYY-MM-DD
   const rows = await db
     .select()
     .from(recurringTransactions)
@@ -180,12 +180,12 @@ export async function materializeDueRecurringIncomes(userId: string): Promise<nu
       ),
     );
 
-  let count = 0;
+  let count = 0; // Quantidade materializada nesta execução
   for (const row of rows) {
     const dueStr = String(row.nextDue);
-    if (dueStr > todayStr) continue;
+    if (dueStr > todayStr) continue; // Ainda não venceu
 
-    const month = dueStr.slice(0, 7);
+    const month = dueStr.slice(0, 7); // YYYY-MM do vencimento
     const amount = num(row.amount);
     await syncIncomeToDashboard(userId, amount, {
       recurrence: "monthly_fixed",
@@ -202,7 +202,7 @@ export async function materializeDueRecurringIncomes(userId: string): Promise<nu
       });
 
     const next = new Date(`${dueStr}T12:00:00.000Z`);
-    next.setUTCMonth(next.getUTCMonth() + 1);
+    next.setUTCMonth(next.getUTCMonth() + 1); // Avança um mês
     const nextDue = next.toISOString().slice(0, 10);
 
     await db
@@ -236,7 +236,7 @@ export async function syncFullIncomeProfile(
 
   if (recurrence === "monthly_fixed") {
     const payDay = options?.payDay ?? 1;
-    await propagateMonthlyBudgets(userId, amount);
-    await upsertIncomeRecurring(userId, amount, payDay, options?.incomeType);
+    await propagateMonthlyBudgets(userId, amount); // Preenche meses futuros
+    await upsertIncomeRecurring(userId, amount, payDay, options?.incomeType); // Agenda recorrência
   }
 }

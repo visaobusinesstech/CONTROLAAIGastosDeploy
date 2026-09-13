@@ -65,61 +65,61 @@
  * =============================================================================
  */
 
-export const BACKEND_MAP_VERSION = "3.0";
+export const BACKEND_MAP_VERSION = "3.0"; // Constante exportada — valor fixo compartilhado com o resto do sistema
 
 /** Arquivos de aplicação backend documentados para o TCC. */
-export const BACKEND_APPLICATION_FILES = [
-  "src/index.ts",
-  "src/env.ts",
-  "src/redis.ts",
-  "src/auth.ts",
-  "src/mailer.ts",
-  "src/legal/documents.ts",
-  "src/api-routes.ts",
-  "src/extended-routes.ts",
-  "src/governance-routes.ts",
-  "src/audit.ts",
-  "src/lgpd.ts",
-  "src/goals-service.ts",
-  "src/db/index.ts",
-  "src/db/schema.ts",
-  "src/db/ensure-admin.ts",
-  "src/utils/phone.ts",
-  "src/utils/money.ts",
-  "src/utils/admin.ts",
-  "api/financial-agent.ts",
-  "api/onboarding-agent.ts",
-  "api/income-sync.ts",
-  "api/goal-agent.ts",
-  "api/goal-parser.ts",
-  "api/transaction-intent.ts",
-  "api/user-context.ts",
-  "api/income-classifier.ts",
-  "api/assistant-response.ts",
-  "api/app-links.ts",
-  "api/parser.ts",
-  "api/prompts.ts",
-  "api/transaction-service.ts",
-  "api/category-resolver.ts",
-  "api/insights.ts",
-  "api/conversation-context.ts",
-  "api/conversation-history.ts",
-  "api/media-processor.ts",
-  "api/openai-client.ts",
-  "api/runtime-config.ts",
-  "api/logger.ts",
-  "api/index.ts",
-  "whatsapp/client.ts",
-  "whatsapp/message-handler.ts",
-  "whatsapp/whatsapp-bubbles.ts",
-  "whatsapp/inbound-reply-guard.ts",
-  "whatsapp/message-dedup.ts",
-  "whatsapp/user-resolver.ts",
-  "whatsapp/jid-resolver.ts",
-  "whatsapp/routes.ts",
-  "whatsapp/session-utils.ts",
-  "whatsapp/keep-alive.ts",
-  "whatsapp/baileys-log.ts",
-] as const;
+export const BACKEND_APPLICATION_FILES = [ // Constante exportada — valor fixo compartilhado com o resto do sistema
+  "src/index.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/env.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/redis.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/auth.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/mailer.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/legal/documents.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/api-routes.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/extended-routes.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/governance-routes.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/audit.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/lgpd.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/goals-service.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/db/index.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/db/schema.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/db/ensure-admin.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/utils/phone.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/utils/money.ts", // Instrução do programa — parte da lógica deste arquivo
+  "src/utils/admin.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/financial-agent.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/onboarding-agent.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/income-sync.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/goal-agent.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/goal-parser.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/transaction-intent.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/user-context.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/income-classifier.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/assistant-response.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/app-links.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/parser.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/prompts.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/transaction-service.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/category-resolver.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/insights.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/conversation-context.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/conversation-history.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/media-processor.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/openai-client.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/runtime-config.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/logger.ts", // Instrução do programa — parte da lógica deste arquivo
+  "api/index.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/client.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/message-handler.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/whatsapp-bubbles.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/inbound-reply-guard.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/message-dedup.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/user-resolver.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/jid-resolver.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/routes.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/session-utils.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/keep-alive.ts", // Instrução do programa — parte da lógica deste arquivo
+  "whatsapp/baileys-log.ts", // Instrução do programa — parte da lógica deste arquivo
+] as const; // Fecha lista de valores
 
-export const TCC_DOC_PATH = "TCC_DOCUMENTACAO.md";
+export const TCC_DOC_PATH = "TCC_DOCUMENTACAO.md"; // Constante exportada — valor fixo compartilhado com o resto do sistema

@@ -2,12 +2,13 @@
  * Regras de acesso por assinatura / trial — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { desc, eq } from "drizzle-orm";
-import { db } from "../src/db/index.js";
-import { subscriptions, users } from "../src/db/schema.js";
-import { isAdminEmail, userIsAdmin } from "../src/utils/admin.js";
-import { isStaffLevel, type AccessLevel } from "../src/lgpd.js";
+import { desc, eq } from "drizzle-orm"; // Ordenação e filtro SQL
+import { db } from "../src/db/index.js"; // Cliente PostgreSQL
+import { subscriptions, users } from "../src/db/schema.js"; // Dados de trial e assinatura
+import { isAdminEmail, userIsAdmin } from "../src/utils/admin.js"; // Bypass para admins
+import { isStaffLevel, type AccessLevel } from "../src/lgpd.js"; // Staff também tem acesso livre
 
+/** Motivo pelo qual o usuário tem (ou não) acesso ao app. */
 export type BillingAccessReason =
   | "admin"
   | "staff"
@@ -16,12 +17,13 @@ export type BillingAccessReason =
   | "subscription"
   | "expired";
 
+/** Pacote completo de informações de billing para o frontend. */
 export type BillingAccessInfo = {
-  hasAccess: boolean;
-  reason: BillingAccessReason;
-  trialEndsAt: string | null;
-  daysLeftInTrial: number | null;
-  requiresPayment: boolean;
+  hasAccess: boolean; // Pode usar o app?
+  reason: BillingAccessReason; // Por quê
+  trialEndsAt: string | null; // ISO date fim do trial
+  daysLeftInTrial: number | null; // Dias restantes (null se não aplicável)
+  requiresPayment: boolean; // Deve assinar para continuar?
   subscription: {
     status: string;
     plan: string;
@@ -31,13 +33,16 @@ export type BillingAccessInfo = {
   } | null;
 };
 
+/** Status Stripe que contam como assinatura válida. */
 const ACTIVE_SUB_STATUSES = new Set(["active", "trialing"]);
 
+/** Calcula dias até uma data (arredondado para cima). */
 function daysUntil(date: Date): number {
   const ms = date.getTime() - Date.now();
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
+/** Infere mensal/anual comparando price_id com variáveis de ambiente. */
 function intervalFromPriceId(priceId: string | null | undefined): "monthly" | "yearly" | null {
   if (!priceId) return null;
   const monthly = process.env.STRIPE_PRICE_MONTHLY?.trim();
@@ -86,7 +91,7 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
     .select()
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
-    .orderBy(desc(subscriptions.createdAt))
+    .orderBy(desc(subscriptions.createdAt)) // Assinatura mais recente
     .limit(1);
 
   const subscription =
@@ -103,7 +108,7 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
   if (user?.billingGrandfathered) {
     return {
       hasAccess: true,
-      reason: "grandfathered",
+      reason: "grandfathered", // Usuário antigo isento de cobrança
       trialEndsAt: user.trialEndsAt?.toISOString() ?? null,
       daysLeftInTrial: null,
       requiresPayment: false,
@@ -135,7 +140,7 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
 
   return {
     hasAccess: false,
-    reason: "expired",
+    reason: "expired", // Trial acabou e sem assinatura
     trialEndsAt: user?.trialEndsAt?.toISOString() ?? null,
     daysLeftInTrial: 0,
     requiresPayment: true,
@@ -145,5 +150,5 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
 
 /** Trial padrão para novos cadastros — exatamente 30 dias a partir do cadastro. */
 export function defaultTrialEndsAt(from = new Date()): Date {
-  return new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000); // +30 dias em ms
 }

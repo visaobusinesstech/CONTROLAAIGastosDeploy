@@ -99,14 +99,14 @@ export const CONTROLAAI_VISION_SUFFIX =
 
 /** Monta prompt do chat web com dados reais do usuário (saldo, KPIs, insights). */
 export function buildControlaAiChatPrompt(ctx: {
-  userName?: string;
-  balance: string;
-  income: string;
-  expense: string;
-  financialScore: number;
-  endOfMonthProjection: string;
-  insights: string[];
-  topCategories: string[];
+  userName?: string; // Nome para personalizar respostas
+  balance: string; // Saldo formatado em BRL
+  income: string; // Receitas do período
+  expense: string; // Despesas do período
+  financialScore: number; // Score 0–100 calculado no backend
+  endOfMonthProjection: string; // Projeção de saldo fim do mês
+  insights: string[]; // Frases de insight geradas automaticamente
+  topCategories: string[]; // Categorias mais usadas
 }): string {
   return `Você é o Controla.ai — assistente financeiro pessoal inteligente.
 
@@ -138,23 +138,23 @@ REGRAS:
 
 /** Enriquece o parser prompt com categorias válidas, frequentes e histórico recente. */
 export function buildParserPromptWithContext(
-  topCategories: string[],
-  availableExpense?: string[],
-  availableIncome?: string[],
-  conversationHistory?: string,
+  topCategories: string[], // Top N categorias do usuário (memória)
+  availableExpense?: string[], // Lista completa de despesas no banco
+  availableIncome?: string[], // Lista completa de receitas no banco
+  conversationHistory?: string, // Últimas mensagens WhatsApp formatadas
 ): string {
-  let extra = "";
+  let extra = ""; // Sufixo concatenado ao prompt base
   if (availableExpense?.length) {
-    extra += `\nCategorias de despesa válidas: ${availableExpense.join(", ")}.`;
+    extra += `\nCategorias de despesa válidas: ${availableExpense.join(", ")}.`; // Restringe nomes aceitos
   }
   if (availableIncome?.length) {
     extra += `\nCategorias de receita válidas: ${availableIncome.join(", ")}.`;
   }
   if (topCategories.length) {
-    extra += `\nCategorias frequentes deste usuário: ${topCategories.join(", ")}.`;
+    extra += `\nCategorias frequentes deste usuário: ${topCategories.join(", ")}.`; // Viés para hábitos
   }
   if (conversationHistory?.trim()) {
     extra += `\n\nHISTÓRICO RECENTE DA CONVERSA (use para contexto — ex: se pediu gasto e usuário mandou só "50", interprete como valor):\n${conversationHistory.trim()}`;
   }
-  return `${CONTROLAAI_PARSER_PROMPT}${extra}`;
+  return `${CONTROLAAI_PARSER_PROMPT}${extra}`; // Prompt base + contexto dinâmico
 }

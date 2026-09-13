@@ -2,12 +2,12 @@
  * Integração Stripe — checkout, portal e webhooks — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import Stripe from "stripe";
-import { eq } from "drizzle-orm";
-import { db } from "../src/db/index.js";
-import { subscriptions, users } from "../src/db/schema.js";
-import { isAdminEmail } from "../src/utils/admin.js";
-import { buildCheckoutBrandingSettings } from "./stripe-branding.js";
+import Stripe from "stripe"; // SDK oficial Stripe
+import { eq } from "drizzle-orm"; // Filtro por ID de usuário
+import { db } from "../src/db/index.js"; // Cliente PostgreSQL Drizzle
+import { subscriptions, users } from "../src/db/schema.js"; // Tabelas de assinatura e usuários
+import { isAdminEmail } from "../src/utils/admin.js"; // Admins isentos de cobrança
+import { buildCheckoutBrandingSettings } from "./stripe-branding.js"; // Logo e cores no Checkout
 
 /** IDs criados no Stripe (live) — sobrescreva via .env se necessário. */
 export const DEFAULT_STRIPE_PRICE_MONTHLY = "price_1Tj3owLWDDKenrhhLuNBkQTH";
@@ -19,29 +19,35 @@ export const DEFAULT_STRIPE_PAYMENT_LINK_MONTHLY =
 export const DEFAULT_STRIPE_PAYMENT_LINK_YEARLY =
   "https://buy.stripe.com/6oUbJ24XwfCB2tIbDp4sE0u";
 
+/** Retorna URL do Payment Link mensal ou anual (env ou default live). */
 export function getPaymentLinkUrl(interval: BillingInterval): string | null {
   const envKey = interval === "monthly" ? "STRIPE_PAYMENT_LINK_MONTHLY" : "STRIPE_PAYMENT_LINK_YEARLY";
   const fromEnv = process.env[envKey]?.trim();
-  if (fromEnv) return fromEnv;
+  if (fromEnv) return fromEnv; // Override via .env
   return interval === "monthly" ? DEFAULT_STRIPE_PAYMENT_LINK_MONTHLY : DEFAULT_STRIPE_PAYMENT_LINK_YEARLY;
 }
 
+/** Intervalo de cobrança: mensal ou anual. */
 export type BillingInterval = "monthly" | "yearly";
 
+/** Lê STRIPE_SECRET_KEY — lança se ausente. */
 function getStripeSecretKey(): string {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
   if (!key) throw new Error("STRIPE_SECRET_KEY não configurada");
   return key;
 }
 
+/** True se a chave Stripe está configurada no ambiente. */
 export function isStripeConfigured(): boolean {
   return Boolean(process.env.STRIPE_SECRET_KEY?.trim());
 }
 
+/** Instancia cliente Stripe com versão de API fixa. */
 export function getStripeClient(): Stripe {
   return new Stripe(getStripeSecretKey(), { apiVersion: "2025-02-24.acacia" });
 }
 
+/** Resolve price_id mensal ou anual (env ou default). */
 export function getPriceId(interval: BillingInterval): string {
   if (interval === "monthly") {
     return process.env.STRIPE_PRICE_MONTHLY?.trim() || DEFAULT_STRIPE_PRICE_MONTHLY;
@@ -49,11 +55,12 @@ export function getPriceId(interval: BillingInterval): string {
   return process.env.STRIPE_PRICE_YEARLY?.trim() || DEFAULT_STRIPE_PRICE_YEARLY;
 }
 
+/** URL base do frontend para success/cancel URLs do Checkout. */
 function appBaseUrl(): string {
   return (process.env.FRONTEND_URL || "http://localhost:5179").replace(/\/+$/, "");
 }
 
-/** Garante customer Stripe vinculado ao usuário. */
+/** Garante customer Stripe vinculado ao usuário — cria se não existir. */
 export async function ensureStripeCustomer(userId: string): Promise<string> {
   const [user] = await db
     .select({
@@ -66,13 +73,13 @@ export async function ensureStripeCustomer(userId: string): Promise<string> {
     .where(eq(users.id, userId));
 
   if (!user) throw new Error("Usuário não encontrado");
-  if (user.stripeCustomerId) return user.stripeCustomerId;
+  if (user.stripeCustomerId) return user.stripeCustomerId; // Já vinculado
 
   const stripe = getStripeClient();
   const customer = await stripe.customers.create({
     email: user.email,
     name: user.name,
-    metadata: { userId: user.id },
+    metadata: { userId: user.id }, // Correlaciona customer → userId
   });
 
   await db.update(users).set({ stripeCustomerId: customer.id }).where(eq(users.id, userId));
@@ -98,13 +105,13 @@ export async function createCheckoutSession(
   const branding_settings = await buildCheckoutBrandingSettings();
 
   const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
+    mode: "subscription", // Assinatura recorrente
     customer: customerId,
     line_items: [{ price: priceId, quantity: 1 }],
     payment_method_types: ["card"],
     success_url: `${base}/settings?billing=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${base}/settings?billing=cancel`,
-    metadata: { userId, interval },
+    metadata: { userId, interval }, // Propaga para webhook
     subscription_data: {
       metadata: { userId, interval },
     },
@@ -114,7 +121,7 @@ export async function createCheckoutSession(
   } as Stripe.Checkout.SessionCreateParams);
 
   if (!session.url) throw new Error("Stripe não retornou URL de checkout");
-  return session.url;
+  return session.url; // URL para redirecionar o usuário
 }
 
 /** Portal do cliente Stripe — gerenciar cartão e cancelar. */
@@ -131,12 +138,13 @@ export async function createBillingPortalSession(userId: string): Promise<string
   const stripe = getStripeClient();
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripeCustomerId,
-    return_url: `${appBaseUrl()}/settings`,
+    return_url: `${appBaseUrl()}/settings`, // Volta às configurações após portal
   });
 
   return session.url;
 }
 
+/** Mapeia intervalo Stripe → plano interno (pro mensal, premium anual). */
 function planFromInterval(interval: BillingInterval | string | undefined): "pro" | "premium" {
   return interval === "yearly" ? "premium" : "pro";
 }
@@ -154,7 +162,7 @@ export async function upsertSubscriptionFromStripe(
   const plan = planFromInterval(interval);
   const status = stripeSub.status as "active" | "canceled" | "past_due" | "trialing";
   const periodEnd = stripeSub.current_period_end
-    ? new Date(stripeSub.current_period_end * 1000)
+    ? new Date(stripeSub.current_period_end * 1000) // Unix → Date
     : null;
 
   const [existing] = await db
@@ -183,10 +191,11 @@ export async function upsertSubscriptionFromStripe(
     });
   }
 
-  const userPlan = ACTIVE_STATUSES.has(status) ? plan : "free";
+  const userPlan = ACTIVE_STATUSES.has(status) ? plan : "free"; // Inativo → plano free
   await db.update(users).set({ plan: userPlan }).where(eq(users.id, userId));
 }
 
+/** Status Stripe considerados assinatura ativa. */
 const ACTIVE_STATUSES = new Set(["active", "trialing"]);
 
 /** Resolve userId pelo metadata ou e-mail do customer Stripe (Payment Links). */
@@ -195,7 +204,7 @@ async function resolveUserIdForStripe(
   userId: string | undefined,
   customerId: string | null | undefined,
 ): Promise<string | null> {
-  if (userId) return userId;
+  if (userId) return userId; // Já veio no metadata
   if (!customerId) return null;
 
   const customer = await stripe.customers.retrieve(String(customerId));
@@ -206,10 +215,10 @@ async function resolveUserIdForStripe(
     .from(users)
     .where(eq(users.email, customer.email.toLowerCase()));
 
-  return user?.id ?? null;
+  return user?.id ?? null; // Match por e-mail
 }
 
-/** Processa eventos do webhook Stripe. */
+/** Processa eventos do webhook Stripe — sincroniza assinaturas com o banco. */
 export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<void> {
   const stripe = getStripeClient();
 
@@ -266,11 +275,11 @@ export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<voi
       break;
     }
     default:
-      break;
+      break; // Eventos não tratados são ignorados
   }
 }
 
-/** Valida assinatura do webhook com raw body. */
+/** Valida assinatura HMAC do webhook com raw body e STRIPE_WEBHOOK_SECRET. */
 export function constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {
   const secret = process.env.STRIPE_WEBHOOK_SECRET?.trim();
   if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET não configurada");

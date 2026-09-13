@@ -95,9 +95,9 @@ export function buildUnknownHintMessage(userName?: string | null): string {
 
 /** Aplica anti-repetição e link do painel se renda acabou de ser salva. */
 async function finalizeResponse(userId: string, response: string): Promise<string> {
-  const recent = await getRecentOutboundMessages(userId, 5);
-  const unique = ensureUniqueResponse(response, recent);
-  return appendDashboardIfIncomeJustSaved(userId, unique);
+  const recent = await getRecentOutboundMessages(userId, 5); // Últimas 5 respostas do bot
+  const unique = ensureUniqueResponse(response, recent); // Evita repetir mesma frase
+  return appendDashboardIfIncomeJustSaved(userId, unique); // Anexa link se renda acabou de ser salva
 }
 
 /** Resultado do pipeline do agente — resposta + flags de transação/meta criadas. */

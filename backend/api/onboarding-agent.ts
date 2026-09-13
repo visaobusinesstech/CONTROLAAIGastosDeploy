@@ -2,19 +2,21 @@
  * Rapport de onboarding e perfil de renda — Controla.ai
  * Fluxo curto: renda → recorrência → dia do recebimento → saldo (novos).
  */
-import { and, eq, sql } from "drizzle-orm";
-import { db } from "../src/db/index.js";
-import { budgets, transactions, userSettings } from "../src/db/schema.js";
-import { formatBrl, monthKey, num, parseMoneyAmount } from "../src/utils/money.js";
-import { setUserPreference } from "./financial-memory.js";
-import { setConversationPhase } from "./conversation-context.js";
-import { appendDashboardLink } from "./app-links.js";
-import { isTransactionMessage, isBareAmountMessage, isExpenseMessage } from "./transaction-intent.js";
-import { isIncomeProfileMessage } from "./income-classifier.js";
-import { isGreetingMessage, normalizeInboundText } from "./message-text.js";
-import { syncFullIncomeProfile, syncIncomeToDashboard } from "./income-sync.js";
+import { and, eq, sql } from "drizzle-orm"; // Operadores SQL para budgets e settings
+import { db } from "../src/db/index.js"; // Cliente PostgreSQL
+import { budgets, transactions, userSettings } from "../src/db/schema.js"; // Orçamento, transações e perfil
+import { formatBrl, monthKey, num, parseMoneyAmount } from "../src/utils/money.js"; // Parse e formatação de valores
+import { setUserPreference } from "./financial-memory.js"; // Memória JSON do perfil de renda
+import { setConversationPhase } from "./conversation-context.js"; // Avança fase goals/expenses após onboarding
+import { appendDashboardLink } from "./app-links.js"; // Anexa link do painel após salvar renda
+import { isTransactionMessage, isBareAmountMessage, isExpenseMessage } from "./transaction-intent.js"; // Detecta gastos vs renda
+import { isIncomeProfileMessage } from "./income-classifier.js"; // Trigger explícito de cadastro de renda
+import { isGreetingMessage, normalizeInboundText } from "./message-text.js"; // Normaliza texto inbound
+import { syncFullIncomeProfile, syncIncomeToDashboard } from "./income-sync.js"; // Espelha renda no dashboard
 
+/** Como a renda entra: fixa mensal, manual ou semanal. */
 export type IncomeRecurrence = "monthly_fixed" | "manual" | "weekly";
+/** Origem da renda: salário, freela, mista ou outra. */
 export type IncomeType = "salary" | "freelance" | "mixed" | "other";
 
 export type OnboardingSession = {

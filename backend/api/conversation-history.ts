@@ -2,14 +2,14 @@
  * Histórico conversacional WhatsApp — evita repetição e mantém contexto — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { and, desc, eq } from "drizzle-orm";
-import { db } from "../src/db/index.js";
-import { whatsappMessages } from "../src/db/schema.js";
+import { and, desc, eq } from "drizzle-orm"; // Filtros e ordenação SQL
+import { db } from "../src/db/index.js"; // Cliente PostgreSQL
+import { whatsappMessages } from "../src/db/schema.js"; // Mensagens inbound/outbound
 
 /** Telefones que receberam link de cadastro e ainda não registraram. */
 const pendingRegistrationPhones = new Set<string>();
 
-/** Marca telefone como aguardando cadastro. */
+/** Marca telefone como aguardando cadastro — evita spam de lembrete. */
 export function markPendingRegistration(phone: string): void {
   pendingRegistrationPhones.add(phone);
 }
@@ -33,10 +33,10 @@ export async function getRecentOutboundMessages(
     .select({ content: whatsappMessages.content })
     .from(whatsappMessages)
     .where(and(eq(whatsappMessages.userId, userId), eq(whatsappMessages.direction, "outbound")))
-    .orderBy(desc(whatsappMessages.createdAt))
+    .orderBy(desc(whatsappMessages.createdAt)) // Mais recentes primeiro
     .limit(limit);
 
-  return rows.map((r) => r.content?.trim() ?? "").filter(Boolean);
+  return rows.map((r) => r.content?.trim() ?? "").filter(Boolean); // Remove vazios
 }
 
 /** Últimas N mensagens inbound do usuário (contexto da conversa). */
@@ -66,7 +66,7 @@ export function isDuplicateResponse(response: string, recentOutbound: string[]):
 
   for (const prev of recentOutbound) {
     const prevNorm = normalizeForCompare(prev);
-    if (prevNorm === norm) return true;
+    if (prevNorm === norm) return true; // Igualdade exata
     // Similaridade alta — mesma mensagem com pequenas variações
     if (prevNorm.length > 20 && norm.length > 20) {
       const shorter = prevNorm.length < norm.length ? prevNorm : norm;
@@ -77,7 +77,7 @@ export function isDuplicateResponse(response: string, recentOutbound: string[]):
   return false;
 }
 
-/** Variações para evitar repetir a mesma frase. */
+/** Sufixos alternativos para variar respostas repetidas. */
 const VARIATION_SUFFIXES = [
   "",
   " Estou por aqui se precisar.",
@@ -85,6 +85,7 @@ const VARIATION_SUFFIXES = [
   " Conte comigo para organizar suas finanças.",
 ];
 
+/** Índice rotativo para escolher sufixo de variação. */
 let variationIndex = 0;
 
 /** Retorna resposta alternativa se for duplicata das recentes. */
@@ -94,7 +95,7 @@ export function ensureUniqueResponse(response: string, recentOutbound: string[])
   variationIndex = (variationIndex + 1) % VARIATION_SUFFIXES.length;
   const suffix = VARIATION_SUFFIXES[variationIndex];
   if (!suffix) {
-    // Se ainda duplicar, retorna versão encurtada
+    // Se ainda duplicar, retorna versão encurtada (última linha)
     const lines = response.split("\n").filter(Boolean);
     if (lines.length > 1) return lines.slice(-1)[0];
     return response;
@@ -102,7 +103,7 @@ export function ensureUniqueResponse(response: string, recentOutbound: string[])
 
   const varied = response + suffix;
   if (isDuplicateResponse(varied, recentOutbound)) {
-    return response.split("\n\n")[0] ?? response;
+    return response.split("\n\n")[0] ?? response; // Primeiro parágrafo apenas
   }
   return varied;
 }
@@ -114,7 +115,7 @@ export async function buildConversationContextSummary(userId: string): Promise<s
   if (inbound.length === 0 && outbound.length === 0) return "";
 
   const parts: string[] = [];
-  if (inbound.length) parts.push(`Usuário disse recentemente: ${inbound.reverse().join(" | ")}`);
+  if (inbound.length) parts.push(`Usuário disse recentemente: ${inbound.reverse().join(" | ")}`); // Ordem cronológica
   if (outbound.length) parts.push(`Assistente respondeu: ${outbound.reverse().join(" | ")}`);
   return parts.join(". ");
 }
@@ -134,10 +135,10 @@ export async function buildParserConversationHistory(userId: string, limit = 6):
   if (rows.length === 0) return "";
 
   const lines = rows
-    .reverse()
+    .reverse() // Mais antiga → mais recente
     .map((r) => {
       const role = r.direction === "inbound" ? "Usuário" : "Assistente";
-      const text = r.content?.trim().slice(0, 180) ?? "";
+      const text = r.content?.trim().slice(0, 180) ?? ""; // Trunca para economizar tokens
       return text ? `${role}: ${text}` : null;
     })
     .filter(Boolean);

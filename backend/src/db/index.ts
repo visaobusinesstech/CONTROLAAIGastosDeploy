@@ -22,21 +22,21 @@ const url = getDatabaseUrl(); // Obtém DATABASE_URL do .env
 
 const usePooler = url.includes("-pooler."); // Neon pooler não suporta prepared statements
 
-const needsSsl =
-  url.includes("neon.tech") ||
-  url.includes("rlwy.net") ||
-  url.includes("railway.app") ||
-  url.includes("sslmode=require") ||
-  url.includes("sslmode=verify-full");
+const needsSsl = // Guarda um valor que não muda durante a execução deste trecho
+  url.includes("neon.tech") || // Instrução do programa — parte da lógica deste arquivo
+  url.includes("rlwy.net") || // Instrução do programa — parte da lógica deste arquivo
+  url.includes("railway.app") || // Instrução do programa — parte da lógica deste arquivo
+  url.includes("sslmode=require") || // Atribui ou calcula um valor para usar adiante
+  url.includes("sslmode=verify-full"); // Atribui ou calcula um valor para usar adiante
 
-const client = postgres(url, {
+const client = postgres(url, { // Guarda um valor que não muda durante a execução deste trecho
   max: 10, // Máximo de conexões simultâneas no pool
   connect_timeout: 30, // Segundos para timeout na conexão inicial
   idle_timeout: 20, // Fecha conexões ociosas após 20s
   // Railway/proxy: aceita cadeia self-signed (evita SELF_SIGNED_CERT_IN_CHAIN no Node 22)
-  ...(needsSsl ? { ssl: { rejectUnauthorized: false } } : {}),
+  ...(needsSsl ? { ssl: { rejectUnauthorized: false } } : {}), // Espalha campos de outro objeto neste
   ...(usePooler ? { prepare: false } : {}), // Obrigatório com pooler Neon (PgBouncer)
-});
+}); // Fecha chamada de função ou método
 
 
 
@@ -48,9 +48,9 @@ export type Db = typeof db; // Tipo exportado para injeção/testes
 
 /** Verifica conectividade antes de subir o servidor (SELECT 1). */
 
-export async function verifyDatabaseConnection(): Promise<void> {
+export async function verifyDatabaseConnection(): Promise<void> { // Função assíncrona exportada — outros módulos podem chamar
 
   await client`SELECT 1`; // Template tag do postgres.js — ping mínimo
 
-}
+} // Fecha um bloco de código (if, função, objeto, etc.)
 

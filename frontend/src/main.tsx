@@ -1,22 +1,26 @@
 /**
- * Ponto de entrada React — monta App com ThemeProvider e AuthProvider.
+ * Ponto de entrada React — monta a aplicação no DOM com tema e autenticação.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-// React DOM — cria a raiz e renderiza a árvore de componentes
+// createRoot: API moderna do React 18 para renderizar componentes na página
 import { createRoot } from "react-dom/client";
-// next-themes — tema claro/escuro via classe CSS no documento
+// ThemeProvider: alterna tema claro/escuro adicionando classe "dark" no <html>
 import { ThemeProvider } from "next-themes";
-// Componente raiz com rotas e providers internos
+// Componente raiz com todas as rotas (Dashboard, Login, etc.)
 import App from "./App.tsx";
-// Contexto de autenticação JWT (envolve toda a aplicação)
+// Provider que guarda token JWT e dados do usuário logado
 import { AuthProvider } from "./lib/auth.tsx";
-// Estilos globais Tailwind e tokens de design
+// Folha de estilos global (Tailwind CSS + variáveis de cores do design system)
 import "./index.css";
 
-// Monta a aplicação no elemento #root do index.html
+// Procura o elemento <div id="root"> no index.html e monta a árvore React dentro dele
+// O "!" informa ao TypeScript que o elemento existe (garantido pelo index.html)
 createRoot(document.getElementById("root")!).render(
+  // ThemeProvider envolve tudo — defaultTheme="dark" inicia no modo escuro
   <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+    {/* AuthProvider disponibiliza login/logout/token para qualquer componente filho */}
     <AuthProvider>
+      {/* App contém rotas, toasts, tooltips e layout principal */}
       <App />
     </AuthProvider>
   </ThemeProvider>,

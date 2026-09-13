@@ -27,14 +27,14 @@ const PERIOD_LABELS: Record<GoalPeriodType, string> = {
 /** Remove trechos de prazo para não confundir "5 meses" com valor R$ 5. */
 export function stripTimePhrases(text: string): string {
   return text
-    .replace(/\bem\s+\d+\s*m[eê]s(?:es|e)?/gi, " ")
-    .replace(/\bdentro\s+de\s+\d+\s*m[eê]s(?:es|e)?/gi, " ")
-    .replace(/\d+\s*m[eê]s(?:es|e)?/gi, " ")
-    .replace(/\b\d+\s*anos?\b/gi, " ")
-    .replace(/\b(um|uma)\s+ano\b/gi, " ")
-    .replace(/\banual(?:mente)?\b/gi, " ")
-    .replace(/\btrimestre\b/gi, " ")
-    .replace(/\s+/g, " ")
+    .replace(/\bem\s+\d+\s*m[eê]s(?:es|e)?/gi, " ") // "em 5 meses"
+    .replace(/\bdentro\s+de\s+\d+\s*m[eê]s(?:es|e)?/gi, " ") // "dentro de 6 meses"
+    .replace(/\d+\s*m[eê]s(?:es|e)?/gi, " ") // "12 meses" solto
+    .replace(/\b\d+\s*anos?\b/gi, " ") // "2 anos"
+    .replace(/\b(um|uma)\s+ano\b/gi, " ") // "um ano"
+    .replace(/\banual(?:mente)?\b/gi, " ") // "anual"
+    .replace(/\btrimestre\b/gi, " ") // "trimestre"
+    .replace(/\s+/g, " ") // Normaliza espaços
     .trim();
 }
 

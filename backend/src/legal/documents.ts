@@ -5,30 +5,31 @@
  */
 
 /** Versão corrente — incrementar ao alterar qualquer texto legal. */
-export const LEGAL_DOCUMENT_VERSION = "2026-06-16";
+export const LEGAL_DOCUMENT_VERSION = "2026-06-16"; // Data da versão — o cadastro só aceita se bater com o frontend
 
 /** Tipos de consentimento exigidos no cadastro (Art. 7 LGPD). */
 export const REQUIRED_CONSENT_TYPES = [
-  "terms_of_use",
-  "privacy_policy",
-  "data_processing_lgpd",
-] as const;
+  "terms_of_use", // Aceite dos Termos de Uso
+  "privacy_policy", // Aceite da Política de Privacidade
+  "data_processing_lgpd", // Consentimento explícito de tratamento de dados (LGPD)
+] as const; // Lista fixa — o usuário precisa marcar os três no cadastro
 
-export type ConsentType = (typeof REQUIRED_CONSENT_TYPES)[number];
+export type ConsentType = (typeof REQUIRED_CONSENT_TYPES)[number]; // Tipo derivado da lista acima
 
 export type LegalDocument = {
-  type: ConsentType;
-  title: string;
-  summary: string;
-  content: string;
+  type: ConsentType; // Identificador do documento (terms, privacy, lgpd)
+  title: string; // Título curto exibido na tela de cadastro
+  summary: string; // Resumo de uma linha para o usuário leigo
+  content: string; // Texto completo do documento legal
 };
 
 /** Textos legais exibidos na etapa de aceite antes do cadastro. */
 export const LEGAL_DOCUMENTS: LegalDocument[] = [
   {
-    type: "terms_of_use",
-    title: "Termos de Uso",
-    summary: "Regras de utilização da plataforma Controla.AI.",
+    type: "terms_of_use", // Primeiro documento: regras de uso do app
+    title: "Termos de Uso", // Nome amigável na interface
+    summary: "Regras de utilização da plataforma Controla.AI.", // Descrição rápida
+    // Texto integral dos Termos — cada linha abaixo é o conteúdo legal mostrado ao usuário (não comentar dentro do texto)
     content: `TERMOS DE USO — CONTROLA.AI
 
 Última atualização: 16 de junho de 2026.
@@ -62,11 +63,12 @@ Você pode encerrar sua conta a qualquer momento pelas configurações ou contat
 
 8. LEGISLAÇÃO
 Estes Termos são regidos pelas leis da República Federativa do Brasil. Foro: comarca do domicílio do usuário, salvo disposição legal em contrário.`,
-  },
+  }, // Fim do objeto Termos de Uso
   {
-    type: "privacy_policy",
-    title: "Política de Privacidade",
-    summary: "Como coletamos, usamos e protegemos seus dados pessoais.",
+    type: "privacy_policy", // Segundo documento: privacidade e dados pessoais
+    title: "Política de Privacidade", // Nome na tela de cadastro
+    summary: "Como coletamos, usamos e protegemos seus dados pessoais.", // Resumo para leigo
+    // Texto integral da Política de Privacidade (conteúdo legal — não alterar com comentários inline)
     content: `POLÍTICA DE PRIVACIDADE — CONTROLA.AI
 
 Última atualização: 16 de junho de 2026.
@@ -110,11 +112,12 @@ Utilizamos token JWT e preferências locais (ex.: tema) para funcionamento da ap
 
 9. ALTERAÇÕES
 Esta Política pode ser atualizada. Mudanças relevantes serão comunicadas por e-mail ou aviso na plataforma.`,
-  },
+  }, // Fim do objeto Política de Privacidade
   {
-    type: "data_processing_lgpd",
-    title: "Consentimento para Tratamento de Dados (LGPD)",
-    summary: "Autorização específica para tratamento de dados pessoais e sensíveis financeiros.",
+    type: "data_processing_lgpd", // Terceiro documento: consentimento LGPD específico
+    title: "Consentimento para Tratamento de Dados (LGPD)", // Nome na interface
+    summary: "Autorização específica para tratamento de dados pessoais e sensíveis financeiros.", // Resumo
+    // Texto integral do termo de consentimento LGPD (conteúdo legal exibido ao titular)
     content: `TERMO DE CONSENTIMENTO PARA TRATAMENTO DE DADOS — LGPD
 
 Última atualização: 16 de junho de 2026.
@@ -144,19 +147,20 @@ Registramos data, hora, versão deste documento, endereço IP e navegador utiliz
 
 7. CONTATO DO ENCARREGADO (DPO)
 Para exercer direitos ou esclarecer dúvidas: privacidade@controla.ai`,
-  },
-];
+  }, // Fim do objeto consentimento LGPD
+]; // Fim da lista dos três documentos legais
 
 /** Payload público retornado por GET /auth/legal. */
 export function getLegalDocumentsPayload() {
   return {
-    version: LEGAL_DOCUMENT_VERSION,
-    requiredConsents: [...REQUIRED_CONSENT_TYPES],
+    version: LEGAL_DOCUMENT_VERSION, // Versão que o frontend deve comparar no cadastro
+    requiredConsents: [...REQUIRED_CONSENT_TYPES], // Cópia da lista de aceites obrigatórios
     documents: LEGAL_DOCUMENTS.map((d) => ({
-      type: d.type,
-      title: d.title,
-      summary: d.summary,
-      content: d.content,
+      // Monta JSON seguro para a API (sem campos internos extras)
+      type: d.type, // Identificador do documento
+      title: d.title, // Título para exibir
+      summary: d.summary, // Resumo curto
+      content: d.content, // Texto completo para scroll/modal
     })),
-  };
+  }; // Objeto enviado ao navegador na tela de registro
 }

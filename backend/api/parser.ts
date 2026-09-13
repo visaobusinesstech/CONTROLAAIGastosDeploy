@@ -2,53 +2,55 @@
  * Parser financeiro OpenAI — extrai gastos/receitas de texto, áudio, imagem e PDF — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { z } from "zod";
-import { getOpenAI, getOpenAIModel, isOpenAIConfigured } from "./openai-client.js";
-import { logAiOperation } from "./logger.js";
+import { z } from "zod"; // Validação do JSON retornado pela IA
+import { getOpenAI, getOpenAIModel, isOpenAIConfigured } from "./openai-client.js"; // Cliente e modelo GPT
+import { logAiOperation } from "./logger.js"; // Auditoria em ai_logs
 import {
   buildParserPromptWithContext,
   CONTROLAAI_DOCUMENT_PROMPT,
   CONTROLAAI_VISION_SUFFIX,
-} from "./prompts.js";
-import { inferCategoryFromDescription } from "./category-resolver.js";
-import { parseMoneyAmount } from "../src/utils/money.js";
-import { isGreetingMessage } from "./message-text.js";
+} from "./prompts.js"; // Prompts oficiais do sistema
+import { inferCategoryFromDescription } from "./category-resolver.js"; // Fallback local de categoria
+import { parseMoneyAmount } from "../src/utils/money.js"; // Extrai valores monetários
+import { isGreetingMessage } from "./message-text.js"; // Ignora "oi" no parser local
 import {
   isExpenseMessage,
   isIncomeMessage,
   isTransactionMessage,
   isQueryMessage,
-} from "./transaction-intent.js";
+} from "./transaction-intent.js"; // Heurísticas de intenção
 
+/** Schema Zod — define formato válido do JSON que a OpenAI deve retornar. */
 export const financialIntentSchema = z.object({
-  intent: z.enum(["transaction", "query", "report", "goal", "unknown"]),
-  type: z.enum(["expense", "income", "transfer"]).optional(),
-  value: z.number().optional(),
-  category: z.string().optional(),
-  description: z.string().optional(),
-  date: z.string().optional(),
-  installments: z.number().int().optional(),
-  paymentMethod: z.string().optional(),
-  notes: z.string().optional(),
-  queryType: z.string().optional(),
+  intent: z.enum(["transaction", "query", "report", "goal", "unknown"]), // Tipo principal da mensagem
+  type: z.enum(["expense", "income", "transfer"]).optional(), // Subtipo financeiro
+  value: z.number().optional(), // Valor em reais
+  category: z.string().optional(), // Nome da categoria
+  description: z.string().optional(), // Descrição livre
+  date: z.string().optional(), // Data YYYY-MM-DD
+  installments: z.number().int().optional(), // Número de parcelas
+  paymentMethod: z.string().optional(), // pix, cartão, etc.
+  notes: z.string().optional(), // Observações da IA
+  queryType: z.string().optional(), // Subtipo de consulta (monthly_spending, etc.)
 });
 
+/** Tipo TypeScript inferido do schema — usado em todo o backend. */
 export type FinancialIntent = z.infer<typeof financialIntentSchema>;
 
-/** Inferência local de categoria a partir do texto. */
+/** Inferência local de categoria a partir do texto quando a IA não informou. */
 function inferLocalCategory(text: string, type: "expense" | "income"): string {
-  const inferred = inferCategoryFromDescription(text, type);
+  const inferred = inferCategoryFromDescription(text, type); // Keywords na descrição
   if (inferred) return inferred;
-  return type === "income" ? "Outras receitas" : "Outros gastos";
+  return type === "income" ? "Outras receitas" : "Outros gastos"; // Fallback genérico
 }
 
 /** Parser local (regex) — fallback quando OpenAI indisponível ou JSON inválido. */
 function parseLocalIntent(text: string): FinancialIntent {
   const lower = text.toLowerCase();
   if (isGreetingMessage(text)) {
-    return { intent: "unknown" };
+    return { intent: "unknown" }; // Saudação não é intent financeiro
   }
-  const value = parseMoneyAmount(text) ?? undefined;
+  const value = parseMoneyAmount(text) ?? undefined; // Tenta extrair valor
 
   if (/quais dias.*gast|dia.*mais gast|dias que.*gast/i.test(lower)) {
     return { intent: "query", queryType: "top_spending_days" };
@@ -87,25 +89,25 @@ function parseLocalIntent(text: string): FinancialIntent {
       type,
       value,
       category: inferLocalCategory(text, type),
-      description: text.slice(0, 200),
+      description: text.slice(0, 200), // Limita tamanho da descrição
     };
   }
 
-  return { intent: "unknown" };
+  return { intent: "unknown" }; // Não reconheceu padrão
 }
 
 /** Corrige intent com valor/tipo inferidos localmente quando a IA erra. */
 function enrichIntentFromText(intent: FinancialIntent, text: string): FinancialIntent {
   if (isQueryMessage(text)) {
     const local = parseLocalIntent(text);
-    if (local.intent === "query") return local;
+    if (local.intent === "query") return local; // Consulta local prevalece
   }
 
   const localValue = parseMoneyAmount(text);
   let enriched: FinancialIntent = { ...intent };
 
   if (localValue && (!enriched.value || enriched.value <= 0)) {
-    enriched = { ...enriched, value: localValue };
+    enriched = { ...enriched, value: localValue }; // Preenche valor ausente
   }
 
   if (isTransactionMessage(text)) {
@@ -118,7 +120,7 @@ function enrichIntentFromText(intent: FinancialIntent, text: string): FinancialI
         value: enriched.value ?? local.value,
         category: enriched.category ?? local.category,
         description: enriched.description ?? local.description,
-      };
+      }; // Força transaction quando regex detectou
     }
   }
 
@@ -126,9 +128,9 @@ function enrichIntentFromText(intent: FinancialIntent, text: string): FinancialI
     const fromText = inferLocalCategory(text, enriched.type);
     const fallback = enriched.type === "income" ? "Outras receitas" : "Outros gastos";
     if (!enriched.category || enriched.category === fallback) {
-      enriched = { ...enriched, category: fromText };
+      enriched = { ...enriched, category: fromText }; // Melhora categoria genérica
     } else if (fromText !== fallback && fromText !== enriched.category) {
-      enriched = { ...enriched, category: fromText };
+      enriched = { ...enriched, category: fromText }; // Descrição prevalece sobre IA
     }
   }
 
@@ -146,10 +148,10 @@ export async function parseFinancialIntent(
     conversationHistory?: string;
   },
 ): Promise<FinancialIntent> {
-  const start = Date.now();
+  const start = Date.now(); // Marca início para latência em ai_logs
 
   if (!isOpenAIConfigured()) {
-    return enrichIntentFromText(parseLocalIntent(text), text);
+    return enrichIntentFromText(parseLocalIntent(text), text); // Sem API key — só regex
   }
 
   const categoryHint = buildParserPromptWithContext(
@@ -157,15 +159,15 @@ export async function parseFinancialIntent(
     context?.expenseCategories,
     context?.incomeCategories,
     context?.conversationHistory,
-  );
+  ); // Prompt enriquecido com contexto do usuário
 
   try {
     const openai = getOpenAI();
     const model = getOpenAIModel();
     const completion = await openai.chat.completions.create({
       model,
-      temperature: 0.1,
-      response_format: { type: "json_object" },
+      temperature: 0.1, // Baixa criatividade — JSON determinístico
+      response_format: { type: "json_object" }, // Força resposta JSON
       messages: [
         { role: "system", content: categoryHint },
         { role: "user", content: text },
@@ -173,9 +175,9 @@ export async function parseFinancialIntent(
     });
 
     const raw = completion.choices[0]?.message?.content ?? "{}";
-    const parsed = financialIntentSchema.safeParse(JSON.parse(raw));
-    const base = parsed.success ? parsed.data : parseLocalIntent(text);
-    const result = enrichIntentFromText(base, text);
+    const parsed = financialIntentSchema.safeParse(JSON.parse(raw)); // Valida com Zod
+    const base = parsed.success ? parsed.data : parseLocalIntent(text); // Fallback se JSON inválido
+    const result = enrichIntentFromText(base, text); // Corrige com heurísticas locais
 
     await logAiOperation({
       userId: context?.userId,
@@ -201,16 +203,17 @@ export async function parseFinancialIntent(
       errorMessage: err instanceof Error ? err.message : String(err),
       processingMs: Date.now() - start,
     });
-    return enrichIntentFromText(parseLocalIntent(text), text);
+    return enrichIntentFromText(parseLocalIntent(text), text); // Erro de rede/API — regex
   }
 }
 
+/** Extrai lista de transações de texto de PDF/extrato via OpenAI. */
 export async function parseDocumentText(
   extractedText: string,
   userId: string,
 ): Promise<Array<{ type: "expense" | "income"; value: number; description: string; category?: string; date?: string }>> {
   if (!isOpenAIConfigured()) {
-    return [];
+    return []; // Sem IA — import vazio
   }
 
   const start = Date.now();
@@ -224,9 +227,9 @@ export async function parseDocumentText(
     messages: [
       {
         role: "system",
-        content: CONTROLAAI_DOCUMENT_PROMPT,
+        content: CONTROLAAI_DOCUMENT_PROMPT, // Prompt especializado em extratos
       },
-      { role: "user", content: extractedText.slice(0, 12000) },
+      { role: "user", content: extractedText.slice(0, 12000) }, // Limita tokens do PDF
     ],
   });
 
@@ -246,7 +249,7 @@ export async function parseDocumentText(
   try {
     const data = JSON.parse(raw) as { transactions?: Array<{ type: string; value: number; description: string; category?: string; date?: string }> };
     return (data.transactions ?? [])
-      .filter((t) => t.value > 0 && (t.type === "expense" || t.type === "income"))
+      .filter((t) => t.value > 0 && (t.type === "expense" || t.type === "income")) // Só lançamentos válidos
       .map((t) => ({
         type: t.type as "expense" | "income",
         value: t.value,
@@ -255,10 +258,11 @@ export async function parseDocumentText(
         date: t.date,
       }));
   } catch {
-    return [];
+    return []; // JSON malformado
   }
 }
 
+/** Analisa imagem de comprovante/nota fiscal via GPT-4 Vision. */
 export async function parseReceiptImage(
   imageBase64: string,
   mimeType: string,
@@ -279,13 +283,13 @@ export async function parseReceiptImage(
     messages: [
       {
         role: "system",
-        content: buildParserPromptWithContext([]) + CONTROLAAI_VISION_SUFFIX,
+        content: buildParserPromptWithContext([]) + CONTROLAAI_VISION_SUFFIX, // Parser + instrução OCR
       },
       {
         role: "user",
         content: [
           { type: "text", text: "Extraia os dados financeiros desta imagem." },
-          { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+          { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } }, // Imagem inline
         ],
       },
     ],

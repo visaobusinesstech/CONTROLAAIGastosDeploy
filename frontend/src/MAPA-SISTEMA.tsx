@@ -14,7 +14,6 @@
  *   lib/auth.tsx          → Token JWT no localStorage, sessão do usuário, useAuth()
  *   lib/admin.ts          → Constante admin@admin.com e isAdminUser()
  *   lib/routes.ts         → getHomePathForUser() — rota pós-login
- *   pages/Login.tsx       → Login usuário comum (POST /auth/login)
  *   pages/Login.tsx       → Login unificado (usuário + admin ao digitar admin@admin.com) + OTP 2FA
  *   pages/Register.tsx    → Cadastro (aceite LGPD + formulário + confirmação por e-mail)
  *   pages/ForgotPassword.tsx → Pedido de link de redefinição
@@ -26,6 +25,8 @@
  *   lib/chart-colors.ts   → Paleta hex para gráficos Recharts
  *   lib/category-icons.tsx→ Mapeamento categoria → ícone Lucide
  *   lib/mockData.ts       → Dados mock de fallback (legado, dashboard vazio)
+ *   lib/financial-summary.ts → Cálculo canônico de ganhos/gastos/faturamento
+ *   lib/page-titles.ts    → Títulos das abas do navegador por rota
  *
  * PÁGINAS (usuário autenticado)
  *   pages/Dashboard.tsx   → KPIs, gráficos, transações, filtros, modais
@@ -53,29 +54,36 @@
  *   components/Logo.tsx             → LogoSymbol SVG + LogoFull PNG
  *   components/RegisterTermsAcceptance.tsx → Etapa de aceite legal antes do cadastro
  *   components/EmailOtpStep.tsx → Código de 6 dígitos enviado por e-mail
- *   components/logo/logo-controla.png → Asset wordmark (não TS)
+ *   components/AppErrorBoundary.tsx → Captura erros de renderização
+ *   components/BillingPaywall.tsx   → Bloqueio por assinatura expirada
+ *   components/BillingPlanCards.tsx → Cards de planos mensal/anual
+ *   components/TrialCountdownBanner.tsx → Banner de dias restantes do trial
+ *   components/DocumentTitle.tsx  → Título dinâmico da aba do navegador
  *
  * HOOKS
  *   hooks/use-capabilities.ts → Permissões via GET /api/me/capabilities
  *   hooks/use-mobile.tsx      → Breakpoint mobile (< 768px)
  *   hooks/use-toast.ts        → Store global de notificações toast
  *
+ * VERCEL / EDGE
+ *   middleware.ts             → Proxy Edge /api → Railway
+ *   api/auth/*                → Login/me/forgot/reset direto no Postgres
+ *   api/backend-proxy/*       → Proxy alternativo para backend
+ *   api/relay/send.ts         → Relay de e-mail SMTP
+ *
  * BIBLIOTECA SHADCN (NÃO DOCUMENTADA — terceiros)
  *   components/ui/*           → Botões, cards, dialogs, tabelas, etc.
- *   components/ui/magic-card.tsx → Card animado usado no dashboard
  *
- * TESTES (fora do escopo TCC frontend)
- *   test/setup.ts, test/example.test.ts
- *
- * DOCUMENTAÇÃO: cada arquivo de aplicação acima possui cabeçalho JSDoc
- * com "Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar" e comentários
- * em português em imports, hooks, chamadas API e seções principais de UI.
+ * DOCUMENTAÇÃO: cada arquivo de aplicação possui cabeçalho
+ * "Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar" e comentários
+ * em português linha a linha (didáticos para leigos).
  * =============================================================================
  */
 
-export const FRONTEND_MAP_VERSION = "2.0";
+/** Versão do mapa — incrementar quando a estrutura mudar. */
+export const FRONTEND_MAP_VERSION = "2.1";
 
-/** Lista plana de todos os arquivos de aplicação documentados. */
+/** Lista plana de todos os arquivos de aplicação documentados (sem components/ui). */
 export const FRONTEND_APPLICATION_FILES = [
   "main.tsx",
   "App.tsx",
@@ -88,6 +96,8 @@ export const FRONTEND_APPLICATION_FILES = [
   "lib/chart-colors.ts",
   "lib/category-icons.tsx",
   "lib/mockData.ts",
+  "lib/financial-summary.ts",
+  "lib/page-titles.ts",
   "pages/Dashboard.tsx",
   "pages/Goals.tsx",
   "pages/AiChat.tsx",
@@ -114,7 +124,12 @@ export const FRONTEND_APPLICATION_FILES = [
   "components/AppErrorBoundary.tsx",
   "components/RegisterTermsAcceptance.tsx",
   "components/EmailOtpStep.tsx",
+  "components/BillingPaywall.tsx",
+  "components/BillingPlanCards.tsx",
+  "components/TrialCountdownBanner.tsx",
+  "components/DocumentTitle.tsx",
   "hooks/use-capabilities.ts",
   "hooks/use-mobile.tsx",
   "hooks/use-toast.ts",
+  "middleware.ts",
 ] as const;

@@ -11,12 +11,12 @@ import { db } from "./db/index.js"; // Cliente PostgreSQL
 import { aiConversations, aiLogs, documentImports, goals, categories, whatsappMessages, whatsappConnection, users } from "./db/schema.js"; // Tabelas IA/WA/imports
 import { authPreHandler } from "./auth.js"; // Middleware JWT
 import { adminPreHandler, staffPreHandler, userIsAdmin } from "./utils/admin.js"; // Gate admin e staff
-import { applyLgpdMask, isStaffLevel, loadLgpdRules } from "./lgpd.js";
-import { requestAuditMeta, writeAuditLog } from "./audit.js";
-import {
-  buildWebChatWelcomeMessage,
-  buildWebChatWelcomeMessageForUser,
-  processFinancialAgentMessage,
+import { applyLgpdMask, isStaffLevel, loadLgpdRules } from "./lgpd.js"; // Importa código de outro arquivo para usar aqui
+import { requestAuditMeta, writeAuditLog } from "./audit.js"; // Importa código de outro arquivo para usar aqui
+import { // Importa código de outro arquivo para usar aqui
+  buildWebChatWelcomeMessage, // Instrução do programa — parte da lógica deste arquivo
+  buildWebChatWelcomeMessageForUser, // Instrução do programa — parte da lógica deste arquivo
+  processFinancialAgentMessage, // Instrução do programa — parte da lógica deste arquivo
 } from "../api/financial-agent.js"; // Agente conversacional web
 import { parseDocumentText } from "../api/parser.js"; // Parser OpenAI para PDF
 import { createBulkTransactions } from "../api/transaction-service.js"; // Import em lote
@@ -25,582 +25,582 @@ import { extractPdfText } from "../api/media-processor.js"; // Extração texto 
 import { computeFinancialKpis, generateInsights, generatePeriodReport, getUserBalance } from "../api/insights.js"; // Dashboard inteligente
 import { getEnrichedGoals, computeGoalDeadline } from "./goals-service.js"; // Metas com progresso
 import { num } from "./utils/money.js"; // Parse numeric
-import {
-  AVAILABLE_OPENAI_MODELS,
-  clearRuntimeOpenAIModel,
-  getEffectiveOpenAIModel,
-  getEnvOpenAIModel,
-  getRuntimeOpenAIModel,
-  setRuntimeOpenAIModel,
+import { // Importa código de outro arquivo para usar aqui
+  AVAILABLE_OPENAI_MODELS, // Instrução do programa — parte da lógica deste arquivo
+  clearRuntimeOpenAIModel, // Instrução do programa — parte da lógica deste arquivo
+  getEffectiveOpenAIModel, // Instrução do programa — parte da lógica deste arquivo
+  getEnvOpenAIModel, // Instrução do programa — parte da lógica deste arquivo
+  getRuntimeOpenAIModel, // Instrução do programa — parte da lógica deste arquivo
+  setRuntimeOpenAIModel, // Instrução do programa — parte da lógica deste arquivo
 } from "../api/runtime-config.js"; // Override modelo OpenAI admin
-import { getBillingAccess } from "../api/billing-access.js";
-import { billingAccessPreHandler } from "./billing-routes.js";
+import { getBillingAccess } from "../api/billing-access.js"; // Importa código de outro arquivo para usar aqui
+import { billingAccessPreHandler } from "./billing-routes.js"; // Importa código de outro arquivo para usar aqui
 import { getOpenAIModel, isOpenAIConfigured } from "../api/openai-client.js"; // Cliente OpenAI
 
 /** Schema Zod — POST /api/ai/chat */
-const chatMessageBody = z.object({
-  conversationId: z.string().uuid().optional(),
-  message: z.string().min(1).max(4000),
-});
+const chatMessageBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
+  conversationId: z.string().uuid().optional(), // Instrução do programa — parte da lógica deste arquivo
+  message: z.string().min(1).max(4000), // Instrução do programa — parte da lógica deste arquivo
+}); // Fecha chamada de função ou método
 
 /** Schema Zod — POST /api/goals */
-const goalCreateBody = z.object({
-  name: z.string().min(1).max(200),
-  categoryId: z.string().uuid().nullable().optional(),
-  limitAmount: z.union([z.string(), z.number()]).transform(String),
-  periodType: z.enum(["monthly", "quarterly", "yearly"]).optional(),
-  goalType: z.enum(["limit", "saving"]).optional(),
-  targetAmount: z.union([z.string(), z.number()]).transform(String).nullable().optional(),
-  durationMonths: z.number().int().min(1).max(360).nullable().optional(),
-  color: z.string().optional(),
-});
+const goalCreateBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
+  name: z.string().min(1).max(200), // Instrução do programa — parte da lógica deste arquivo
+  categoryId: z.string().uuid().nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
+  limitAmount: z.union([z.string(), z.number()]).transform(String), // Instrução do programa — parte da lógica deste arquivo
+  periodType: z.enum(["monthly", "quarterly", "yearly"]).optional(), // Instrução do programa — parte da lógica deste arquivo
+  goalType: z.enum(["limit", "saving"]).optional(), // Instrução do programa — parte da lógica deste arquivo
+  targetAmount: z.union([z.string(), z.number()]).transform(String).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
+  durationMonths: z.number().int().min(1).max(360).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
+  color: z.string().optional(), // Instrução do programa — parte da lógica deste arquivo
+}); // Fecha chamada de função ou método
 
 /** Schema Zod — PATCH /api/goals/:id (editar campos + ativar/inativar) */
-const goalPatchBody = z.object({
-  name: z.string().min(1).max(200).optional(),
-  categoryId: z.string().uuid().nullable().optional(),
-  limitAmount: z.union([z.string(), z.number()]).transform(String).optional(),
-  periodType: z.enum(["monthly", "quarterly", "yearly"]).optional(),
-  goalType: z.enum(["limit", "saving"]).optional(),
-  targetAmount: z.union([z.string(), z.number()]).transform(String).nullable().optional(),
-  durationMonths: z.number().int().min(1).max(360).nullable().optional(),
-  color: z.string().optional(),
-  isActive: z.boolean().optional(),
-});
+const goalPatchBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
+  name: z.string().min(1).max(200).optional(), // Instrução do programa — parte da lógica deste arquivo
+  categoryId: z.string().uuid().nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
+  limitAmount: z.union([z.string(), z.number()]).transform(String).optional(), // Instrução do programa — parte da lógica deste arquivo
+  periodType: z.enum(["monthly", "quarterly", "yearly"]).optional(), // Instrução do programa — parte da lógica deste arquivo
+  goalType: z.enum(["limit", "saving"]).optional(), // Instrução do programa — parte da lógica deste arquivo
+  targetAmount: z.union([z.string(), z.number()]).transform(String).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
+  durationMonths: z.number().int().min(1).max(360).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
+  color: z.string().optional(), // Instrução do programa — parte da lógica deste arquivo
+  isActive: z.boolean().optional(), // Instrução do programa — parte da lógica deste arquivo
+}); // Fecha chamada de função ou método
 
 /** Registra rotas estendidas (/api) e admin IA (/api/admin/ai). */
-export async function registerExtendedRoutes(app: FastifyInstance): Promise<void> {
-  app.register(async (r) => {
+export async function registerExtendedRoutes(app: FastifyInstance): Promise<void> { // Função assíncrona exportada — outros módulos podem chamar
+  app.register(async (r) => { // Acopla plugin ou grupo de rotas ao servidor
     r.addHook("preHandler", authPreHandler); // JWT obrigatório
 
     /** GET /api/me/capabilities — flags de features para o frontend. */
-    r.get("/me/capabilities", async (request: FastifyRequest, reply: FastifyReply) => {
-      const [waRow] = await db.select().from(whatsappConnection).where(eq(whatsappConnection.id, "main"));
-      const waConnected = waRow?.status === "connected";
-      const billing = await getBillingAccess(request.user!.id, request.user!.email);
+    r.get("/me/capabilities", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const [waRow] = await db.select().from(whatsappConnection).where(eq(whatsappConnection.id, "main")); // Guarda um valor que não muda durante a execução deste trecho
+      const waConnected = waRow?.status === "connected"; // Guarda um valor que não muda durante a execução deste trecho
+      const billing = await getBillingAccess(request.user!.id, request.user!.email); // Guarda um valor que não muda durante a execução deste trecho
 
-      return reply.send({
-        isAdmin: userIsAdmin(request.user),
-        isStaff: userIsAdmin(request.user) || isStaffLevel(request.user!.accessLevel),
-        accessLevel: request.user!.accessLevel,
-        whatsappEnabled: process.env.ENABLE_WHATSAPP !== "false",
-        openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        isAdmin: userIsAdmin(request.user), // Instrução do programa — parte da lógica deste arquivo
+        isStaff: userIsAdmin(request.user) || isStaffLevel(request.user!.accessLevel), // Instrução do programa — parte da lógica deste arquivo
+        accessLevel: request.user!.accessLevel, // Instrução do programa — parte da lógica deste arquivo
+        whatsappEnabled: process.env.ENABLE_WHATSAPP !== "false", // Instrução do programa — parte da lógica deste arquivo
+        openaiConfigured: Boolean(process.env.OPENAI_API_KEY), // Instrução do programa — parte da lógica deste arquivo
         /** Número público do bot — visível para usuários comuns enviarem mensagens */
-        whatsappBotPhone: waConnected ? waRow?.phoneNumber ?? null : null,
-        whatsappConnected: waConnected,
-        billing,
-      });
-    });
+        whatsappBotPhone: waConnected ? waRow?.phoneNumber ?? null : null, // Instrução do programa — parte da lógica deste arquivo
+        whatsappConnected: waConnected, // Instrução do programa — parte da lógica deste arquivo
+        billing, // Instrução do programa — parte da lógica deste arquivo
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     // --- AI Chat ---
 
     /** GET /api/ai/welcome — mensagem inicial personalizada do chat web. */
-    r.get("/ai/welcome", async (request: FastifyRequest, reply: FastifyReply) => {
-      const userId = request.user!.id;
-      const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
-      const message = await buildWebChatWelcomeMessageForUser(userId, user?.name);
-      return reply.send({ message });
-    });
+    r.get("/ai/welcome", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)); // Guarda um valor que não muda durante a execução deste trecho
+      const message = await buildWebChatWelcomeMessageForUser(userId, user?.name); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ message }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     /** GET /api/ai/conversations — histórico de conversas IA (50 mais recentes). */
-    r.get("/ai/conversations", async (request: FastifyRequest, reply: FastifyReply) => {
-      const userId = request.user!.id;
-      const rows = await db
-        .select()
-        .from(aiConversations)
-        .where(and(eq(aiConversations.userId, userId), eq(aiConversations.isActive, true)))
-        .orderBy(desc(aiConversations.updatedAt))
-        .limit(50);
+    r.get("/ai/conversations", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
+        .select() // Instrução do programa — parte da lógica deste arquivo
+        .from(aiConversations) // Instrução do programa — parte da lógica deste arquivo
+        .where(and(eq(aiConversations.userId, userId), eq(aiConversations.isActive, true))) // Filtra quais linhas do banco entram na consulta
+        .orderBy(desc(aiConversations.updatedAt)) // Ordena o resultado (mais recente, alfabético, etc.)
+        .limit(50); // Limita quantos registros voltam da consulta
 
-      return reply.send({
-        conversations: rows.map((c) => ({
-          id: c.id,
-          title: c.title,
-          contextMonth: c.contextMonth,
-          messages: c.messages,
-          updatedAt: c.updatedAt.toISOString(),
-        })),
-      });
-    });
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        conversations: rows.map((c) => ({ // Atribui ou calcula um valor para usar adiante
+          id: c.id, // Instrução do programa — parte da lógica deste arquivo
+          title: c.title, // Instrução do programa — parte da lógica deste arquivo
+          contextMonth: c.contextMonth, // Instrução do programa — parte da lógica deste arquivo
+          messages: c.messages, // Instrução do programa — parte da lógica deste arquivo
+          updatedAt: c.updatedAt.toISOString(), // Instrução do programa — parte da lógica deste arquivo
+        })), // Fecha bloco iniciado anteriormente
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     /** DELETE /api/ai/conversations/:id — inativa conversa (sem exclusão física). */
-    r.delete<{ Params: { id: string } }>("/ai/conversations/:id", async (request, reply) => {
-      const userId = request.user!.id;
-      const { id } = request.params;
-      const [row] = await db
-        .update(aiConversations)
-        .set({ isActive: false, updatedAt: new Date() })
-        .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, userId), eq(aiConversations.isActive, true)))
-        .returning({ id: aiConversations.id });
-      if (!row) return reply.status(404).send({ error: "Conversation not found" });
-      const meta = requestAuditMeta(request);
-      await writeAuditLog({
-        userId,
-        routine: "ai_conversations.inactivate",
-        action: "inactivate",
-        entity: "ai_conversations",
-        entityId: id,
-        ...meta,
-      });
-      return reply.send({ ok: true, inactivated: true });
-    });
+    r.delete<{ Params: { id: string } }>("/ai/conversations/:id", async (request, reply) => { // Define endpoint REST dentro do grupo de rotas
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const { id } = request.params; // Guarda um valor que não muda durante a execução deste trecho
+      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
+        .update(aiConversations) // Instrução do programa — parte da lógica deste arquivo
+        .set({ isActive: false, updatedAt: new Date() }) // Define quais colunas serão alteradas no UPDATE
+        .where(and(eq(aiConversations.id, id), eq(aiConversations.userId, userId), eq(aiConversations.isActive, true))) // Filtra quais linhas do banco entram na consulta
+        .returning({ id: aiConversations.id }); // Pede ao banco devolver os dados gravados
+      if (!row) return reply.status(404).send({ error: "Conversation not found" }); // Só executa o bloco abaixo se esta condição for verdadeira
+      const meta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
+      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
+        userId, // Instrução do programa — parte da lógica deste arquivo
+        routine: "ai_conversations.inactivate", // Instrução do programa — parte da lógica deste arquivo
+        action: "inactivate", // Instrução do programa — parte da lógica deste arquivo
+        entity: "ai_conversations", // Instrução do programa — parte da lógica deste arquivo
+        entityId: id, // Instrução do programa — parte da lógica deste arquivo
+        ...meta, // Espalha campos de outro objeto neste
+      }); // Fecha chamada de função ou método
+      return reply.send({ ok: true, inactivated: true }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     /** POST /api/ai/chat — envia mensagem ao agente financeiro web. */
-    r.post("/ai/chat", { preHandler: billingAccessPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = chatMessageBody.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
-      }
-      const userId = request.user!.id;
-      const { message, conversationId } = parsed.data;
+    r.post("/ai/chat", { preHandler: billingAccessPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const parsed = chatMessageBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
+      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const { message, conversationId } = parsed.data; // Guarda um valor que não muda durante a execução deste trecho
 
-      const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
+      const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)); // Guarda um valor que não muda durante a execução deste trecho
 
-      let conversation: typeof aiConversations.$inferSelect | undefined;
-      if (conversationId) {
-        [conversation] = await db
-          .select()
-          .from(aiConversations)
-          .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, userId), eq(aiConversations.isActive, true)));
-      }
+      let conversation: typeof aiConversations.$inferSelect | undefined; // Variável que pode mudar de valor conforme o programa roda
+      if (conversationId) { // Só executa o bloco abaixo se esta condição for verdadeira
+        [conversation] = await db // Atribui ou calcula um valor para usar adiante
+          .select() // Instrução do programa — parte da lógica deste arquivo
+          .from(aiConversations) // Instrução do programa — parte da lógica deste arquivo
+          .where(and(eq(aiConversations.id, conversationId), eq(aiConversations.userId, userId), eq(aiConversations.isActive, true))); // Filtra quais linhas do banco entram na consulta
+      } // Fecha um bloco de código (if, função, objeto, etc.)
 
-      const history = (conversation?.messages as Array<{ role: string; content: string }>) ?? [];
+      const history = (conversation?.messages as Array<{ role: string; content: string }>) ?? []; // Guarda um valor que não muda durante a execução deste trecho
 
-      const agentResult = await processFinancialAgentMessage(userId, message, {
-        userName: user?.name,
-      });
+      const agentResult = await processFinancialAgentMessage(userId, message, { // Guarda um valor que não muda durante a execução deste trecho
+        userName: user?.name, // Instrução do programa — parte da lógica deste arquivo
+      }); // Fecha chamada de função ou método
 
-      const now = new Date().toISOString();
-      const newMessages = [
-        ...history,
-        { role: "user", content: message, timestamp: now },
-        { role: "assistant", content: agentResult.response, timestamp: now },
-      ];
+      const now = new Date().toISOString(); // Guarda um valor que não muda durante a execução deste trecho
+      const newMessages = [ // Guarda um valor que não muda durante a execução deste trecho
+        ...history, // Espalha campos de outro objeto neste
+        { role: "user", content: message, timestamp: now }, // Abre bloco ou objeto com vários campos
+        { role: "assistant", content: agentResult.response, timestamp: now }, // Abre bloco ou objeto com vários campos
+      ]; // Fecha lista de valores
 
-      if (conversation) {
-        await db
-          .update(aiConversations)
-          .set({ messages: newMessages, updatedAt: new Date() })
-          .where(eq(aiConversations.id, conversation.id));
-      } else {
-        const [created] = await db
-          .insert(aiConversations)
-          .values({
-            userId,
+      if (conversation) { // Só executa o bloco abaixo se esta condição for verdadeira
+        await db // Operação no banco de dados
+          .update(aiConversations) // Instrução do programa — parte da lógica deste arquivo
+          .set({ messages: newMessages, updatedAt: new Date() }) // Define quais colunas serão alteradas no UPDATE
+          .where(eq(aiConversations.id, conversation.id)); // Filtra quais linhas do banco entram na consulta
+      } else { // Fecha bloco iniciado anteriormente
+        const [created] = await db // Guarda um valor que não muda durante a execução deste trecho
+          .insert(aiConversations) // Instrução do programa — parte da lógica deste arquivo
+          .values({ // Informa os valores a inserir na tabela
+            userId, // Instrução do programa — parte da lógica deste arquivo
             title: message.slice(0, 60), // Primeiros 60 chars como título
-            messages: newMessages,
-          })
-          .returning();
-        conversation = created;
-      }
+            messages: newMessages, // Instrução do programa — parte da lógica deste arquivo
+          }) // Fecha bloco iniciado anteriormente
+          .returning(); // Pede ao banco devolver os dados gravados
+        conversation = created; // Atribui ou calcula um valor para usar adiante
+      } // Fecha um bloco de código (if, função, objeto, etc.)
 
-      const chatMeta = requestAuditMeta(request);
-      await writeAuditLog({
-        userId,
-        routine: conversationId ? "ai_conversations.update" : "ai_conversations.create",
-        action: conversationId ? "update" : "insert",
-        entity: "ai_conversations",
-        entityId: conversation!.id,
-        ...chatMeta,
-      });
+      const chatMeta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
+      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
+        userId, // Instrução do programa — parte da lógica deste arquivo
+        routine: conversationId ? "ai_conversations.update" : "ai_conversations.create", // Instrução do programa — parte da lógica deste arquivo
+        action: conversationId ? "update" : "insert", // Instrução do programa — parte da lógica deste arquivo
+        entity: "ai_conversations", // Instrução do programa — parte da lógica deste arquivo
+        entityId: conversation!.id, // Instrução do programa — parte da lógica deste arquivo
+        ...chatMeta, // Espalha campos de outro objeto neste
+      }); // Fecha chamada de função ou método
 
-      return reply.send({
-        conversationId: conversation!.id,
-        response: agentResult.response,
-        transactionCreated: agentResult.transactionCreated,
-      });
-    });
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        conversationId: conversation!.id, // Instrução do programa — parte da lógica deste arquivo
+        response: agentResult.response, // Instrução do programa — parte da lógica deste arquivo
+        transactionCreated: agentResult.transactionCreated, // Instrução do programa — parte da lógica deste arquivo
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     // --- KPIs & Insights ---
 
     /** GET /api/insights/kpis — indicadores financeiros do mês. */
-    r.get("/insights/kpis", async (request: FastifyRequest, reply: FastifyReply) => {
-      const kpis = await computeFinancialKpis(request.user!.id);
-      return reply.send({ kpis });
-    });
+    r.get("/insights/kpis", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const kpis = await computeFinancialKpis(request.user!.id); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ kpis }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     /**
      * GET /api/insights/financial-summary?from=&to=
      * Fonte única de indicadores: ganhos, gastos, faturamento bruto/líquido.
      */
-    r.get("/insights/financial-summary", async (request: FastifyRequest, reply: FastifyReply) => {
-      const q = request.query as { from?: string; to?: string };
-      const from = q.from ? new Date(q.from) : undefined;
-      const to = q.to ? new Date(q.to) : undefined;
-      if (from && Number.isNaN(from.getTime())) {
-        return reply.status(400).send({ error: "Parâmetro from inválido." });
-      }
-      if (to && Number.isNaN(to.getTime())) {
-        return reply.status(400).send({ error: "Parâmetro to inválido." });
-      }
-      const summary = await getUserBalance(request.user!.id, from, to);
-      return reply.send({
-        summary: {
-          ganhos: summary.ganhos,
-          gastos: summary.gastos,
-          faturamentoBruto: summary.faturamentoBruto,
-          faturamentoLiquido: summary.faturamentoLiquido,
-          ganhosCount: summary.ganhosCount,
-          gastosCount: summary.gastosCount,
-          isEmpty: summary.isEmpty,
-        },
-      });
-    });
+    r.get("/insights/financial-summary", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const q = request.query as { from?: string; to?: string }; // Guarda um valor que não muda durante a execução deste trecho
+      const from = q.from ? new Date(q.from) : undefined; // Guarda um valor que não muda durante a execução deste trecho
+      const to = q.to ? new Date(q.to) : undefined; // Guarda um valor que não muda durante a execução deste trecho
+      if (from && Number.isNaN(from.getTime())) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Parâmetro from inválido." }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      if (to && Number.isNaN(to.getTime())) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Parâmetro to inválido." }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      const summary = await getUserBalance(request.user!.id, from, to); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        summary: { // Instrução do programa — parte da lógica deste arquivo
+          ganhos: summary.ganhos, // Instrução do programa — parte da lógica deste arquivo
+          gastos: summary.gastos, // Instrução do programa — parte da lógica deste arquivo
+          faturamentoBruto: summary.faturamentoBruto, // Instrução do programa — parte da lógica deste arquivo
+          faturamentoLiquido: summary.faturamentoLiquido, // Instrução do programa — parte da lógica deste arquivo
+          ganhosCount: summary.ganhosCount, // Instrução do programa — parte da lógica deste arquivo
+          gastosCount: summary.gastosCount, // Instrução do programa — parte da lógica deste arquivo
+          isEmpty: summary.isEmpty, // Instrução do programa — parte da lógica deste arquivo
+        }, // Fecha um bloco de código (if, função, objeto, etc.)
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     /** GET /api/insights/list — insights gerados por IA/heurística. */
-    r.get("/insights/list", async (request: FastifyRequest, reply: FastifyReply) => {
-      const insights = await generateInsights(request.user!.id);
-      return reply.send({ insights });
-    });
+    r.get("/insights/list", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const insights = await generateInsights(request.user!.id); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ insights }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     /** GET /api/insights/report?period= — relatório semanal/mensal/anual. */
-    r.get("/insights/report", async (request: FastifyRequest, reply: FastifyReply) => {
-      const q = request.query as { period?: string };
-      const period = q.period === "weekly" || q.period === "yearly" ? q.period : "monthly";
-      const report = await generatePeriodReport(request.user!.id, period);
-      return reply.send({ report, period });
-    });
+    r.get("/insights/report", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const q = request.query as { period?: string }; // Guarda um valor que não muda durante a execução deste trecho
+      const period = q.period === "weekly" || q.period === "yearly" ? q.period : "monthly"; // Guarda um valor que não muda durante a execução deste trecho
+      const report = await generatePeriodReport(request.user!.id, period); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ report, period }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     /** GET /api/insights/memory — preferências e categorias mais usadas. */
-    r.get("/insights/memory", async (request: FastifyRequest, reply: FastifyReply) => {
-      const prefs = await getUserPreferences(request.user!.id);
-      const topCategories = await getTopCategories(request.user!.id);
-      return reply.send({ preferences: prefs, topCategories });
-    });
+    r.get("/insights/memory", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const prefs = await getUserPreferences(request.user!.id); // Guarda um valor que não muda durante a execução deste trecho
+      const topCategories = await getTopCategories(request.user!.id); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ preferences: prefs, topCategories }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     // --- Goals ---
 
     /** GET /api/goals — metas com progresso calculado. */
-    r.get("/goals", async (request: FastifyRequest, reply: FastifyReply) => {
-      const goalsList = await getEnrichedGoals(request.user!.id);
-      return reply.send({ goals: goalsList });
-    });
+    r.get("/goals", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const goalsList = await getEnrichedGoals(request.user!.id); // Guarda um valor que não muda durante a execução deste trecho
+      return reply.send({ goals: goalsList }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
 
     /** POST /api/goals — cria meta financeira. */
-    r.post("/goals", { preHandler: billingAccessPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => {
-      const parsed = goalCreateBody.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
-      }
-      const userId = request.user!.id;
-      const d = parsed.data;
-      const durationMonths = d.durationMonths ?? null;
-      const now = new Date();
-      const deadlineAt =
-        durationMonths != null ? computeGoalDeadline(now, durationMonths) : null;
+    r.post("/goals", { preHandler: billingAccessPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const parsed = goalCreateBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
+      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const d = parsed.data; // Guarda um valor que não muda durante a execução deste trecho
+      const durationMonths = d.durationMonths ?? null; // Guarda um valor que não muda durante a execução deste trecho
+      const now = new Date(); // Guarda um valor que não muda durante a execução deste trecho
+      const deadlineAt = // Guarda um valor que não muda durante a execução deste trecho
+        durationMonths != null ? computeGoalDeadline(now, durationMonths) : null; // Atribui ou calcula um valor para usar adiante
 
-      const [row] = await db
-        .insert(goals)
-        .values({
-          userId,
-          name: d.name,
-          categoryId: d.categoryId ?? null,
-          limitAmount: d.limitAmount,
-          periodType: d.periodType ?? "monthly",
-          goalType: d.goalType ?? "limit",
-          targetAmount: d.targetAmount ?? null,
-          durationMonths,
-          deadlineAt,
-          color: d.color ?? "#6366f1",
-        })
-        .returning();
+      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
+        .insert(goals) // Instrução do programa — parte da lógica deste arquivo
+        .values({ // Informa os valores a inserir na tabela
+          userId, // Instrução do programa — parte da lógica deste arquivo
+          name: d.name, // Instrução do programa — parte da lógica deste arquivo
+          categoryId: d.categoryId ?? null, // Instrução do programa — parte da lógica deste arquivo
+          limitAmount: d.limitAmount, // Instrução do programa — parte da lógica deste arquivo
+          periodType: d.periodType ?? "monthly", // Instrução do programa — parte da lógica deste arquivo
+          goalType: d.goalType ?? "limit", // Instrução do programa — parte da lógica deste arquivo
+          targetAmount: d.targetAmount ?? null, // Instrução do programa — parte da lógica deste arquivo
+          durationMonths, // Instrução do programa — parte da lógica deste arquivo
+          deadlineAt, // Instrução do programa — parte da lógica deste arquivo
+          color: d.color ?? "#6366f1", // Instrução do programa — parte da lógica deste arquivo
+        }) // Fecha bloco iniciado anteriormente
+        .returning(); // Pede ao banco devolver os dados gravados
 
-      const goalMeta = requestAuditMeta(request);
-      await writeAuditLog({
-        userId,
-        routine: "goals.create",
-        action: "insert",
-        entity: "goals",
-        entityId: row.id,
-        ...goalMeta,
-      });
+      const goalMeta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
+      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
+        userId, // Instrução do programa — parte da lógica deste arquivo
+        routine: "goals.create", // Instrução do programa — parte da lógica deste arquivo
+        action: "insert", // Instrução do programa — parte da lógica deste arquivo
+        entity: "goals", // Instrução do programa — parte da lógica deste arquivo
+        entityId: row.id, // Instrução do programa — parte da lógica deste arquivo
+        ...goalMeta, // Espalha campos de outro objeto neste
+      }); // Fecha chamada de função ou método
 
-      return reply.status(201).send({
-        goal: {
-          id: row.id,
-          name: row.name,
-          limitAmount: num(row.limitAmount),
-          goalType: row.goalType,
-        },
-      });
-    });
+      return reply.status(201).send({ // Envia resposta HTTP de volta ao navegador ou app
+        goal: { // Instrução do programa — parte da lógica deste arquivo
+          id: row.id, // Instrução do programa — parte da lógica deste arquivo
+          name: row.name, // Instrução do programa — parte da lógica deste arquivo
+          limitAmount: num(row.limitAmount), // Instrução do programa — parte da lógica deste arquivo
+          goalType: row.goalType, // Instrução do programa — parte da lógica deste arquivo
+        }, // Fecha um bloco de código (if, função, objeto, etc.)
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     /** PATCH /api/goals/:id — editar meta (valor, período, nome) ou ativar/inativar. */
-    r.patch<{ Params: { id: string } }>("/goals/:id", async (request, reply) => {
-      const parsed = goalPatchBody.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
-      }
-      const userId = request.user!.id;
-      const d = parsed.data;
+    r.patch<{ Params: { id: string } }>("/goals/:id", async (request, reply) => { // Define endpoint REST dentro do grupo de rotas
+      const parsed = goalPatchBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
+      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const d = parsed.data; // Guarda um valor que não muda durante a execução deste trecho
 
-      if (d.limitAmount !== undefined) {
-        const n = Number(d.limitAmount);
-        if (!Number.isFinite(n) || n <= 0) {
-          return reply.status(400).send({ error: "Valor da meta deve ser maior que zero." });
-        }
-      }
+      if (d.limitAmount !== undefined) { // Só executa o bloco abaixo se esta condição for verdadeira
+        const n = Number(d.limitAmount); // Guarda um valor que não muda durante a execução deste trecho
+        if (!Number.isFinite(n) || n <= 0) { // Só executa o bloco abaixo se esta condição for verdadeira
+          return reply.status(400).send({ error: "Valor da meta deve ser maior que zero." }); // Envia resposta HTTP de volta ao navegador ou app
+        } // Fecha um bloco de código (if, função, objeto, etc.)
+      } // Fecha um bloco de código (if, função, objeto, etc.)
 
-      const patch: Record<string, unknown> = {};
-      if (d.name !== undefined) patch.name = d.name.trim();
-      if (d.categoryId !== undefined) patch.categoryId = d.categoryId;
-      if (d.limitAmount !== undefined) patch.limitAmount = d.limitAmount;
-      if (d.periodType !== undefined) patch.periodType = d.periodType;
-      if (d.goalType !== undefined) patch.goalType = d.goalType;
-      if (d.targetAmount !== undefined) patch.targetAmount = d.targetAmount;
-      if (d.color !== undefined) patch.color = d.color;
-      if (d.isActive !== undefined) patch.isActive = d.isActive;
-      if (d.durationMonths !== undefined) {
-        patch.durationMonths = d.durationMonths;
-        if (d.durationMonths != null) {
-          patch.deadlineAt = computeGoalDeadline(new Date(), d.durationMonths);
-        } else {
-          patch.deadlineAt = null;
-        }
-      }
+      const patch: Record<string, unknown> = {}; // Guarda um valor que não muda durante a execução deste trecho
+      if (d.name !== undefined) patch.name = d.name.trim(); // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.categoryId !== undefined) patch.categoryId = d.categoryId; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.limitAmount !== undefined) patch.limitAmount = d.limitAmount; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.periodType !== undefined) patch.periodType = d.periodType; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.goalType !== undefined) patch.goalType = d.goalType; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.targetAmount !== undefined) patch.targetAmount = d.targetAmount; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.color !== undefined) patch.color = d.color; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.isActive !== undefined) patch.isActive = d.isActive; // Só executa o bloco abaixo se esta condição for verdadeira
+      if (d.durationMonths !== undefined) { // Só executa o bloco abaixo se esta condição for verdadeira
+        patch.durationMonths = d.durationMonths; // Atribui ou calcula um valor para usar adiante
+        if (d.durationMonths != null) { // Só executa o bloco abaixo se esta condição for verdadeira
+          patch.deadlineAt = computeGoalDeadline(new Date(), d.durationMonths); // Atribui ou calcula um valor para usar adiante
+        } else { // Fecha bloco iniciado anteriormente
+          patch.deadlineAt = null; // Atribui ou calcula um valor para usar adiante
+        } // Fecha um bloco de código (if, função, objeto, etc.)
+      } // Fecha um bloco de código (if, função, objeto, etc.)
 
-      if (Object.keys(patch).length === 0) {
-        return reply.status(400).send({ error: "Nenhum campo para atualizar." });
-      }
+      if (Object.keys(patch).length === 0) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Nenhum campo para atualizar." }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
 
-      const [row] = await db
-        .update(goals)
-        .set(patch as never)
-        .where(and(eq(goals.id, request.params.id), eq(goals.userId, userId)))
-        .returning({
-          id: goals.id,
-          name: goals.name,
-          isActive: goals.isActive,
-          limitAmount: goals.limitAmount,
-          periodType: goals.periodType,
-          targetAmount: goals.targetAmount,
-        });
-      if (!row) return reply.status(404).send({ error: "Not found" });
+      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
+        .update(goals) // Instrução do programa — parte da lógica deste arquivo
+        .set(patch as never) // Define quais colunas serão alteradas no UPDATE
+        .where(and(eq(goals.id, request.params.id), eq(goals.userId, userId))) // Filtra quais linhas do banco entram na consulta
+        .returning({ // Pede ao banco devolver os dados gravados
+          id: goals.id, // Instrução do programa — parte da lógica deste arquivo
+          name: goals.name, // Instrução do programa — parte da lógica deste arquivo
+          isActive: goals.isActive, // Instrução do programa — parte da lógica deste arquivo
+          limitAmount: goals.limitAmount, // Instrução do programa — parte da lógica deste arquivo
+          periodType: goals.periodType, // Instrução do programa — parte da lógica deste arquivo
+          targetAmount: goals.targetAmount, // Instrução do programa — parte da lógica deste arquivo
+        }); // Fecha chamada de função ou método
+      if (!row) return reply.status(404).send({ error: "Not found" }); // Só executa o bloco abaixo se esta condição for verdadeira
 
-      const meta = requestAuditMeta(request);
-      const inactivated = d.isActive === false;
-      const activated = d.isActive === true;
-      await writeAuditLog({
-        userId,
-        routine: inactivated ? "goals.inactivate" : activated ? "goals.activate" : "goals.update",
-        action: inactivated ? "inactivate" : activated ? "activate" : "update",
-        entity: "goals",
-        entityId: row.id,
-        ...meta,
-        details: patch,
-      });
+      const meta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
+      const inactivated = d.isActive === false; // Guarda um valor que não muda durante a execução deste trecho
+      const activated = d.isActive === true; // Guarda um valor que não muda durante a execução deste trecho
+      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
+        userId, // Instrução do programa — parte da lógica deste arquivo
+        routine: inactivated ? "goals.inactivate" : activated ? "goals.activate" : "goals.update", // Instrução do programa — parte da lógica deste arquivo
+        action: inactivated ? "inactivate" : activated ? "activate" : "update", // Instrução do programa — parte da lógica deste arquivo
+        entity: "goals", // Instrução do programa — parte da lógica deste arquivo
+        entityId: row.id, // Instrução do programa — parte da lógica deste arquivo
+        ...meta, // Espalha campos de outro objeto neste
+        details: patch, // Instrução do programa — parte da lógica deste arquivo
+      }); // Fecha chamada de função ou método
 
-      return reply.send({
-        goal: {
-          id: row.id,
-          name: row.name,
-          isActive: row.isActive,
-          limitAmount: num(row.limitAmount),
-          periodType: row.periodType,
-          targetAmount: row.targetAmount != null ? num(row.targetAmount) : null,
-        },
-      });
-    });
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        goal: { // Instrução do programa — parte da lógica deste arquivo
+          id: row.id, // Instrução do programa — parte da lógica deste arquivo
+          name: row.name, // Instrução do programa — parte da lógica deste arquivo
+          isActive: row.isActive, // Instrução do programa — parte da lógica deste arquivo
+          limitAmount: num(row.limitAmount), // Instrução do programa — parte da lógica deste arquivo
+          periodType: row.periodType, // Instrução do programa — parte da lógica deste arquivo
+          targetAmount: row.targetAmount != null ? num(row.targetAmount) : null, // Atribui ou calcula um valor para usar adiante
+        }, // Fecha um bloco de código (if, função, objeto, etc.)
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     // --- User WhatsApp conversations ---
 
     /** GET /api/whatsapp/conversations — histórico WA do usuário logado. */
-    r.get("/whatsapp/conversations", async (request: FastifyRequest, reply: FastifyReply) => {
-      const userId = request.user!.id;
-      const rows = await db
-        .select()
-        .from(whatsappMessages)
-        .where(eq(whatsappMessages.userId, userId))
-        .orderBy(desc(whatsappMessages.createdAt))
-        .limit(100);
+    r.get("/whatsapp/conversations", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
+        .select() // Instrução do programa — parte da lógica deste arquivo
+        .from(whatsappMessages) // Instrução do programa — parte da lógica deste arquivo
+        .where(eq(whatsappMessages.userId, userId)) // Filtra quais linhas do banco entram na consulta
+        .orderBy(desc(whatsappMessages.createdAt)) // Ordena o resultado (mais recente, alfabético, etc.)
+        .limit(100); // Limita quantos registros voltam da consulta
 
-      return reply.send({
-        messages: rows.map((m) => ({
-          id: m.id,
-          direction: m.direction,
-          messageType: m.messageType,
-          content: m.content,
-          createdAt: m.createdAt.toISOString(),
-        })),
-      });
-    });
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        messages: rows.map((m) => ({ // Atribui ou calcula um valor para usar adiante
+          id: m.id, // Instrução do programa — parte da lógica deste arquivo
+          direction: m.direction, // Instrução do programa — parte da lógica deste arquivo
+          messageType: m.messageType, // Instrução do programa — parte da lógica deste arquivo
+          content: m.content, // Instrução do programa — parte da lógica deste arquivo
+          createdAt: m.createdAt.toISOString(), // Instrução do programa — parte da lógica deste arquivo
+        })), // Fecha bloco iniciado anteriormente
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     // --- Imports ---
 
     /** GET /api/imports — lista importações PDF do usuário. */
-    r.get("/imports", async (request: FastifyRequest, reply: FastifyReply) => {
-      const rows = await db
-        .select()
-        .from(documentImports)
-        .where(and(eq(documentImports.userId, request.user!.id), eq(documentImports.isActive, true)))
-        .orderBy(desc(documentImports.createdAt))
-        .limit(50);
+    r.get("/imports", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
+        .select() // Instrução do programa — parte da lógica deste arquivo
+        .from(documentImports) // Instrução do programa — parte da lógica deste arquivo
+        .where(and(eq(documentImports.userId, request.user!.id), eq(documentImports.isActive, true))) // Filtra quais linhas do banco entram na consulta
+        .orderBy(desc(documentImports.createdAt)) // Ordena o resultado (mais recente, alfabético, etc.)
+        .limit(50); // Limita quantos registros voltam da consulta
 
-      return reply.send({
-        imports: rows.map((i) => ({
-          id: i.id,
-          fileName: i.fileName,
-          fileType: i.fileType,
-          status: i.status,
-          transactionsCreated: i.transactionsCreated,
-          errorMessage: i.errorMessage,
-          createdAt: i.createdAt.toISOString(),
-        })),
-      });
-    });
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        imports: rows.map((i) => ({ // Atribui ou calcula um valor para usar adiante
+          id: i.id, // Instrução do programa — parte da lógica deste arquivo
+          fileName: i.fileName, // Instrução do programa — parte da lógica deste arquivo
+          fileType: i.fileType, // Instrução do programa — parte da lógica deste arquivo
+          status: i.status, // Instrução do programa — parte da lógica deste arquivo
+          transactionsCreated: i.transactionsCreated, // Instrução do programa — parte da lógica deste arquivo
+          errorMessage: i.errorMessage, // Instrução do programa — parte da lógica deste arquivo
+          createdAt: i.createdAt.toISOString(), // Instrução do programa — parte da lógica deste arquivo
+        })), // Fecha bloco iniciado anteriormente
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     /** POST /api/imports/pdf — upload base64, extrai e cria transações. */
-    r.post("/imports/pdf", async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = request.body as { fileName?: string; contentBase64?: string };
-      if (!body.contentBase64 || !body.fileName) {
-        return reply.status(400).send({ error: "fileName and contentBase64 required" });
-      }
+    r.post("/imports/pdf", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const body = request.body as { fileName?: string; contentBase64?: string }; // Guarda um valor que não muda durante a execução deste trecho
+      if (!body.contentBase64 || !body.fileName) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "fileName and contentBase64 required" }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
 
-      const userId = request.user!.id;
-      const buffer = Buffer.from(body.contentBase64, "base64");
+      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
+      const buffer = Buffer.from(body.contentBase64, "base64"); // Guarda um valor que não muda durante a execução deste trecho
 
-      const [importRow] = await db
-        .insert(documentImports)
-        .values({
-          userId,
-          fileName: body.fileName,
-          fileType: "application/pdf",
-          status: "processing",
-        })
-        .returning();
+      const [importRow] = await db // Guarda um valor que não muda durante a execução deste trecho
+        .insert(documentImports) // Instrução do programa — parte da lógica deste arquivo
+        .values({ // Informa os valores a inserir na tabela
+          userId, // Instrução do programa — parte da lógica deste arquivo
+          fileName: body.fileName, // Instrução do programa — parte da lógica deste arquivo
+          fileType: "application/pdf", // Instrução do programa — parte da lógica deste arquivo
+          status: "processing", // Instrução do programa — parte da lógica deste arquivo
+        }) // Fecha bloco iniciado anteriormente
+        .returning(); // Pede ao banco devolver os dados gravados
 
-      try {
-        const text = await extractPdfText(buffer);
-        const parsed = await parseDocumentText(text, userId);
-        const count = await createBulkTransactions(userId, parsed);
+      try { // Tenta executar código que pode falhar
+        const text = await extractPdfText(buffer); // Guarda um valor que não muda durante a execução deste trecho
+        const parsed = await parseDocumentText(text, userId); // Guarda um valor que não muda durante a execução deste trecho
+        const count = await createBulkTransactions(userId, parsed); // Guarda um valor que não muda durante a execução deste trecho
 
-        await db
-          .update(documentImports)
-          .set({ status: "completed", extractedText: text.slice(0, 5000), transactionsCreated: count })
-          .where(eq(documentImports.id, importRow.id));
+        await db // Operação no banco de dados
+          .update(documentImports) // Instrução do programa — parte da lógica deste arquivo
+          .set({ status: "completed", extractedText: text.slice(0, 5000), transactionsCreated: count }) // Define quais colunas serão alteradas no UPDATE
+          .where(eq(documentImports.id, importRow.id)); // Filtra quais linhas do banco entram na consulta
 
-        return reply.send({ ok: true, importId: importRow.id, transactionsCreated: count });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        await db
-          .update(documentImports)
-          .set({ status: "failed", errorMessage: msg })
-          .where(eq(documentImports.id, importRow.id));
-        return reply.status(500).send({ error: msg });
-      }
-    });
-  }, { prefix: "/api" });
+        return reply.send({ ok: true, importId: importRow.id, transactionsCreated: count }); // Envia resposta HTTP de volta ao navegador ou app
+      } catch (err) { // Fecha bloco iniciado anteriormente
+        const msg = err instanceof Error ? err.message : String(err); // Guarda um valor que não muda durante a execução deste trecho
+        await db // Operação no banco de dados
+          .update(documentImports) // Instrução do programa — parte da lógica deste arquivo
+          .set({ status: "failed", errorMessage: msg }) // Define quais colunas serão alteradas no UPDATE
+          .where(eq(documentImports.id, importRow.id)); // Filtra quais linhas do banco entram na consulta
+        return reply.status(500).send({ error: msg }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+    }); // Fecha chamada de função ou método
+  }, { prefix: "/api" }); // Fecha registro de rotas informando o prefixo da URL
 
   // --- Admin AI logs (/api/admin/ai) — staff vê logs; modelo só admin ---
 
-  app.register(async (r) => {
-    r.addHook("preHandler", authPreHandler);
+  app.register(async (r) => { // Acopla plugin ou grupo de rotas ao servidor
+    r.addHook("preHandler", authPreHandler); // Middleware — roda antes de cada rota deste grupo
     r.addHook("preHandler", staffPreHandler); // viewer/operator/admin — prompt mascarado via LGPD
 
     /** GET /api/admin/ai/logs — auditoria chamadas OpenAI (campos sensíveis mascarados). */
-    r.get("/logs", async (request: FastifyRequest, reply: FastifyReply) => {
-      const q = request.query as { limit?: string; source?: string };
-      const limit = Math.min(Number(q.limit) || 50, 200);
-      const conds = q.source ? [eq(aiLogs.source, q.source)] : [];
-      const rules = await loadLgpdRules();
-      const level = request.user!.accessLevel;
+    r.get("/logs", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const q = request.query as { limit?: string; source?: string }; // Guarda um valor que não muda durante a execução deste trecho
+      const limit = Math.min(Number(q.limit) || 50, 200); // Guarda um valor que não muda durante a execução deste trecho
+      const conds = q.source ? [eq(aiLogs.source, q.source)] : []; // Guarda um valor que não muda durante a execução deste trecho
+      const rules = await loadLgpdRules(); // Guarda um valor que não muda durante a execução deste trecho
+      const level = request.user!.accessLevel; // Guarda um valor que não muda durante a execução deste trecho
 
-      const rows = await db
-        .select()
-        .from(aiLogs)
-        .where(conds.length ? and(...conds) : undefined)
-        .orderBy(desc(aiLogs.createdAt))
-        .limit(limit);
+      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
+        .select() // Instrução do programa — parte da lógica deste arquivo
+        .from(aiLogs) // Instrução do programa — parte da lógica deste arquivo
+        .where(conds.length ? and(...conds) : undefined) // Filtra quais linhas do banco entram na consulta
+        .orderBy(desc(aiLogs.createdAt)) // Ordena o resultado (mais recente, alfabético, etc.)
+        .limit(limit); // Limita quantos registros voltam da consulta
 
-      return reply.send({
-        logs: rows.map((l) =>
-          applyLgpdMask(
-            {
-              id: l.id,
-              userId: l.userId,
-              source: l.source,
-              operation: l.operation,
-              prompt: l.prompt,
-              response: l.response,
-              model: l.model,
-              inputTokens: l.inputTokens,
-              outputTokens: l.outputTokens,
-              costUsd: l.costUsd != null ? num(l.costUsd) : null,
-              processingMs: l.processingMs,
-              status: l.status,
-              errorMessage: l.errorMessage,
-              createdAt: l.createdAt.toISOString(),
-            },
-            "ai_logs",
-            level,
-            rules,
-          ),
-        ),
-        summary: await getAiSummary(),
-      });
-    });
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        logs: rows.map((l) => // Atribui ou calcula um valor para usar adiante
+          applyLgpdMask( // Instrução do programa — parte da lógica deste arquivo
+            { // Início de um bloco de código
+              id: l.id, // Instrução do programa — parte da lógica deste arquivo
+              userId: l.userId, // Instrução do programa — parte da lógica deste arquivo
+              source: l.source, // Instrução do programa — parte da lógica deste arquivo
+              operation: l.operation, // Instrução do programa — parte da lógica deste arquivo
+              prompt: l.prompt, // Instrução do programa — parte da lógica deste arquivo
+              response: l.response, // Instrução do programa — parte da lógica deste arquivo
+              model: l.model, // Instrução do programa — parte da lógica deste arquivo
+              inputTokens: l.inputTokens, // Instrução do programa — parte da lógica deste arquivo
+              outputTokens: l.outputTokens, // Instrução do programa — parte da lógica deste arquivo
+              costUsd: l.costUsd != null ? num(l.costUsd) : null, // Atribui ou calcula um valor para usar adiante
+              processingMs: l.processingMs, // Instrução do programa — parte da lógica deste arquivo
+              status: l.status, // Instrução do programa — parte da lógica deste arquivo
+              errorMessage: l.errorMessage, // Instrução do programa — parte da lógica deste arquivo
+              createdAt: l.createdAt.toISOString(), // Instrução do programa — parte da lógica deste arquivo
+            }, // Fecha um bloco de código (if, função, objeto, etc.)
+            "ai_logs", // Instrução do programa — parte da lógica deste arquivo
+            level, // Instrução do programa — parte da lógica deste arquivo
+            rules, // Instrução do programa — parte da lógica deste arquivo
+          ), // Fecha parêntese e continua parâmetros ou argumentos
+        ), // Fecha parêntese e continua parâmetros ou argumentos
+        summary: await getAiSummary(), // Instrução do programa — parte da lógica deste arquivo
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     /** GET /api/admin/ai/stats — resumo agregado últimos 30 dias. */
-    r.get("/stats", async (_request: FastifyRequest, reply: FastifyReply) => {
-      return reply.send({ summary: await getAiSummary() });
-    });
-  }, { prefix: "/api/admin/ai" });
+    r.get("/stats", async (_request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      return reply.send({ summary: await getAiSummary() }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
+  }, { prefix: "/api/admin/ai" }); // Fecha registro de rotas informando o prefixo da URL
 
-  app.register(async (r) => {
-    r.addHook("preHandler", authPreHandler);
+  app.register(async (r) => { // Acopla plugin ou grupo de rotas ao servidor
+    r.addHook("preHandler", authPreHandler); // Middleware — roda antes de cada rota deste grupo
     r.addHook("preHandler", adminPreHandler); // Só admin troca modelo OpenAI
 
     /** GET /api/admin/ai/model — modelo OpenAI ativo + lista disponível. */
-    r.get("/model", async (_request: FastifyRequest, reply: FastifyReply) => {
-      return reply.send({
-        model: getOpenAIModel(),
-        envDefault: getEnvOpenAIModel(),
-        runtimeOverride: getRuntimeOpenAIModel(),
-        openaiConfigured: isOpenAIConfigured(),
-        availableModels: AVAILABLE_OPENAI_MODELS.map((m) => ({ id: m.id, label: m.label })),
-      });
-    });
+    r.get("/model", async (_request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
+        model: getOpenAIModel(), // Instrução do programa — parte da lógica deste arquivo
+        envDefault: getEnvOpenAIModel(), // Instrução do programa — parte da lógica deste arquivo
+        runtimeOverride: getRuntimeOpenAIModel(), // Instrução do programa — parte da lógica deste arquivo
+        openaiConfigured: isOpenAIConfigured(), // Instrução do programa — parte da lógica deste arquivo
+        availableModels: AVAILABLE_OPENAI_MODELS.map((m) => ({ id: m.id, label: m.label })), // Atribui ou calcula um valor para usar adiante
+      }); // Fecha chamada de função ou método
+    }); // Fecha chamada de função ou método
 
     /** PUT /api/admin/ai/model — troca modelo em runtime ou reset para .env. */
-    r.put("/model", async (request: FastifyRequest, reply: FastifyReply) => {
-      const body = (request.body ?? {}) as { model?: string; reset?: boolean };
-      if (body.reset) {
-        clearRuntimeOpenAIModel();
-        return reply.send({ ok: true, model: getOpenAIModel() });
-      }
-      const model = body.model?.trim();
-      if (!model) {
-        return reply.status(400).send({ error: "Informe o campo model ou reset: true." });
-      }
-      if (!setRuntimeOpenAIModel(model)) {
-        return reply.status(400).send({ error: "Modelo não suportado." });
-      }
-      return reply.send({ ok: true, model: getEffectiveOpenAIModel() });
-    });
-  }, { prefix: "/api/admin/ai" });
-}
+    r.put("/model", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
+      const body = (request.body ?? {}) as { model?: string; reset?: boolean }; // Guarda um valor que não muda durante a execução deste trecho
+      if (body.reset) { // Só executa o bloco abaixo se esta condição for verdadeira
+        clearRuntimeOpenAIModel(); // Instrução do programa — parte da lógica deste arquivo
+        return reply.send({ ok: true, model: getOpenAIModel() }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      const model = body.model?.trim(); // Guarda um valor que não muda durante a execução deste trecho
+      if (!model) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Informe o campo model ou reset: true." }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      if (!setRuntimeOpenAIModel(model)) { // Só executa o bloco abaixo se esta condição for verdadeira
+        return reply.status(400).send({ error: "Modelo não suportado." }); // Envia resposta HTTP de volta ao navegador ou app
+      } // Fecha um bloco de código (if, função, objeto, etc.)
+      return reply.send({ ok: true, model: getEffectiveOpenAIModel() }); // Envia resposta HTTP de volta ao navegador ou app
+    }); // Fecha chamada de função ou método
+  }, { prefix: "/api/admin/ai" }); // Fecha registro de rotas informando o prefixo da URL
+} // Fecha um bloco de código (if, função, objeto, etc.)
 
 /** Agrega métricas de ai_logs dos últimos 30 dias. */
-async function getAiSummary() {
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+async function getAiSummary() { // Função que pode esperar operações demoradas (banco, rede)
+  const thirtyDaysAgo = new Date(); // Guarda um valor que não muda durante a execução deste trecho
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30); // Instrução do programa — parte da lógica deste arquivo
 
-  const [stats] = await db
-    .select({
-      count: sql<number>`count(*)::int`,
-      inputTokens: sql<number>`coalesce(sum(${aiLogs.inputTokens}), 0)::int`,
-      outputTokens: sql<number>`coalesce(sum(${aiLogs.outputTokens}), 0)::int`,
-      totalCost: sql<string>`coalesce(sum(${aiLogs.costUsd}), 0)`,
-      avgProcessingMs: sql<number>`coalesce(avg(${aiLogs.processingMs}), 0)::int`,
-    })
-    .from(aiLogs)
-    .where(gte(aiLogs.createdAt, thirtyDaysAgo));
+  const [stats] = await db // Guarda um valor que não muda durante a execução deste trecho
+    .select({ // Instrução do programa — parte da lógica deste arquivo
+      count: sql<number>`count(*)::int`, // Instrução do programa — parte da lógica deste arquivo
+      inputTokens: sql<number>`coalesce(sum(${aiLogs.inputTokens}), 0)::int`, // Instrução do programa — parte da lógica deste arquivo
+      outputTokens: sql<number>`coalesce(sum(${aiLogs.outputTokens}), 0)::int`, // Instrução do programa — parte da lógica deste arquivo
+      totalCost: sql<string>`coalesce(sum(${aiLogs.costUsd}), 0)`, // Instrução do programa — parte da lógica deste arquivo
+      avgProcessingMs: sql<number>`coalesce(avg(${aiLogs.processingMs}), 0)::int`, // Instrução do programa — parte da lógica deste arquivo
+    }) // Fecha bloco iniciado anteriormente
+    .from(aiLogs) // Instrução do programa — parte da lógica deste arquivo
+    .where(gte(aiLogs.createdAt, thirtyDaysAgo)); // Filtra quais linhas do banco entram na consulta
 
-  return {
-    count: stats?.count ?? 0,
-    inputTokens: stats?.inputTokens ?? 0,
-    outputTokens: stats?.outputTokens ?? 0,
-    totalCostUsd: num(stats?.totalCost ?? "0"),
-    avgProcessingMs: stats?.avgProcessingMs ?? 0,
-  };
-}
+  return { // Devolve um valor e encerra a função aqui
+    count: stats?.count ?? 0, // Instrução do programa — parte da lógica deste arquivo
+    inputTokens: stats?.inputTokens ?? 0, // Instrução do programa — parte da lógica deste arquivo
+    outputTokens: stats?.outputTokens ?? 0, // Instrução do programa — parte da lógica deste arquivo
+    totalCostUsd: num(stats?.totalCost ?? "0"), // Instrução do programa — parte da lógica deste arquivo
+    avgProcessingMs: stats?.avgProcessingMs ?? 0, // Instrução do programa — parte da lógica deste arquivo
+  }; // Fecha bloco de objeto ou estrutura
+} // Fecha um bloco de código (if, função, objeto, etc.)

@@ -1,34 +1,42 @@
 /**
- * NavLink estilizado — link ativo com classes Tailwind customizadas.
+ * NavLink estilizado — link de menu que muda aparência quando a rota está ativa.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { NavLink as RouterNavLink, NavLinkProps } from "react-router-dom"; // Link com estado isActive
+// NavLink nativo do react-router — sabe se a rota atual corresponde ao link
+import { NavLink as RouterNavLink, NavLinkProps } from "react-router-dom";
+// forwardRef permite que componentes pais acessem o elemento <a> interno
 import { forwardRef } from "react";
-import { cn } from "@/lib/utils"; // Merge de classes Tailwind
+// cn() mescla classes CSS sem conflito
+import { cn } from "@/lib/utils";
 
-/** Props estendidas com activeClassName e pendingClassName. */
+/** Props extras: classes diferentes para link ativo ou carregando (pending). */
 interface NavLinkCompatProps extends Omit<NavLinkProps, "className"> {
-  className?: string;
-  activeClassName?: string;
-  pendingClassName?: string;
+  className?: string; // Classe base sempre aplicada
+  activeClassName?: string; // Classe extra quando a rota está ativa
+  pendingClassName?: string; // Classe extra enquanto a nova rota carrega (lazy)
 }
 
-/** Encapsula NavLink do react-router com suporte a classes por estado. */
+/**
+ * Encapsula NavLink do react-router com API mais simples (activeClassName separado).
+ * Usado na sidebar e barra inferior mobile do Layout.
+ */
 const NavLink = forwardRef<HTMLAnchorElement, NavLinkCompatProps>(
   ({ className, activeClassName, pendingClassName, to, ...props }, ref) => {
     return (
       <RouterNavLink
-        ref={ref}
-        to={to}
+        ref={ref} // Repassa referência ao elemento <a>
+        to={to} // Destino do link (ex.: "/goals")
+        // className pode ser função — recebe isActive e isPending do react-router
         className={({ isActive, isPending }) =>
           cn(className, isActive && activeClassName, isPending && pendingClassName)
         }
-        {...props}
+        {...props} // Demais props (children, onClick, etc.)
       />
     );
   },
 );
 
+// Nome para DevTools do React (debug)
 NavLink.displayName = "NavLink";
 
 export { NavLink };

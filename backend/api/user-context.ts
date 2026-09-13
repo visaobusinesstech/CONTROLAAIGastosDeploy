@@ -2,20 +2,21 @@
  * Contexto financeiro completo do usuário — IA acessa perfil, transações, metas — Controla.ai
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { and, desc, eq, sql } from "drizzle-orm";
-import { db } from "../src/db/index.js";
+import { and, desc, eq, sql } from "drizzle-orm"; // Filtros, ordenação e subquery SQL
+import { db } from "../src/db/index.js"; // Cliente PostgreSQL Drizzle
 import {
   budgets,
   goals,
   transactions,
   userSettings,
   users,
-} from "../src/db/schema.js";
-import { formatBrl, monthKey, num } from "../src/utils/money.js";
-import { getUserBalance, getFinancialSnapshot } from "./insights.js";
-import { getTopCategories, getUserPreferences } from "./financial-memory.js";
-import type { IncomeRecurrence } from "./onboarding-agent.js";
+} from "../src/db/schema.js"; // Tabelas do perfil e movimentações
+import { formatBrl, monthKey, num } from "../src/utils/money.js"; // Utilitários monetários
+import { getUserBalance, getFinancialSnapshot } from "./insights.js"; // Totais e projeções do mês
+import { getTopCategories, getUserPreferences } from "./financial-memory.js"; // Memória de categorias
+import type { IncomeRecurrence } from "./onboarding-agent.js"; // Tipo de recorrência da renda
 
+/** Tipo de fonte de renda informada no onboarding. */
 export type IncomeType = "salary" | "freelance" | "mixed" | "other";
 
 /** Perfil de renda mensal (não confundir com ganho pontual). */
@@ -44,22 +45,24 @@ export type UserFinancialContext = {
   summaryForAi: string;
 };
 
+/** Nomes dos dias da semana para exibir dia de pagamento semanal. */
 const WEEKDAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
+/** Lista campos obrigatórios do perfil de renda que ainda faltam preencher. */
 function buildMissingFields(profile: Omit<UserIncomeProfile, "missingFields" | "isComplete">): string[] {
   const missing: string[] = [];
-  if (profile.monthlyAmount == null) missing.push("valor_mensal");
-  if (profile.recurrence == null) missing.push("recorrencia");
-  if (profile.incomeType == null) missing.push("tipo_renda");
-  if (profile.recurrence === "monthly_fixed" && profile.payDay == null) missing.push("dia_pagamento");
-  if (profile.recurrence === "weekly" && profile.payWeekday == null) missing.push("dia_semana");
-  if (profile.incomeType === "freelance" && profile.isRecurring == null) missing.push("freela_recorrente");
+  if (profile.monthlyAmount == null) missing.push("valor_mensal"); // Valor mensal ausente
+  if (profile.recurrence == null) missing.push("recorrencia"); // Fixa/manual/semanal
+  if (profile.incomeType == null) missing.push("tipo_renda"); // CLT, freela, etc.
+  if (profile.recurrence === "monthly_fixed" && profile.payDay == null) missing.push("dia_pagamento"); // Dia do mês
+  if (profile.recurrence === "weekly" && profile.payWeekday == null) missing.push("dia_semana"); // Dia da semana
+  if (profile.incomeType === "freelance" && profile.isRecurring == null) missing.push("freela_recorrente"); // Freela fixo ou avulso
   return missing;
 }
 
-/** Carrega perfil de renda do usuário. */
+/** Carrega perfil de renda do usuário a partir de user_settings + budgets do mês. */
 export async function loadUserIncomeProfile(userId: string): Promise<UserIncomeProfile> {
-  const month = monthKey(new Date());
+  const month = monthKey(new Date()); // YYYY-MM atual para buscar orçamento
   const [settings] = await db
     .select({
       incomeRecurrence: userSettings.incomeRecurrence,

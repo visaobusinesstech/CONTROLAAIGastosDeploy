@@ -1,18 +1,26 @@
 /**
- * Área interna dos gráficos Recharts — fundo branco (claro) ou cinza (escuro).
+ * Caixa visual que envolve gráficos (Recharts) com fundo e bordas consistentes.
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
+// Função utilitária para juntar classes CSS do Tailwind sem conflito
 import { cn } from "@/lib/utils";
 
-/** Container com padding e altura mínima para gráficos responsivos no mobile. */
+/**
+ * Container responsivo para gráficos — garante altura mínima e scroll horizontal no celular.
+ * @param children — o gráfico Recharts que será desenhado dentro
+ * @param className — classes extras opcionais (margem, altura, etc.)
+ */
 export function ChartPlotArea({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
+    // Div externa: fundo branco (tema claro) ou cinza escuro (tema escuro), borda arredondada
     <div
       className={cn(
+        // w-full = largura total; min-h = altura mínima; overflow-x-auto = rolagem horizontal se necessário
         "w-full min-h-[220px] overflow-x-auto rounded-xl bg-white p-2 sm:p-3 ring-1 ring-black/[0.06] dark:bg-[#3A3A3C] dark:ring-white/[0.08]",
-        className,
+        className, // Mescla classes extras passadas pelo componente pai
       )}
     >
+      {/* Div interna: reserva espaço mínimo para o gráfico não ficar espremido */}
       <div className="min-h-[200px] w-full min-w-0">{children}</div>
     </div>
   );

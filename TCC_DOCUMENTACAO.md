@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.18.1 · **Última revisão:** ago/2026 · **Repositório:** Controla.AI
+**Versão:** 8.5 · **Última revisão:** set/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -134,6 +134,8 @@ flowchart TB
 controlaaii/
 ├── TCC_DOCUMENTACAO.md      ← ESTE ARQUIVO (fonte única de verdade)
 ├── documentacao-tcc/        ← PDF, PNGs ERD, snapshot do banco (entrega TCC)
+│   ├── TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.html  ← HTML ~30 págs. (pastas, fluxos, Railway/Vercel)
+│   ├── TCC_CONTROLAAI_BD_APRESENTACAO_FINAL.pdf ← PDF banco (layout visual de referência)
 │   ├── TCC_DOCUMENTACAO.pdf
 │   ├── TCC_DOCUMENTACAO.md
 │   ├── TCC_DOCUMENTACAO.txt    ← Versão texto plano
@@ -1039,6 +1041,10 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| set/2026 | 8.5 | **HTML organização do sistema (30 págs.):** `documentacao-tcc/TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.html` (layout A4 alinhado ao PDF BD) + gerador `backend/scripts/generate-ORGANIZACAO-SISTEMA-html.ts` — pastas, agente IA, WhatsApp, indicadores, banco, Railway/Vercel; comentários didáticos PT em backend/api, backend/src, whatsapp e frontend de aplicação |
+| set/2026 | 8.4 | **Comentários TCC backend/src + whatsapp:** comentários didáticos em português em 32 arquivos de `backend/src/` e `backend/whatsapp/` — cabeçalho `Doc TCC`; textos legais (`legal/documents.ts`) e HTML de e-mail (`mailer.ts`) preservados sem comentários dentro de strings |
+| set/2026 | 8.3 | **Comentários TCC frontend:** revisão completa dos arquivos de aplicação (`frontend/src/**` exc. `components/ui/*`, `frontend/api/**`, `middleware.ts`) — cabeçalho `Doc TCC`, comentários didáticos em português linha a linha; `MAPA-SISTEMA.tsx` v2.1 com catálogo ampliado |
+| set/2026 | 8.2 | **Comentários TCC backend/api:** revisão completa dos 27 arquivos `backend/api/*.ts` — cabeçalho `Doc TCC`, comentários didáticos em português linha a linha (incl. billing Stripe, agentes, parser, onboarding) |
 | set/2026 | 8.1 | **Fix agente WhatsApp:** "Quero registrar um gasto…" não vira meta — prioridade gasto>meta; `isExplicitExpenseRegistration` / `isExpenseNotGoal`; `shouldAutoCaptureGoal` bloqueia lançamentos; prompt OpenAI reforçado |
 | set/2026 | 8.0 | **Módulo financeiro ponta a ponta:** ganhos ≠ gastos; indicadores Ganhos / Gastos / Faturamento bruto / líquido via fonte única (`financial-summary`); CRUD ganhos (frequência mensal/recorrente/não recorrente/esporádico), despesas e metas (criar/editar/excluir); filtros de período reais; empty states; validações; migration `0013_transaction_income_frequency`; endpoint `GET /api/insights/financial-summary`; 18 testes Vitest + 20 E2E (`npm run test:finance`) |
 | jun/2026 | 2.0 | Reorganização TCC: `api/` (OpenAI), `whatsapp/` (Baileys), achatamento de `src/modules/` |
