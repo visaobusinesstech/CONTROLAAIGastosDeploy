@@ -79,30 +79,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       INSERT INTO password_reset_tokens (user_id, token_sha256, expires_at)
       VALUES (${user.id}::uuid, ${tokenHash}, ${expiresAt})
     `;
+    // HTML do e-mail (comentários JS NÃO podem ficar dentro do template — vazam no Gmail)
     const html = `<!DOCTYPE html><html lang="pt-BR"><body style="font-family:Segoe UI,Arial,sans-serif;background:#f4f6f5;padding:24px">
-      // Tag HTML na interface
       <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb">
-        // Tag HTML na interface
         <div style="background:#16a34a;padding:20px 28px;color:#fff;font-size:20px;font-weight:700">Controla.ai</div>
-        // Tag HTML na interface
         <div style="padding:28px;color:#111827;font-size:15px;line-height:1.55">
-          // Tag HTML na interface
           <h1 style="margin:0 0 12px;font-size:20px">Redefinir senha</h1>
-          // Tag HTML na interface
           <p>Recebemos um pedido para alterar a senha da sua conta.</p>
-          // Tag HTML na interface
           <p>Clique no botão para abrir a página de nova senha. O link vale por <strong>30 minutos</strong>.</p>
-          // Tag HTML na interface
           <p style="margin:28px 0;text-align:center">
-            // Tag HTML na interface
             <a href="${url}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:600">Redefinir minha senha</a>
-          // Tag HTML na interface
           </p>
-          // Tag HTML na interface
           <p style="color:#6b7280;font-size:12px">Se você não pediu isso, ignore este e-mail.</p>
-        // Tag HTML na interface
         </div>
-      // Tag HTML na interface
       </div></body></html>`;
     const transport = createTransport({
       host: "smtp.gmail.com",

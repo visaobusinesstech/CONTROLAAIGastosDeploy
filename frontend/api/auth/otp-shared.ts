@@ -108,50 +108,29 @@ export function buildOtpEmailHtml(purpose: OtpPurpose, code: string): { subject:
   };
   const intro = intros[purpose] ?? "Use o código abaixo no app Controla.ai.";
   const subject = `${title} — Controla.ai`;
+  // HTML do e-mail (comentários JS NÃO podem ficar dentro do template — vazam no Gmail)
   const html = `<!DOCTYPE html>
-// Tag HTML na interface
 <html lang="pt-BR">
-// Tag HTML na interface
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-// Tag HTML na interface
 <body style="margin:0;padding:0;background:#f4f6f5;font-family:Segoe UI,Arial,sans-serif;">
-  // Tag HTML na interface
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f5;padding:24px 12px;">
-    // Tag HTML na interface
     <tr><td align="center">
-      // Tag HTML na interface
       <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e5e7eb;">
-        // Tag HTML na interface
         <tr><td style="background:#16a34a;padding:20px 28px;color:#fff;font-size:20px;font-weight:700;">Controla.ai</td></tr>
-        // Tag HTML na interface
         <tr><td style="padding:28px;color:#111827;font-size:15px;line-height:1.55;">
-          // Tag HTML na interface
           <h1 style="margin:0 0 12px;font-size:20px;font-weight:600;">${title}</h1>
-          // Tag HTML na interface
           <p>${intro}</p>
-          // Tag HTML na interface
           <p>O código expira em <strong>${OTP_MINUTES} minutos</strong>.</p>
-          // Tag HTML na interface
           <div style="margin:24px 0;padding:20px 12px;background:#f4f6f5;border-radius:12px;text-align:center;">
-            // Tag HTML na interface
             <p style="margin:0;font-size:36px;letter-spacing:12px;font-weight:700;color:#16a34a;">${code}</p>
-          // Tag HTML na interface
           </div>
-          // Tag HTML na interface
           <p style="color:#6b7280;font-size:13px;">Não compartilhe este código. A equipe Controla.ai nunca pede isso por mensagem.</p>
-          // Tag HTML na interface
           <p style="margin:24px 0 0;color:#6b7280;font-size:12px;">Se você não solicitou isso, ignore este e-mail.</p>
-        // Tag HTML na interface
         </td></tr>
-      // Tag HTML na interface
       </table>
-    // Tag HTML na interface
     </td></tr>
-  // Tag HTML na interface
   </table>
-// Tag HTML na interface
 </body>
-// Tag HTML na interface
 </html>`;
   const text = `${title}\n\nCódigo: ${code}\nValidade: ${OTP_MINUTES} minutos.`;
   return { subject, html, text };
