@@ -14,7 +14,7 @@ const HTML = resolve(repoRoot, "documentacao-tcc", "TCC_CONTROLAAI_ORGANIZACAO_S
 const OUT_PDF = resolve(repoRoot, "documentacao-tcc", "TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.pdf");
 const OUT_ROOT = resolve(repoRoot, "TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.pdf");
 const OUT_DOWNLOADS = resolve(process.env.USERPROFILE || "", "Downloads", "TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.pdf");
-const TOTAL = 30;
+const TOTAL = 42;
 
 async function main() {
   if (!existsSync(HTML)) {
