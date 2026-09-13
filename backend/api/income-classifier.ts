@@ -1,9 +1,15 @@
 /**
  * Classificador renda mensal vs ganho pontual — Controla.ai
- * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  *
- * RENDA = ganho fixo/recorrente (salário, freela mensal) → budgets + user_settings
- * GANHO = entrada pontual única → transactions (type=income)
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { parseMoneyAmount } from "../src/utils/money.js"; // Extrai valor numérico do texto
 import type { UserFinancialContext } from "./user-context.js"; // Perfil financeiro do usuário
@@ -31,24 +37,19 @@ export function isIncomeProfileMessage(text: string): boolean {
 export function isOneTimeGainMessage(text: string): boolean {
   const t = text.trim().toLowerCase();
   if (isIncomeProfileMessage(text)) return false; // Perfil mensal tem prioridade
-
   const hasGainVerb = /recebi|ganhei|caiu|entrou|vendi|faturei|depositei|pagamento\s+(?:de|do)|cliente\s+pagou|pix\s+(?:de|recebido)/i.test(
     t,
   );
   if (!hasGainVerb) return false; // Sem verbo de entrada
-
   if (/por\s*m[eê]s|mensal|todo\s*m[eê]s|renda\s+mensal|sal[aá]rio\s+(de|é)\s+\d|fixo\s+de/i.test(t)) {
     return false; // Menciona recorrência mensal — não é pontual
   }
-
   if (/hoje|agora|ontem|essa\s+semana|desta\s+vez|pontual|uma\s+vez|extra|bico|freela\s+(?:de|do|projeto)|do\s+cliente|da\s+venda/i.test(t)) {
     return true; // Marcadores temporais de evento único
   }
-
   if (/recebi\s+(?:o\s+)?sal[aá]rio|caiu\s+(?:o\s+)?sal[aá]rio|entrou\s+(?:o\s+)?sal[aá]rio/i.test(t)) {
     return true; // Salário caiu agora = lançamento pontual (perfil já salvo)
   }
-
   return false;
 }
 
@@ -56,7 +57,6 @@ export function isOneTimeGainMessage(text: string): boolean {
 export function classifyIncomeMessage(text: string, ctx: UserFinancialContext): IncomeRoute {
   const incomeSaved =
     ctx.incomeProfile.monthlyAmount != null && ctx.incomeProfile.monthlyAmount > 0; // Renda já no perfil
-
   if (incomeSaved && !isIncomeProfileMessage(text)) {
     if (isOneTimeGainMessage(text)) return "one_time_gain"; // Ganho avulso
     const t = text.trim().toLowerCase();
@@ -64,25 +64,20 @@ export function classifyIncomeMessage(text: string, ctx: UserFinancialContext): 
     if (hasIncomeVerb) return "one_time_gain"; // Verbo de entrada → transação
     return "not_income"; // Não fala de dinheiro entrando
   }
-
   if (!parseMoneyAmount(text) && !isIncomeProfileMessage(text) && !isOneTimeGainMessage(text)) {
     return "not_income"; // Sem valor nem pistas de renda/ganho
   }
-
   if (isIncomeProfileMessage(text)) return "profile_setup"; // Cadastrar renda mensal
   if (isOneTimeGainMessage(text)) return "one_time_gain"; // Ganho único
-
   const t = text.trim().toLowerCase();
   const hasIncomeVerb = /recebi|ganhei|caiu|entrou|sal[aá]rio|vendi|faturei/i.test(t);
   if (!hasIncomeVerb) {
     if (parseMoneyAmount(text) && !ctx.incomeProfile.monthlyAmount) return "profile_setup"; // Só número sem renda → perfil
     return "not_income";
   }
-
   if (ctx.incomeProfile.isComplete && /sal[aá]rio|caiu|entrou/i.test(t)) {
     return "one_time_gain"; // Perfil completo + salário caiu = lançamento
   }
-
   return "ambiguous"; // Precisa perguntar 1 ou 2
 }
 
@@ -127,12 +122,10 @@ export async function processIncomeRouter(
 ): Promise<IncomeRouterResult> {
   const trimmed = text.trim();
   const session = clarifySessions.get(userId); // Sessão de clarificação ativa?
-
   if (session) {
     const choice = trimmed.toLowerCase(); // Resposta do usuário (1 ou 2)
     const saved = { ...session }; // Copia dados antes de limpar sessão
     clarifySessions.delete(userId);
-
     if (/^1|renda|mensal|fixo|sal[aá]rio|perfil|recorrente/i.test(choice)) {
       return {
         handled: false, // Delega ao onboarding de renda
@@ -163,13 +156,10 @@ export async function processIncomeRouter(
       }
       return { handled: true, response: result?.response ?? "Não consegui registrar.", route: "one_time_gain" };
     }
-
     clarifySessions.set(userId, session); // Resposta inválida — mantém sessão
     return { handled: true, response: `Responda *1* (renda mensal) ou *2* (ganho pontual).`, route: "ambiguous" };
   }
-
   const route = classifyIncomeMessage(trimmed, ctx); // Classifica mensagem atual
-
   if (route === "one_time_gain") {
     const amount = parseMoneyAmount(trimmed);
     const intent: FinancialIntent = {
@@ -191,13 +181,11 @@ export async function processIncomeRouter(
       };
     }
   }
-
   if (route === "ambiguous") {
     const amount = parseMoneyAmount(trimmed);
     clarifySessions.set(userId, { amount: amount ?? 0, originalText: trimmed }); // Abre sessão de clarificação
     return { handled: true, response: buildClarifyQuestion(amount), route: "ambiguous" };
   }
-
   if (route === "profile_setup") {
     const incomeSaved =
       ctx.incomeProfile.monthlyAmount != null && ctx.incomeProfile.monthlyAmount > 0;
@@ -206,6 +194,5 @@ export async function processIncomeRouter(
     }
     return { handled: false, response: "", route: "profile_setup", startProfileSetup: true };
   }
-
   return { handled: false, response: "", route: "not_income" }; // Não é tema de renda/ganho
 }

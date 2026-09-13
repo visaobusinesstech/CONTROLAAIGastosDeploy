@@ -4,7 +4,7 @@
 > Descreve arquitetura, lógica de negócio, banco de dados e fluxos do sistema.  
 > **Regra de manutenção:** qualquer alteração de código, schema, rotas ou pastas **deve ser refletida aqui** na mesma entrega.
 
-**Versão:** 8.5 · **Última revisão:** set/2026 · **Repositório:** Controla.AI
+**Versão:** 8.6 · **Última revisão:** set/2026 · **Repositório:** Controla.AI
 
 ---
 
@@ -135,6 +135,7 @@ controlaaii/
 ├── TCC_DOCUMENTACAO.md      ← ESTE ARQUIVO (fonte única de verdade)
 ├── documentacao-tcc/        ← PDF, PNGs ERD, snapshot do banco (entrega TCC)
 │   ├── TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.html  ← HTML ~30 págs. (pastas, fluxos, Railway/Vercel)
+│   ├── TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.pdf   ← PDF gerado do HTML (Puppeteer)
 │   ├── TCC_CONTROLAAI_BD_APRESENTACAO_FINAL.pdf ← PDF banco (layout visual de referência)
 │   ├── TCC_DOCUMENTACAO.pdf
 │   ├── TCC_DOCUMENTACAO.md
@@ -1041,6 +1042,7 @@ Lista exportada: `BACKEND_APPLICATION_FILES` em `backend/src/MAPA-SISTEMA.ts`.
 
 | Data | Versão | Alteração |
 |------|--------|-----------|
+| set/2026 | 8.6 | **PDF organização + configs comentados:** `TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.pdf` (30 págs., gerador `generate-ORGANIZACAO-SISTEMA-pdf.ts`); cabeçalhos tópico em package.json (`_tcc` + aviso de que `package-lock.json` não se edita), vite/drizzle/railway/tsconfig/deploy.ps1; rewrites de `vercel.json` documentados no middleware (JSON sem comentário); limpeza de comentários genéricos em `frontend/api/*` |
 | set/2026 | 8.5 | **HTML organização do sistema (30 págs.):** `documentacao-tcc/TCC_CONTROLAAI_ORGANIZACAO_SISTEMA.html` (layout A4 alinhado ao PDF BD) + gerador `backend/scripts/generate-ORGANIZACAO-SISTEMA-html.ts` — pastas, agente IA, WhatsApp, indicadores, banco, Railway/Vercel; comentários didáticos PT em backend/api, backend/src, whatsapp e frontend de aplicação |
 | set/2026 | 8.4 | **Comentários TCC backend/src + whatsapp:** comentários didáticos em português em 32 arquivos de `backend/src/` e `backend/whatsapp/` — cabeçalho `Doc TCC`; textos legais (`legal/documents.ts`) e HTML de e-mail (`mailer.ts`) preservados sem comentários dentro de strings |
 | set/2026 | 8.3 | **Comentários TCC frontend:** revisão completa dos arquivos de aplicação (`frontend/src/**` exc. `components/ui/*`, `frontend/api/**`, `middleware.ts`) — cabeçalho `Doc TCC`, comentários didáticos em português linha a linha; `MAPA-SISTEMA.tsx` v2.1 com catálogo ampliado |

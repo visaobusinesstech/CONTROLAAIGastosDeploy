@@ -1,23 +1,24 @@
 /**
  * Aviso de assinatura — trial expirado ou escolha de plano com checkout Stripe.
+ *
+ * Papel no sistema: Componente reutilizável do frontend — compõe páginas ou layout.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-// Importa funções/componentes de @tanstack/react-query
 import { useQuery } from "@tanstack/react-query";
-// Importa funções/componentes de lucide-react
 import { Sparkles } from "lucide-react";
-// Importa funções/componentes de @/lib/auth
 import { useAuth } from "@/lib/auth";
-// Importa funções/componentes de @/lib/api
 import { apiGetBillingStatus } from "@/lib/api";
-// Importa funções/componentes de @/components/BillingPlanCards
 import { BillingPlanCards } from "@/components/BillingPlanCards";
-// Importa funções/componentes de @/lib/utils
 import { cn } from "@/lib/utils";
 
-// Define formato de dados (TypeScript)
 type Props = {
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   className?: string;
 };
 
@@ -25,27 +26,16 @@ type Props = {
 export function BillingPaywall({ className }: Props) {
   // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-
   // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { data: billing, isLoading } = useQuery({
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     queryKey: ["billing", token],
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     queryFn: () => apiGetBillingStatus(token!),
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     enabled: Boolean(token),
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     staleTime: 30_000,
   });
-
-  // Condição — executa bloco só se verdadeira
   if (isLoading || !billing) return null;
-  // Condição — executa bloco só se verdadeira
   if (billing.hasAccess && billing.reason !== "expired") return null;
-  // Condição — executa bloco só se verdadeira
   if (!billing.requiresPayment) return null;
-
-  // Retorna valor ou JSX para quem chamou
   return (
     // Tag HTML na interface
     <div className={cn("overflow-hidden rounded-2xl border border-border bg-card shadow-sm", className)}>
@@ -65,7 +55,6 @@ export function BillingPaywall({ className }: Props) {
             <h2 className="text-lg font-semibold text-foreground">Controla.AI Pro</h2>
             // Tag HTML na interface
             <p className="text-sm text-muted-foreground">
-              // Instrução do fluxo — parte da lógica de negócio ou interface
               Seu teste gratuito terminou. Escolha um plano e continue com tudo liberado.
             // Tag HTML na interface
             </p>
@@ -77,12 +66,10 @@ export function BillingPaywall({ className }: Props) {
       </div>
       // Tag HTML na interface
       <div className="p-6">
-        // Instrução do fluxo — parte da lógica de negócio ou interface
         {token && <BillingPlanCards billing={billing} token={token} />}
       // Tag HTML na interface
       </div>
     // Tag HTML na interface
     </div>
-  // Passo do algoritmo — executa parte da regra de negócio ou da interface
   );
 }

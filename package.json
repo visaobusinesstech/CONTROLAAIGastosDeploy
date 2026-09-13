@@ -1,6 +1,18 @@
 {
   "name": "controla-ai",
   "private": true,
+  "description": "Monorepo Controla.AI (TCC) — sobe backend+frontend juntos no desenvolvimento local.",
+  "_tcc": {
+    "doc": "TCC_DOCUMENTACAO.md — atualizar ao modificar",
+    "paraQueServe": "package.json da RAIZ do monorepo. Não é o app em si: só orquestra scripts que chamam as pastas backend/ e frontend/. Use 'npm run dev' aqui para abrir API + painel ao mesmo tempo.",
+    "packageLock": "O package-lock.json desta pasta (e de backend/frontend) é GERADO pelo npm e NÃO deve ser editado/comentado à mão. Ele trava a versão exata de cada dependência para o build na Railway e na Vercel ficar idêntico ao da sua máquina. Se precisar atualizar libs: altere package.json e rode npm install (o lock é reescrito sozinho).",
+    "scriptsPrincipais": {
+      "dev": "Sobe backend (Fastify) e frontend (Vite) em paralelo via concurrently",
+      "install:all": "Instala dependências nas duas pastas",
+      "deploy": "Roda deploy.ps1 (db:setup + git commit + push → dispara produção)",
+      "db:*": "Atalhos que delegam para o backend (push/seed do Postgres)"
+    }
+  },
   "scripts": {
     "dev": "concurrently -n backend,frontend -c blue,green \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "dev:backend": "npm run dev --prefix backend",

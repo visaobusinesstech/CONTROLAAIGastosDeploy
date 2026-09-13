@@ -1,5 +1,14 @@
 /**
  * Sincroniza renda mensal do perfil com transações, orçamentos e recorrência — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { and, eq, gte, lte } from "drizzle-orm"; // Operadores de filtro por período
@@ -38,12 +47,10 @@ export async function syncIncomeToDashboard(
   },
 ): Promise<void> {
   if (amount <= 0) return; // Ignora valores inválidos
-
   const month = options?.month ?? monthKey(new Date()); // Mês alvo (atual ou informado)
   const monthStart = new Date(`${month}-01T00:00:00.000Z`); // Início do mês UTC
   const monthEnd = new Date(monthStart);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1); // Primeiro dia do mês seguinte
-
   const [existing] = await db
     .select({ id: transactions.id })
     .from(transactions)
@@ -57,7 +64,6 @@ export async function syncIncomeToDashboard(
       ),
     )
     .limit(1);
-
   const { id: categoryId } = await findCategoryId(
     userId,
     "Salário",
@@ -67,7 +73,6 @@ export async function syncIncomeToDashboard(
   const occurredAt = payDateForMonth(month, options?.payDay);
   const description = incomeDescription(options?.incomeType);
   const source = options?.recurrence === "monthly_fixed" ? "recurring" : "manual"; // Origem no banco
-
   if (existing) {
     await db
       .update(transactions)
@@ -82,7 +87,6 @@ export async function syncIncomeToDashboard(
       .where(eq(transactions.id, existing.id)); // Atualiza em vez de duplicar
     return;
   }
-
   await db.insert(transactions).values({
     userId,
     categoryId,
@@ -120,12 +124,10 @@ export async function upsertIncomeRecurring(
   incomeType?: IncomeType | null,
 ): Promise<void> {
   if (amount <= 0) return;
-
   const desc = incomeDescription(incomeType);
   const day = payDay >= 1 && payDay <= 28 ? payDay : 1;
   const month = monthKey(new Date());
   const nextDue = payDateForMonth(month, day).toISOString().slice(0, 10); // Próximo vencimento YYYY-MM-DD
-
   const rows = await db
     .select()
     .from(recurringTransactions)
@@ -136,9 +138,7 @@ export async function upsertIncomeRecurring(
         eq(recurringTransactions.isActive, true),
       ),
     );
-
   const [existing] = rows;
-
   if (existing) {
     await db
       .update(recurringTransactions)
@@ -151,7 +151,6 @@ export async function upsertIncomeRecurring(
       .where(eq(recurringTransactions.id, existing.id));
     return;
   }
-
   const { id: categoryId } = await findCategoryId(userId, "Salário", "income", desc);
   await db.insert(recurringTransactions).values({
     userId,
@@ -179,12 +178,10 @@ export async function materializeDueRecurringIncomes(userId: string): Promise<nu
         eq(recurringTransactions.isActive, true),
       ),
     );
-
   let count = 0; // Quantidade materializada nesta execução
   for (const row of rows) {
     const dueStr = String(row.nextDue);
     if (dueStr > todayStr) continue; // Ainda não venceu
-
     const month = dueStr.slice(0, 7); // YYYY-MM do vencimento
     const amount = num(row.amount);
     await syncIncomeToDashboard(userId, amount, {
@@ -192,7 +189,6 @@ export async function materializeDueRecurringIncomes(userId: string): Promise<nu
       payDay: row.dayOfMonth,
       month,
     });
-
     await db
       .insert(budgets)
       .values({ userId, month, totalIncomeExpected: String(amount) })
@@ -200,16 +196,13 @@ export async function materializeDueRecurringIncomes(userId: string): Promise<nu
         target: [budgets.userId, budgets.month],
         set: { totalIncomeExpected: String(amount) },
       });
-
     const next = new Date(`${dueStr}T12:00:00.000Z`);
     next.setUTCMonth(next.getUTCMonth() + 1); // Avança um mês
     const nextDue = next.toISOString().slice(0, 10);
-
     await db
       .update(recurringTransactions)
       .set({ nextDue })
       .where(eq(recurringTransactions.id, row.id));
-
     count++;
   }
   return count;
@@ -226,14 +219,12 @@ export async function syncFullIncomeProfile(
   },
 ): Promise<void> {
   if (amount <= 0) return;
-
   const recurrence = options?.recurrence ?? "manual";
   await syncIncomeToDashboard(userId, amount, {
     incomeType: options?.incomeType,
     recurrence,
     payDay: options?.payDay,
   });
-
   if (recurrence === "monthly_fixed") {
     const payDay = options?.payDay ?? 1;
     await propagateMonthlyBudgets(userId, amount); // Preenche meses futuros

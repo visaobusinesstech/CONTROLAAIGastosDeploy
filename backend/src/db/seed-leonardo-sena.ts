@@ -1,4 +1,16 @@
-/** Seed de conta demo com transações e orçamentos — Leonardo Sena. */
+/**
+ * Seed de conta demo com transações e orçamentos — Leonardo Sena.
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "./index.js";
@@ -90,10 +102,8 @@ const GOALS: GoalSeed[] = [
 export async function seedLeonardoSenaAccount(password: string, name = "Leonardo Sena"): Promise<void> {
   const email = LEONARDO_SENA_EMAIL.trim().toLowerCase();
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-
   let userId: string;
   const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, email));
-
   if (existing) {
     await db.update(users).set({ name, passwordHash, plan: "pro" }).where(eq(users.id, existing.id));
     userId = existing.id;
@@ -110,7 +120,6 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
       .returning({ id: users.id });
     userId = row.id;
   }
-
   await db
     .insert(userSettings)
     .values({
@@ -129,9 +138,7 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
         updatedAt: new Date(),
       },
     });
-
   const { inserted: txCount } = await seedRichMockForUserId(userId);
-
   const userGoals = await db.select({ id: goals.id }).from(goals).where(eq(goals.userId, userId));
   for (const g of userGoals) {
     await db.delete(goalCheckpoints).where(eq(goalCheckpoints.goalId, g.id));
@@ -139,10 +146,8 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
   await db.delete(goals).where(eq(goals.userId, userId));
   await db.delete(recurringTransactions).where(eq(recurringTransactions.userId, userId));
   await db.delete(aiConversations).where(eq(aiConversations.userId, userId));
-
   const cats = await db.select().from(categories);
   const byName = new Map(cats.map((c) => [c.name, c.id]));
-
   for (const g of GOALS) {
     const categoryId = byName.get(g.categoryName) ?? null;
     const [goalRow] = await db
@@ -159,7 +164,6 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
         isActive: true,
       })
       .returning({ id: goals.id });
-
     for (const cp of g.checkpoints) {
       await db.insert(goalCheckpoints).values({
         goalId: goalRow.id,
@@ -173,11 +177,9 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
       });
     }
   }
-
   const alim = byName.get("Alimentação");
   const moradia = byName.get("Moradia");
   const salario = byName.get("Salário");
-
   if (moradia) {
     await db.insert(recurringTransactions).values({
       userId,
@@ -217,7 +219,6 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
       isActive: true,
     });
   }
-
   await db.insert(aiConversations).values({
     userId,
     title: "Análise de gastos de abril",
@@ -231,7 +232,6 @@ export async function seedLeonardoSenaAccount(password: string, name = "Leonardo
       },
     ],
   });
-
   console.log(`Usuário: ${email}`);
   console.log(`Transações: ${txCount}`);
   console.log(`Metas: ${GOALS.length}`);

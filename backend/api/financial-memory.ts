@@ -1,5 +1,14 @@
 /**
  * Memória financeira por usuário — categorias frequentes e preferências — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { eq, sql } from "drizzle-orm"; // Operadores SQL para upsert e ordenação
@@ -36,7 +45,6 @@ export async function getTopCategories(userId: string, limit = 5): Promise<strin
     .where(eq(financialMemory.userId, userId)) // Filtra por usuário
     .orderBy(sql`${financialMemory.frequency} desc`) // Mais frequentes primeiro
     .limit(limit); // Limita quantidade retornada
-
   return rows.map((r) => r.categoryName).filter((n): n is string => Boolean(n)); // Remove nulls
 }
 

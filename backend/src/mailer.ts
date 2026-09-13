@@ -1,8 +1,15 @@
 /**
  * Envio de e-mails transacionais — reset de senha e códigos 2FA.
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Local: SMTP Gmail direto.
- * Produção (Railway): POST HTTPS → relay Vercel (/relay/send) → Gmail SMTP (sem Resend).
  */
 import { createTransport } from "nodemailer"; // SMTP Gmail
 import dns from "node:dns"; // IPv4 primeiro — smtp.gmail.com em IPv6 falha em alguns hosts
@@ -130,7 +137,6 @@ async function sendViaRelay(opts: {
     console.error("[mail] relay configurado mas SMTP_PASS ausente");
     return { sent: false, skipped: false, via: "relay", error: "relay_missing_smtp" };
   }
-
   console.info(`[mail] relay SMTP → ${opts.to} via ${url}`);
   try {
     const res = await fetch(url, {
@@ -260,19 +266,15 @@ export async function sendMail(opts: {
       console.error("[mail] SMTP local:", err);
     }
   }
-
   const relayResult = await sendViaRelay(opts);
   if (relayResult?.sent) return relayResult;
-
   if (smtpPass()) {
     const smtpResult = await sendViaSmtp(opts);
     if (smtpResult?.sent) return smtpResult;
     if (relayResult) return relayResult;
     if (smtpResult) return smtpResult;
   }
-
   if (relayResult) return relayResult;
-
   console.warn(`[mail] Sem provedor — e-mail NÃO enviado para ${opts.to}`);
   return { sent: false, skipped: true, via: "none", error: "no_provider" };
 }

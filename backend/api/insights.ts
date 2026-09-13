@@ -1,5 +1,14 @@
 /**
  * Insights e chat financeiro — KPIs, projeções e respostas a perguntas — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions"; // Tipo de mensagens do chat OpenAI
@@ -37,12 +46,10 @@ export async function getUserBalance(userId: string, from?: Date, to?: Date): Pr
   const conds = [eq(transactions.userId, userId), eq(transactions.isActive, true)]; // Filtro base por usuário ativo
   if (from) conds.push(gte(transactions.occurredAt, from)); // Data inicial (inclusiva)
   if (to) conds.push(lte(transactions.occurredAt, to)); // Data final (inclusiva)
-
   const rows = await db
     .select({ amount: transactions.amount, type: transactions.type })
     .from(transactions)
     .where(and(...conds)); // Todas as transações no período
-
   // Fonte única: ganhos ≠ gastos; líquido = bruto − gastos
   const summary = computeFinancialPeriodSummary(rows);
   return {
@@ -84,18 +91,14 @@ export async function getFinancialSnapshot(userId: string): Promise<FinancialSna
   const monthStart = new Date(`${currentMonth}-01T00:00:00.000Z`);
   const monthEnd = new Date(monthStart);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
-
   const tx = await getUserBalance(userId, monthStart, monthEnd);
   const expectedIncome = await getExpectedMonthlyIncome(userId, currentMonth);
-
   const [settings] = await db
     .select({ incomePayDay: userSettings.incomePayDay })
     .from(userSettings)
     .where(eq(userSettings.userId, userId));
-
   const effectiveIncome = Math.max(tx.income, expectedIncome);
   const projectedAvailable = effectiveIncome - tx.expense;
-
   return {
     income: tx.income,
     expense: tx.expense,
@@ -112,7 +115,6 @@ export async function getTopSpendingDays(userId: string, limit = 5): Promise<Arr
   const monthStart = new Date(`${currentMonth}-01T00:00:00.000Z`);
   const monthEnd = new Date(monthStart);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
-
   const rows = await db
     .select({
       day: sql<string>`to_char(${transactions.occurredAt}, 'DD/MM')`,
@@ -131,7 +133,6 @@ export async function getTopSpendingDays(userId: string, limit = 5): Promise<Arr
     .groupBy(sql`to_char(${transactions.occurredAt}, 'DD/MM')`)
     .orderBy(sql`sum(${transactions.amount}) desc`)
     .limit(limit);
-
   return rows.map((r) => ({ day: r.day, total: num(r.total) }));
 }
 
@@ -140,7 +141,6 @@ export async function getMonthlyCategoryBreakdown(userId: string, month: string)
   const from = new Date(`${month}-01T00:00:00.000Z`); // Primeiro dia do mês UTC
   const to = new Date(from);
   to.setUTCMonth(to.getUTCMonth() + 1); // Primeiro dia do mês seguinte
-
   const rows = await db
     .select({
       categoryName: categories.name,
@@ -150,7 +150,6 @@ export async function getMonthlyCategoryBreakdown(userId: string, month: string)
     .from(transactions)
     .leftJoin(categories, eq(transactions.categoryId, categories.id)) // JOIN para nome da categoria
     .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true), gte(transactions.occurredAt, from), lte(transactions.occurredAt, to)));
-
   const byCat = new Map<string, number>(); // Acumulador categoria → total
   for (const r of rows) {
     if (r.type !== "expense") continue; // Só despesas no breakdown
@@ -178,51 +177,41 @@ export async function computeFinancialKpis(userId: string): Promise<FinancialKpi
   const currentMonth = monthKey(now); // YYYY-MM do mês atual
   const dayOfMonth = now.getUTCDate(); // Dia do mês (1-31)
   const daysInMonth = new Date(now.getUTCFullYear(), now.getUTCMonth() + 1, 0).getUTCDate(); // Total de dias no mês
-
   const monthStart = new Date(`${currentMonth}-01T00:00:00.000Z`);
   const current = await getUserBalance(userId, monthStart, now); // Totais do mês até hoje
   const expectedIncome = await getExpectedMonthlyIncome(userId, currentMonth);
   const effectiveIncome = Math.max(current.income, expectedIncome);
-
   const prevMonthDate = new Date(monthStart);
   prevMonthDate.setUTCMonth(prevMonthDate.getUTCMonth() - 1); // Mês anterior
   const prevMonth = monthKey(prevMonthDate);
   const prevStart = new Date(`${prevMonth}-01T00:00:00.000Z`);
   const prevEnd = new Date(monthStart); // Fim do mês anterior = início do atual
   const previous = await getUserBalance(userId, prevStart, prevEnd); // Totais do mês anterior completo
-
   const dailyExpenseRate = dayOfMonth > 0 ? current.expense / dayOfMonth : 0; // Média diária de gastos
   const expenseProjection = dailyExpenseRate * daysInMonth; // Projeção linear até fim do mês
   const endOfMonthBalanceProjection = effectiveIncome - expenseProjection;
-
   const savingsRate = effectiveIncome > 0 ? (effectiveIncome - current.expense) / effectiveIncome : 0;
   let financialScore = Math.round(Math.min(100, Math.max(0, savingsRate * 100 + 20))); // Score base + bônus
-
   const [budget] = await db
     .select()
     .from(budgets)
     .where(and(eq(budgets.userId, userId), eq(budgets.month, currentMonth))); // Orçamento do mês
-
   if (budget?.totalExpenseLimit && num(budget.totalExpenseLimit) > 0) {
     const pct = current.expense / num(budget.totalExpenseLimit); // % do limite de gastos usado
     if (pct > 1) financialScore -= 20; // Ultrapassou orçamento — penaliza score
     else if (pct > 0.8) financialScore -= 10; // Próximo do limite — penaliza levemente
   }
-
   let trend: "up" | "down" | "stable" = "stable";
   const prevBalance = previous.balance;
   if (current.balance > prevBalance * 1.05) trend = "up"; // Saldo 5%+ melhor que mês anterior
   else if (current.balance < prevBalance * 0.95) trend = "down"; // Saldo 5%+ pior
-
   let debtRisk: "low" | "medium" | "high" = "low";
   if (current.expense > effectiveIncome * 1.1) debtRisk = "high";
   else if (current.expense > effectiveIncome * 0.95) debtRisk = "medium";
-
   const activeGoals = await db
     .select()
     .from(goals)
     .where(and(eq(goals.userId, userId), eq(goals.isActive, true))); // Metas ativas do usuário
-
   let goalCompletionMonths: number | null = null;
   const savingGoal = activeGoals.find((g) => g.goalType === "saving" && g.targetAmount); // Primeira meta de poupança
   if (savingGoal && savingGoal.targetAmount) {
@@ -232,7 +221,6 @@ export async function computeFinancialKpis(userId: string): Promise<FinancialKpi
       goalCompletionMonths = Math.ceil(target / monthlySaving); // Meses para atingir meta
     }
   }
-
   return {
     financialScore,
     endOfMonthBalanceProjection: Math.round(endOfMonthBalanceProjection * 100) / 100,
@@ -250,15 +238,12 @@ export async function generateInsights(userId: string): Promise<string[]> {
   const now = new Date();
   const currentMonth = monthKey(now);
   const monthStart = new Date(`${currentMonth}-01T00:00:00.000Z`);
-
   const prevMonthDate = new Date(monthStart);
   prevMonthDate.setUTCMonth(prevMonthDate.getUTCMonth() - 1);
   const prevMonth = monthKey(prevMonthDate);
-
   const currentCats = await getMonthlyCategoryBreakdown(userId, currentMonth); // Breakdown mês atual
   const prevCats = await getMonthlyCategoryBreakdown(userId, prevMonth); // Breakdown mês anterior
   const insights: string[] = [];
-
   for (const [cat, amount] of currentCats.slice(0, 5)) {
     const prev = prevCats.find(([c]) => c === cat)?.[1] ?? 0; // Gasto da mesma categoria no mês anterior
     if (prev > 0 && amount > prev * 1.15) {
@@ -266,7 +251,6 @@ export async function generateInsights(userId: string): Promise<string[]> {
       insights.push(`Você gastou ${pct}% mais em ${cat}.`);
     }
   }
-
   const balance = await getUserBalance(userId, monthStart, now);
   if (balance.income > 0) {
     const reserveMonths = balance.balance / (balance.expense || 1); // Meses de reserva cobertos
@@ -274,16 +258,13 @@ export async function generateInsights(userId: string): Promise<string[]> {
       insights.push(`Sua reserva cobre ${reserveMonths.toFixed(1)} meses de despesas.`);
     }
   }
-
   const kpis = await computeFinancialKpis(userId);
   if (kpis.goalCompletionMonths) {
     insights.push(`Você pode atingir sua meta principal em ${kpis.goalCompletionMonths} meses.`);
   }
-
   if (insights.length === 0) {
     insights.push("Suas finanças estão estáveis este mês. Continue registrando seus gastos!"); // Fallback positivo
   }
-
   return insights;
 }
 
@@ -297,11 +278,9 @@ export async function answerFinancialQuery(
   const monthStart = new Date(`${currentMonth}-01T00:00:00.000Z`);
   const monthEnd = new Date(monthStart);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
-
   const balance = await getUserBalance(userId, monthStart, now);
   const snap = await getFinancialSnapshot(userId);
   const queryType = intent.queryType ?? "general";
-
   switch (queryType) {
     case "top_spending_days": {
       const days = await getTopSpendingDays(userId, 5);
@@ -369,11 +348,9 @@ export async function generateAiChatResponse(
   const insights = await generateInsights(userId);
   const topCategories = await getTopCategories(userId);
   const start = Date.now();
-
   if (!isOpenAIConfigured()) {
     return `Saldo: ${formatBrl(balance.balance)} | Score: ${kpis.financialScore}/100\n\n${insights.join("\n")}`; // Fallback sem IA
   }
-
   const openai = getOpenAI();
   const model = getOpenAIModel();
   const systemContent = buildControlaAiChatPrompt({
@@ -385,7 +362,6 @@ export async function generateAiChatResponse(
     insights,
     topCategories,
   }); // Prompt com dados reais injetados
-
   const messages: ChatCompletionMessageParam[] = [
     { role: "system", content: systemContent },
     ...history.slice(-10).map((m) => ({
@@ -394,10 +370,8 @@ export async function generateAiChatResponse(
     })),
     { role: "user", content: message },
   ];
-
   const completion = await openai.chat.completions.create({ model, messages, temperature: 0.7 }); // Chat mais criativo
   const response = completion.choices[0]?.message?.content ?? "Não consegui processar sua pergunta.";
-
   await logAiOperation({
     userId,
     source: "web_chat",
@@ -409,7 +383,6 @@ export async function generateAiChatResponse(
     outputTokens: completion.usage?.completion_tokens,
     processingMs: Date.now() - start,
   });
-
   return response;
 }
 
@@ -421,7 +394,6 @@ export async function generatePeriodReport(
   const now = new Date();
   let from: Date;
   let label: string;
-
   if (period === "weekly") {
     from = new Date(now);
     from.setUTCDate(from.getUTCDate() - 7); // Últimos 7 dias
@@ -433,12 +405,10 @@ export async function generatePeriodReport(
     from = new Date(`${monthKey(now)}-01T00:00:00.000Z`); // Início do mês corrente
     label = "Mensal";
   }
-
   const balance = await getUserBalance(userId, from, now); // Totais no período
   const insights = await generateInsights(userId);
   const cats = await getMonthlyCategoryBreakdown(userId, monthKey(now)); // Breakdown do mês (mesmo em relatório semanal)
   const catLines = cats.slice(0, 5).map(([c, v]) => `• ${c}: ${formatBrl(v)}`).join("\n");
-
   return `📋 *Relatório ${label}*
 
 Receitas: ${formatBrl(balance.income)}

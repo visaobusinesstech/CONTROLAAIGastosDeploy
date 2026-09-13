@@ -1,712 +1,673 @@
 /**
- * API principal — transações, categorias, orçamento, relatórios mensais.
+ * Rotas CRUD principais — transações, categorias, budget, settings
+ *
+ * O que faz: REST autenticado para lançamentos financeiros, categorias customizadas,
+ * orçamento mensal, export CSV e preferências do usuário (user_settings).
+ *
+ * Onde entra: registerApiRoutes em index.ts; base de dados do Dashboard e Settings.
+ *
+ * Integrações: Drizzle schema (transactions, categories, budgets), authPreHandler,
+ * utils/money e financial-summary para agregações.
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
- * Prefixo: /api/* (requer JWT do usuário logado).
  */
 
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify"; // Tipos HTTP
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, desc, eq, gte, isNull, lte, or, type SQL } from "drizzle-orm"; // Operadores SQL tipados
-import { z } from "zod"; // Validação de body JSON
+import { z } from "zod";
 import { db } from "./db/index.js"; // Cliente PostgreSQL
 import { budgets, categories, transactions, userSettings, users } from "./db/schema.js"; // Tabelas CRUD
 import { authPreHandler } from "./auth.js"; // Middleware JWT
 import { seedMockDataForUser } from "./db/seed-user-mock.js"; // Demo: dados fictícios básicos
 import { RICH_DEMO_EMAIL, seedRichMockForUserId } from "./db/seed-rich-leonardo.js"; // Demo: pacote completo
-import { materializeDueRecurringIncomes, syncFullIncomeProfile, syncIncomeToDashboard } from "../api/income-sync.js"; // Importa código de outro arquivo para usar aqui
+import { materializeDueRecurringIncomes, syncFullIncomeProfile, syncIncomeToDashboard } from "../api/income-sync.js";
 import type { IncomeRecurrence, IncomeType } from "../api/onboarding-agent.js"; // Importa apenas tipos TypeScript (não vira código no programa final)
-import { billingAccessPreHandler } from "./billing-routes.js"; // Importa código de outro arquivo para usar aqui
-import { requestAuditMeta, writeAuditLog } from "./audit.js"; // Importa código de outro arquivo para usar aqui
-import { releasePhoneFromOtherUsers } from "../whatsapp/user-resolver.js"; // Importa código de outro arquivo para usar aqui
-import { INCOME_FREQUENCIES, isValidIncomeFrequency } from "./utils/financial-summary.js"; // Importa código de outro arquivo para usar aqui
+import { billingAccessPreHandler } from "./billing-routes.js";
+import { requestAuditMeta, writeAuditLog } from "./audit.js";
+import { releasePhoneFromOtherUsers } from "../whatsapp/user-resolver.js";
+import { INCOME_FREQUENCIES, isValidIncomeFrequency } from "./utils/financial-summary.js";
 
 /** Converte numeric Postgres para number (helper local). */
-function num(v: string | null): number { // Bloco de código reutilizável com um nome
-  if (v == null) return 0; // Só executa o bloco abaixo se esta condição for verdadeira
-  const n = Number(v); // Guarda um valor que não muda durante a execução deste trecho
-  return Number.isFinite(n) ? n : 0; // Devolve um valor e encerra a função aqui
-} // Fecha um bloco de código (if, função, objeto, etc.)
+function num(v: string | null): number {
+  if (v == null) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 /** Busca ou cria user_settings para o usuário (1:1 com users). */
-async function getOrCreateSettings(userId: string) { // Função que pode esperar operações demoradas (banco, rede)
-  const [row] = await db.select().from(userSettings).where(eq(userSettings.userId, userId)); // Guarda um valor que não muda durante a execução deste trecho
-  if (row) return row; // Só executa o bloco abaixo se esta condição for verdadeira
-  const [created] = await db.insert(userSettings).values({ userId }).returning(); // Guarda um valor que não muda durante a execução deste trecho
-  return created; // Devolve um valor e encerra a função aqui
-} // Fecha um bloco de código (if, função, objeto, etc.)
+async function getOrCreateSettings(userId: string) {
+  const [row] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+  if (row) return row;
+  const [created] = await db.insert(userSettings).values({ userId }).returning();
+  return created;
+}
 
 /** Normalização simples de telefone para PATCH /me/profile. */
-function normalizePhone(raw: string | undefined): string | null { // Bloco de código reutilizável com um nome
-  if (!raw) return null; // Só executa o bloco abaixo se esta condição for verdadeira
-  const digits = raw.replace(/\D/g, ""); // Guarda um valor que não muda durante a execução deste trecho
-  if (digits.length < 10 || digits.length > 13) return null; // Só executa o bloco abaixo se esta condição for verdadeira
-  return digits; // Devolve um valor e encerra a função aqui
-} // Fecha um bloco de código (if, função, objeto, etc.)
+function normalizePhone(raw: string | undefined): string | null {
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 10 || digits.length > 13) return null;
+  return digits;
+}
 
 /** Schema Zod — POST /api/transactions */
-const txCreateBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
-  amount: z.union([z.string(), z.number()]).transform((a) => String(a)), // Atribui ou calcula um valor para usar adiante
-  type: z.enum(["expense", "income"]), // Instrução do programa — parte da lógica deste arquivo
-  categoryId: z.string().uuid().nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-  description: z.string().min(1).max(500), // Instrução do programa — parte da lógica deste arquivo
-  occurredAt: z.string().min(4).optional(), // Instrução do programa — parte da lógica deste arquivo
-  source: z.enum(["whatsapp", "web", "recurring", "manual"]).optional(), // Instrução do programa — parte da lógica deste arquivo
-  incomeFrequency: z.enum(["monthly", "recurring", "non_recurring", "sporadic"]).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-}); // Fecha chamada de função ou método
+const txCreateBody = z.object({
+  amount: z.union([z.string(), z.number()]).transform((a) => String(a)),
+  type: z.enum(["expense", "income"]),
+  categoryId: z.string().uuid().nullable().optional(),
+  description: z.string().min(1).max(500),
+  occurredAt: z.string().min(4).optional(),
+  source: z.enum(["whatsapp", "web", "recurring", "manual"]).optional(),
+  incomeFrequency: z.enum(["monthly", "recurring", "non_recurring", "sporadic"]).nullable().optional(),
+});
 
 /** Schema Zod — PATCH /api/transactions/:id */
-const txPatchBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
-  amount: z.union([z.string(), z.number()]).transform((a) => String(a)).optional(), // Atribui ou calcula um valor para usar adiante
-  type: z.enum(["expense", "income"]).optional(), // Instrução do programa — parte da lógica deste arquivo
-  categoryId: z.string().uuid().nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-  description: z.string().min(1).max(500).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-  occurredAt: z.string().min(4).optional(), // Instrução do programa — parte da lógica deste arquivo
-  isActive: z.boolean().optional(), // Instrução do programa — parte da lógica deste arquivo
-  incomeFrequency: z.enum(["monthly", "recurring", "non_recurring", "sporadic"]).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-}); // Fecha chamada de função ou método
+const txPatchBody = z.object({
+  amount: z.union([z.string(), z.number()]).transform((a) => String(a)).optional(),
+  type: z.enum(["expense", "income"]).optional(),
+  categoryId: z.string().uuid().nullable().optional(),
+  description: z.string().min(1).max(500).nullable().optional(),
+  occurredAt: z.string().min(4).optional(),
+  isActive: z.boolean().optional(),
+  incomeFrequency: z.enum(["monthly", "recurring", "non_recurring", "sporadic"]).nullable().optional(),
+});
 
 /** Schema Zod — PUT /api/budgets */
-const budgetPutBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
-  month: z.string().regex(/^\d{4}-\d{2}$/), // Instrução do programa — parte da lógica deste arquivo
-  totalIncomeExpected: z // Instrução do programa — parte da lógica deste arquivo
-    .union([z.string(), z.number()]) // Instrução do programa — parte da lógica deste arquivo
-    .transform((a) => String(a)) // Atribui ou calcula um valor para usar adiante
-    .nullable() // Instrução do programa — parte da lógica deste arquivo
-    .optional(), // Instrução do programa — parte da lógica deste arquivo
-  totalExpenseLimit: z // Instrução do programa — parte da lógica deste arquivo
-    .union([z.string(), z.number()]) // Instrução do programa — parte da lógica deste arquivo
-    .transform((a) => String(a)) // Atribui ou calcula um valor para usar adiante
-    .nullable() // Instrução do programa — parte da lógica deste arquivo
-    .optional(), // Instrução do programa — parte da lógica deste arquivo
-  notes: z.string().max(2000).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-}); // Fecha chamada de função ou método
+const budgetPutBody = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  totalIncomeExpected: z
+    .union([z.string(), z.number()])
+    .transform((a) => String(a))
+    .nullable()
+    .optional(),
+  totalExpenseLimit: z
+    .union([z.string(), z.number()])
+    .transform((a) => String(a))
+    .nullable()
+    .optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
 
 /** Schema Zod — PATCH /api/settings */
-const settingsPatchBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
-  alertAt80: z.boolean().optional(), // Instrução do programa — parte da lógica deste arquivo
-  alertAt100: z.boolean().optional(), // Instrução do programa — parte da lógica deste arquivo
-  weeklyReport: z.boolean().optional(), // Instrução do programa — parte da lógica deste arquivo
-  themePreference: z.enum(["light", "dark", "system"]).optional(), // Instrução do programa — parte da lógica deste arquivo
-}); // Fecha chamada de função ou método
+const settingsPatchBody = z.object({
+  alertAt80: z.boolean().optional(),
+  alertAt100: z.boolean().optional(),
+  weeklyReport: z.boolean().optional(),
+  themePreference: z.enum(["light", "dark", "system"]).optional(),
+});
 
 /** Schema Zod — PATCH /api/me/profile */
-const profilePatchBody = z.object({ // Regra de validação — garante que o JSON recebido está correto
-  name: z.string().min(2).max(200).optional(), // Instrução do programa — parte da lógica deste arquivo
-  phone: z.string().max(32).nullable().optional(), // Instrução do programa — parte da lógica deste arquivo
-}); // Fecha chamada de função ou método
+const profilePatchBody = z.object({
+  name: z.string().min(2).max(200).optional(),
+  phone: z.string().max(32).nullable().optional(),
+});
 
 /** Mapeia linha do banco para JSON da API (datas ISO, amount number). */
-function mapTxRow(row: { // Bloco de código reutilizável com um nome
-  id: string; // Instrução do programa — parte da lógica deste arquivo
-  userId: string; // Instrução do programa — parte da lógica deste arquivo
-  categoryId: string | null; // Instrução do programa — parte da lógica deste arquivo
-  amount: string; // Instrução do programa — parte da lógica deste arquivo
-  type: "expense" | "income"; // Instrução do programa — parte da lógica deste arquivo
-  description: string | null; // Instrução do programa — parte da lógica deste arquivo
-  occurredAt: Date; // Instrução do programa — parte da lógica deste arquivo
-  source: "whatsapp" | "web" | "recurring" | "manual"; // Instrução do programa — parte da lógica deste arquivo
-  incomeFrequency?: string | null; // Instrução do programa — parte da lógica deste arquivo
-  createdAt: Date; // Instrução do programa — parte da lógica deste arquivo
-  categoryName: string | null; // Instrução do programa — parte da lógica deste arquivo
-  categoryIcon: string | null; // Instrução do programa — parte da lógica deste arquivo
-  categoryColor: string | null; // Instrução do programa — parte da lógica deste arquivo
-}) { // Fecha bloco iniciado anteriormente
-  return { // Devolve um valor e encerra a função aqui
-    id: row.id, // Instrução do programa — parte da lógica deste arquivo
-    amount: num(row.amount), // Instrução do programa — parte da lógica deste arquivo
-    type: row.type, // Instrução do programa — parte da lógica deste arquivo
-    description: row.description, // Instrução do programa — parte da lógica deste arquivo
-    occurredAt: row.occurredAt.toISOString(), // Instrução do programa — parte da lógica deste arquivo
-    source: row.source, // Instrução do programa — parte da lógica deste arquivo
-    incomeFrequency: row.incomeFrequency ?? null, // Instrução do programa — parte da lógica deste arquivo
-    categoryId: row.categoryId, // Instrução do programa — parte da lógica deste arquivo
-    categoryName: row.categoryName, // Instrução do programa — parte da lógica deste arquivo
-    categoryIcon: row.categoryIcon, // Instrução do programa — parte da lógica deste arquivo
-    categoryColor: row.categoryColor, // Instrução do programa — parte da lógica deste arquivo
-    createdAt: row.createdAt.toISOString(), // Instrução do programa — parte da lógica deste arquivo
-  }; // Fecha bloco de objeto ou estrutura
-} // Fecha um bloco de código (if, função, objeto, etc.)
+function mapTxRow(row: {
+  id: string;
+  userId: string;
+  categoryId: string | null;
+  amount: string;
+  type: "expense" | "income";
+  description: string | null;
+  occurredAt: Date;
+  source: "whatsapp" | "web" | "recurring" | "manual";
+  incomeFrequency?: string | null;
+  createdAt: Date;
+  categoryName: string | null;
+  categoryIcon: string | null;
+  categoryColor: string | null;
+}) {
+  return {
+    id: row.id,
+    amount: num(row.amount),
+    type: row.type,
+    description: row.description,
+    occurredAt: row.occurredAt.toISOString(),
+    source: row.source,
+    incomeFrequency: row.incomeFrequency ?? null,
+    categoryId: row.categoryId,
+    categoryName: row.categoryName,
+    categoryIcon: row.categoryIcon,
+    categoryColor: row.categoryColor,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
 
 /** Campos SELECT padrão de transação + join de categoria. */
-const txSelectFields = { // Guarda um valor que não muda durante a execução deste trecho
-  id: transactions.id, // Instrução do programa — parte da lógica deste arquivo
-  userId: transactions.userId, // Instrução do programa — parte da lógica deste arquivo
-  categoryId: transactions.categoryId, // Instrução do programa — parte da lógica deste arquivo
-  amount: transactions.amount, // Instrução do programa — parte da lógica deste arquivo
-  type: transactions.type, // Instrução do programa — parte da lógica deste arquivo
-  description: transactions.description, // Instrução do programa — parte da lógica deste arquivo
-  occurredAt: transactions.occurredAt, // Instrução do programa — parte da lógica deste arquivo
-  source: transactions.source, // Instrução do programa — parte da lógica deste arquivo
-  incomeFrequency: transactions.incomeFrequency, // Instrução do programa — parte da lógica deste arquivo
-  createdAt: transactions.createdAt, // Instrução do programa — parte da lógica deste arquivo
-  categoryName: categories.name, // Instrução do programa — parte da lógica deste arquivo
-  categoryIcon: categories.icon, // Instrução do programa — parte da lógica deste arquivo
-  categoryColor: categories.color, // Instrução do programa — parte da lógica deste arquivo
-}; // Fecha bloco de objeto ou estrutura
+const txSelectFields = {
+  id: transactions.id,
+  userId: transactions.userId,
+  categoryId: transactions.categoryId,
+  amount: transactions.amount,
+  type: transactions.type,
+  description: transactions.description,
+  occurredAt: transactions.occurredAt,
+  source: transactions.source,
+  incomeFrequency: transactions.incomeFrequency,
+  createdAt: transactions.createdAt,
+  categoryName: categories.name,
+  categoryIcon: categories.icon,
+  categoryColor: categories.color,
+};
 
 /** Registra todas as rotas CRUD principais com prefixo /api. */
-export async function registerApiRoutes(app: FastifyInstance): Promise<void> { // Função assíncrona exportada — outros módulos podem chamar
+export async function registerApiRoutes(app: FastifyInstance): Promise<void> {
   app.register(async (r) => { // Acopla plugin ou grupo de rotas ao servidor
     r.addHook("preHandler", authPreHandler); // Todas exigem JWT
-
     /** GET /api/categories — globais + personalizadas do usuário. */
     r.get("/categories", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select() // Instrução do programa — parte da lógica deste arquivo
-        .from(categories) // Instrução do programa — parte da lógica deste arquivo
-        .where( // Filtra quais linhas do banco entram na consulta
-          and( // Condição SQL: todas as partes precisam ser verdadeiras
-            or(isNull(categories.userId), eq(categories.userId, userId)), // Condição SQL: basta uma parte ser verdadeira
-            eq(categories.isActive, true), // Condição SQL: coluna deve ser igual ao valor
-          ), // Fecha parêntese e continua parâmetros ou argumentos
-        ) // Fecha parêntese aberto antes
+      const userId = request.user!.id;
+      const rows = await db
+        .select()
+        .from(categories)
+        .where(
+          and(
+            or(isNull(categories.userId), eq(categories.userId, userId)),
+            eq(categories.isActive, true),
+          ),
+        )
         .orderBy(categories.name); // Ordena o resultado (mais recente, alfabético, etc.)
-      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-        categories: rows.map((c) => ({ // Atribui ou calcula um valor para usar adiante
-          id: c.id, // Instrução do programa — parte da lógica deste arquivo
-          name: c.name, // Instrução do programa — parte da lógica deste arquivo
-          icon: c.icon, // Instrução do programa — parte da lógica deste arquivo
-          type: c.type, // Instrução do programa — parte da lógica deste arquivo
-          color: c.color, // Instrução do programa — parte da lógica deste arquivo
-          isDefault: c.isDefault, // Instrução do programa — parte da lógica deste arquivo
-        })), // Fecha bloco iniciado anteriormente
-      }); // Fecha chamada de função ou método
-    }); // Fecha chamada de função ou método
-
+      return reply.send({
+        categories: rows.map((c) => ({
+          id: c.id,
+          name: c.name,
+          icon: c.icon,
+          type: c.type,
+          color: c.color,
+          isDefault: c.isDefault,
+        })),
+      });
+    });
     /** PATCH /api/categories/:id — inativa categoria do próprio usuário (sem exclusão). */
     r.patch<{ Params: { id: string } }>("/categories/:id", async (request, reply) => { // Define endpoint REST dentro do grupo de rotas
-      const parsed = z.object({ isActive: z.boolean() }).safeParse(request.body); // Regra de validação — garante que o JSON recebido está correto
-      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .update(categories) // Instrução do programa — parte da lógica deste arquivo
-        .set({ isActive: parsed.data.isActive }) // Define quais colunas serão alteradas no UPDATE
-        .where(and(eq(categories.id, request.params.id), eq(categories.userId, userId))) // Filtra quais linhas do banco entram na consulta
-        .returning({ id: categories.id, isActive: categories.isActive }); // Pede ao banco devolver os dados gravados
-      if (!row) return reply.status(404).send({ error: "Not found" }); // Só executa o bloco abaixo se esta condição for verdadeira
-      const meta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
-      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
-        userId, // Instrução do programa — parte da lógica deste arquivo
-        routine: parsed.data.isActive ? "categories.activate" : "categories.inactivate", // Instrução do programa — parte da lógica deste arquivo
-        action: parsed.data.isActive ? "activate" : "inactivate", // Instrução do programa — parte da lógica deste arquivo
-        entity: "categories", // Instrução do programa — parte da lógica deste arquivo
-        entityId: row.id, // Instrução do programa — parte da lógica deste arquivo
-        ...meta, // Espalha campos de outro objeto neste
-      }); // Fecha chamada de função ou método
-      return reply.send({ category: row }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      const parsed = z.object({ isActive: z.boolean() }).safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const [row] = await db
+        .update(categories)
+        .set({ isActive: parsed.data.isActive })
+        .where(and(eq(categories.id, request.params.id), eq(categories.userId, userId)))
+        .returning({ id: categories.id, isActive: categories.isActive });
+      if (!row) return reply.status(404).send({ error: "Not found" });
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: parsed.data.isActive ? "categories.activate" : "categories.inactivate",
+        action: parsed.data.isActive ? "activate" : "inactivate",
+        entity: "categories",
+        entityId: row.id,
+        ...meta,
+      });
+      return reply.send({ category: row });
+    });
     /** GET /api/transactions — lista com filtros from, to, type. */
     r.get("/transactions", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      await materializeDueRecurringIncomes(userId); // Espera terminar uma tarefa assíncrona antes de continuar
-      const q = request.query as Record<string, string | undefined>; // Guarda um valor que não muda durante a execução deste trecho
-      const from = q.from ? new Date(q.from) : null; // Guarda um valor que não muda durante a execução deste trecho
-      const to = q.to ? new Date(q.to) : null; // Guarda um valor que não muda durante a execução deste trecho
-      const type = q.type as "expense" | "income" | undefined; // Guarda um valor que não muda durante a execução deste trecho
-
-      const conds: SQL[] = [eq(transactions.userId, userId), eq(transactions.isActive, true)]; // Guarda um valor que não muda durante a execução deste trecho
-      if (from && !Number.isNaN(from.getTime())) conds.push(gte(transactions.occurredAt, from)); // Só executa o bloco abaixo se esta condição for verdadeira
-      if (to && !Number.isNaN(to.getTime())) conds.push(lte(transactions.occurredAt, to)); // Só executa o bloco abaixo se esta condição for verdadeira
-      if (type === "expense" || type === "income") conds.push(eq(transactions.type, type)); // Só executa o bloco abaixo se esta condição for verdadeira
-
-      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select(txSelectFields) // Instrução do programa — parte da lógica deste arquivo
-        .from(transactions) // Instrução do programa — parte da lógica deste arquivo
+      const userId = request.user!.id;
+      await materializeDueRecurringIncomes(userId);
+      const q = request.query as Record<string, string | undefined>;
+      const from = q.from ? new Date(q.from) : null;
+      const to = q.to ? new Date(q.to) : null;
+      const type = q.type as "expense" | "income" | undefined;
+      const conds: SQL[] = [eq(transactions.userId, userId), eq(transactions.isActive, true)];
+      if (from && !Number.isNaN(from.getTime())) conds.push(gte(transactions.occurredAt, from));
+      if (to && !Number.isNaN(to.getTime())) conds.push(lte(transactions.occurredAt, to));
+      if (type === "expense" || type === "income") conds.push(eq(transactions.type, type));
+      const rows = await db
+        .select(txSelectFields)
+        .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id)) // Junta outra tabela trazendo dados relacionados
-        .where(and(...conds)) // Filtra quais linhas do banco entram na consulta
+        .where(and(...conds))
         .orderBy(desc(transactions.occurredAt)); // Ordena o resultado (mais recente, alfabético, etc.)
-
-      return reply.send({ transactions: rows.map(mapTxRow) }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      return reply.send({ transactions: rows.map(mapTxRow) });
+    });
     /** GET /api/transactions/export — CSV UTF-8 com BOM para Excel BR. */
     r.get("/transactions/export", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const q = request.query as Record<string, string | undefined>; // Guarda um valor que não muda durante a execução deste trecho
-      const from = q.from ? new Date(q.from) : null; // Guarda um valor que não muda durante a execução deste trecho
-      const to = q.to ? new Date(q.to) : null; // Guarda um valor que não muda durante a execução deste trecho
-
-      const conds: SQL[] = [eq(transactions.userId, userId), eq(transactions.isActive, true)]; // Guarda um valor que não muda durante a execução deste trecho
-      if (from && !Number.isNaN(from.getTime())) conds.push(gte(transactions.occurredAt, from)); // Só executa o bloco abaixo se esta condição for verdadeira
-      if (to && !Number.isNaN(to.getTime())) conds.push(lte(transactions.occurredAt, to)); // Só executa o bloco abaixo se esta condição for verdadeira
-
-      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select({ // Instrução do programa — parte da lógica deste arquivo
-          amount: transactions.amount, // Instrução do programa — parte da lógica deste arquivo
-          type: transactions.type, // Instrução do programa — parte da lógica deste arquivo
-          description: transactions.description, // Instrução do programa — parte da lógica deste arquivo
-          occurredAt: transactions.occurredAt, // Instrução do programa — parte da lógica deste arquivo
-          source: transactions.source, // Instrução do programa — parte da lógica deste arquivo
-          categoryName: categories.name, // Instrução do programa — parte da lógica deste arquivo
-        }) // Fecha bloco iniciado anteriormente
-        .from(transactions) // Instrução do programa — parte da lógica deste arquivo
+      const userId = request.user!.id;
+      const q = request.query as Record<string, string | undefined>;
+      const from = q.from ? new Date(q.from) : null;
+      const to = q.to ? new Date(q.to) : null;
+      const conds: SQL[] = [eq(transactions.userId, userId), eq(transactions.isActive, true)];
+      if (from && !Number.isNaN(from.getTime())) conds.push(gte(transactions.occurredAt, from));
+      if (to && !Number.isNaN(to.getTime())) conds.push(lte(transactions.occurredAt, to));
+      const rows = await db
+        .select({
+          amount: transactions.amount,
+          type: transactions.type,
+          description: transactions.description,
+          occurredAt: transactions.occurredAt,
+          source: transactions.source,
+          categoryName: categories.name,
+        })
+        .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id)) // Junta outra tabela trazendo dados relacionados
-        .where(and(...conds)) // Filtra quais linhas do banco entram na consulta
+        .where(and(...conds))
         .orderBy(desc(transactions.occurredAt)); // Ordena o resultado (mais recente, alfabético, etc.)
-
       const sep = ";"; // Separador CSV padrão Excel BR
-      const header = ["Data/Hora", "Tipo", "Valor", "Categoria", "Descrição", "Origem"].join(sep); // Guarda um valor que não muda durante a execução deste trecho
-      const lines = rows.map((row) => { // Guarda um valor que não muda durante a execução deste trecho
-        const dt = row.occurredAt.toISOString(); // Guarda um valor que não muda durante a execução deste trecho
+      const header = ["Data/Hora", "Tipo", "Valor", "Categoria", "Descrição", "Origem"].join(sep);
+      const lines = rows.map((row) => {
+        const dt = row.occurredAt.toISOString();
         const val = num(row.amount).toFixed(2).replace(".", ","); // Decimal BR
-        const tipo = row.type === "income" ? "Receita" : "Despesa"; // Guarda um valor que não muda durante a execução deste trecho
-        const desc = (row.description ?? "").replaceAll(sep, " "); // Guarda um valor que não muda durante a execução deste trecho
-        const cat = (row.categoryName ?? "").replaceAll(sep, " "); // Guarda um valor que não muda durante a execução deste trecho
-        return [dt, tipo, val, cat, desc, row.source].join(sep); // Devolve um valor e encerra a função aqui
-      }); // Fecha chamada de função ou método
+        const tipo = row.type === "income" ? "Receita" : "Despesa";
+        const desc = (row.description ?? "").replaceAll(sep, " ");
+        const cat = (row.categoryName ?? "").replaceAll(sep, " ");
+        return [dt, tipo, val, cat, desc, row.source].join(sep);
+      });
       const bom = "\uFEFF"; // BOM UTF-8 para Excel reconhecer acentos
-      const body = bom + [header, ...lines].join("\r\n"); // Guarda um valor que não muda durante a execução deste trecho
-      reply.header("Content-Type", "text/csv; charset=utf-8"); // Atribui ou calcula um valor para usar adiante
-      reply.header("Content-Disposition", 'attachment; filename="controla-transacoes.csv"'); // Atribui ou calcula um valor para usar adiante
-      return reply.send(body); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      const body = bom + [header, ...lines].join("\r\n");
+      reply.header("Content-Type", "text/csv; charset=utf-8");
+      reply.header("Content-Disposition", 'attachment; filename="controla-transacoes.csv"');
+      return reply.send(body);
+    });
     /** POST /api/transactions — cria lançamento manual/web. */
     r.post("/transactions", { preHandler: billingAccessPreHandler }, async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const parsed = txCreateBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
-      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const { amount, type, categoryId, description, occurredAt, source, incomeFrequency } = parsed.data; // Guarda um valor que não muda durante a execução deste trecho
-
+      const parsed = txCreateBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const { amount, type, categoryId, description, occurredAt, source, incomeFrequency } = parsed.data;
       // Validação: valor > 0
-      const amountNum = Number(String(amount).replace(",", ".")); // Guarda um valor que não muda durante a execução deste trecho
-      if (!Number.isFinite(amountNum) || amountNum <= 0) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Valor deve ser maior que zero." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      if (!description.trim()) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Nome/descrição é obrigatório." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      if (occurredAt && Number.isNaN(new Date(occurredAt).getTime())) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Data inválida." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      if (type === "income" && incomeFrequency != null && !isValidIncomeFrequency(incomeFrequency)) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Frequência inválida.", allowed: INCOME_FREQUENCIES }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .insert(transactions) // Instrução do programa — parte da lógica deste arquivo
-        .values({ // Informa os valores a inserir na tabela
-          userId, // Instrução do programa — parte da lógica deste arquivo
-          amount: String(amountNum), // Instrução do programa — parte da lógica deste arquivo
-          type, // Instrução do programa — parte da lógica deste arquivo
-          categoryId: categoryId ?? null, // Instrução do programa — parte da lógica deste arquivo
-          description: description.trim(), // Instrução do programa — parte da lógica deste arquivo
-          occurredAt: occurredAt ? new Date(occurredAt) : new Date(), // Instrução do programa — parte da lógica deste arquivo
-          source: source ?? "manual", // Instrução do programa — parte da lógica deste arquivo
-          incomeFrequency: type === "income" ? (incomeFrequency ?? null) : null, // Instrução do programa — parte da lógica deste arquivo
-        }) // Fecha bloco iniciado anteriormente
-        .returning(); // Pede ao banco devolver os dados gravados
-
-      const [joined] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select(txSelectFields) // Instrução do programa — parte da lógica deste arquivo
-        .from(transactions) // Instrução do programa — parte da lógica deste arquivo
+      const amountNum = Number(String(amount).replace(",", "."));
+      if (!Number.isFinite(amountNum) || amountNum <= 0) {
+        return reply.status(400).send({ error: "Valor deve ser maior que zero." });
+      }
+      if (!description.trim()) {
+        return reply.status(400).send({ error: "Nome/descrição é obrigatório." });
+      }
+      if (occurredAt && Number.isNaN(new Date(occurredAt).getTime())) {
+        return reply.status(400).send({ error: "Data inválida." });
+      }
+      if (type === "income" && incomeFrequency != null && !isValidIncomeFrequency(incomeFrequency)) {
+        return reply.status(400).send({ error: "Frequência inválida.", allowed: INCOME_FREQUENCIES });
+      }
+      const [row] = await db
+        .insert(transactions)
+        .values({
+          userId,
+          amount: String(amountNum),
+          type,
+          categoryId: categoryId ?? null,
+          description: description.trim(),
+          occurredAt: occurredAt ? new Date(occurredAt) : new Date(),
+          source: source ?? "manual",
+          incomeFrequency: type === "income" ? (incomeFrequency ?? null) : null,
+        })
+        .returning();
+      const [joined] = await db
+        .select(txSelectFields)
+        .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id)) // Junta outra tabela trazendo dados relacionados
-        .where(eq(transactions.id, row.id)); // Filtra quais linhas do banco entram na consulta
-
-      const meta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
-      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
-        userId, // Instrução do programa — parte da lógica deste arquivo
-        routine: "transactions.create", // Instrução do programa — parte da lógica deste arquivo
-        action: "insert", // Instrução do programa — parte da lógica deste arquivo
-        entity: "transactions", // Instrução do programa — parte da lógica deste arquivo
-        entityId: row.id, // Instrução do programa — parte da lógica deste arquivo
-        ...meta, // Espalha campos de outro objeto neste
-      }); // Fecha chamada de função ou método
-
-      return reply.status(201).send({ transaction: mapTxRow(joined) }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+        .where(eq(transactions.id, row.id));
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: "transactions.create",
+        action: "insert",
+        entity: "transactions",
+        entityId: row.id,
+        ...meta,
+      });
+      return reply.status(201).send({ transaction: mapTxRow(joined) });
+    });
     /** PATCH /api/transactions/:id — atualização parcial. */
     r.patch<{ Params: { id: string } }>("/transactions/:id", async (request, reply) => { // Define endpoint REST dentro do grupo de rotas
-      const parsed = txPatchBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
-      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const { id } = request.params; // Guarda um valor que não muda durante a execução deste trecho
-      const [existing] = await db.select().from(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, userId))); // Guarda um valor que não muda durante a execução deste trecho
-      if (!existing) return reply.status(404).send({ error: "Not found" }); // Só executa o bloco abaixo se esta condição for verdadeira
-
-      if (parsed.data.amount !== undefined) { // Só executa o bloco abaixo se esta condição for verdadeira
-        const amountNum = Number(String(parsed.data.amount).replace(",", ".")); // Guarda um valor que não muda durante a execução deste trecho
-        if (!Number.isFinite(amountNum) || amountNum <= 0) { // Só executa o bloco abaixo se esta condição for verdadeira
-          return reply.status(400).send({ error: "Valor deve ser maior que zero." }); // Envia resposta HTTP de volta ao navegador ou app
-        } // Fecha um bloco de código (if, função, objeto, etc.)
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      if (parsed.data.description !== undefined && parsed.data.description !== null && !parsed.data.description.trim()) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Nome/descrição é obrigatório." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      if (parsed.data.occurredAt && Number.isNaN(new Date(parsed.data.occurredAt).getTime())) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Data inválida." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      const patch: Record<string, unknown> = {}; // Guarda um valor que não muda durante a execução deste trecho
-      if (parsed.data.amount !== undefined) patch.amount = String(Number(String(parsed.data.amount).replace(",", "."))); // Só executa o bloco abaixo se esta condição for verdadeira
-      if (parsed.data.type !== undefined) patch.type = parsed.data.type; // Só executa o bloco abaixo se esta condição for verdadeira
-      if (parsed.data.categoryId !== undefined) patch.categoryId = parsed.data.categoryId; // Só executa o bloco abaixo se esta condição for verdadeira
-      if (parsed.data.description !== undefined) { // Só executa o bloco abaixo se esta condição for verdadeira
-        patch.description = parsed.data.description == null ? null : parsed.data.description.trim(); // Atribui ou calcula um valor para usar adiante
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      if (parsed.data.occurredAt !== undefined) patch.occurredAt = new Date(parsed.data.occurredAt); // Só executa o bloco abaixo se esta condição for verdadeira
-      if (parsed.data.isActive !== undefined) patch.isActive = parsed.data.isActive; // Só executa o bloco abaixo se esta condição for verdadeira
-      if (parsed.data.incomeFrequency !== undefined) { // Só executa o bloco abaixo se esta condição for verdadeira
-        const nextType = (parsed.data.type ?? existing.type) as string; // Guarda um valor que não muda durante a execução deste trecho
-        patch.incomeFrequency = // Atribui ou calcula um valor para usar adiante
-          nextType === "income" ? parsed.data.incomeFrequency : null; // Instrução do programa — parte da lógica deste arquivo
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      if (Object.keys(patch).length === 0) { // Só executa o bloco abaixo se esta condição for verdadeira
-        const [joined] = await db // Guarda um valor que não muda durante a execução deste trecho
-          .select(txSelectFields) // Instrução do programa — parte da lógica deste arquivo
-          .from(transactions) // Instrução do programa — parte da lógica deste arquivo
+      const parsed = txPatchBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const { id } = request.params;
+      const [existing] = await db.select().from(transactions).where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+      if (!existing) return reply.status(404).send({ error: "Not found" });
+      if (parsed.data.amount !== undefined) {
+        const amountNum = Number(String(parsed.data.amount).replace(",", "."));
+        if (!Number.isFinite(amountNum) || amountNum <= 0) {
+          return reply.status(400).send({ error: "Valor deve ser maior que zero." });
+        }
+      }
+      if (parsed.data.description !== undefined && parsed.data.description !== null && !parsed.data.description.trim()) {
+        return reply.status(400).send({ error: "Nome/descrição é obrigatório." });
+      }
+      if (parsed.data.occurredAt && Number.isNaN(new Date(parsed.data.occurredAt).getTime())) {
+        return reply.status(400).send({ error: "Data inválida." });
+      }
+      const patch: Record<string, unknown> = {};
+      if (parsed.data.amount !== undefined) patch.amount = String(Number(String(parsed.data.amount).replace(",", ".")));
+      if (parsed.data.type !== undefined) patch.type = parsed.data.type;
+      if (parsed.data.categoryId !== undefined) patch.categoryId = parsed.data.categoryId;
+      if (parsed.data.description !== undefined) {
+        patch.description = parsed.data.description == null ? null : parsed.data.description.trim();
+      }
+      if (parsed.data.occurredAt !== undefined) patch.occurredAt = new Date(parsed.data.occurredAt);
+      if (parsed.data.isActive !== undefined) patch.isActive = parsed.data.isActive;
+      if (parsed.data.incomeFrequency !== undefined) {
+        const nextType = (parsed.data.type ?? existing.type) as string;
+        patch.incomeFrequency =
+          nextType === "income" ? parsed.data.incomeFrequency : null;
+      }
+      if (Object.keys(patch).length === 0) {
+        const [joined] = await db
+          .select(txSelectFields)
+          .from(transactions)
           .leftJoin(categories, eq(transactions.categoryId, categories.id)) // Junta outra tabela trazendo dados relacionados
-          .where(eq(transactions.id, id)); // Filtra quais linhas do banco entram na consulta
-        return reply.send({ transaction: mapTxRow(joined) }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
+          .where(eq(transactions.id, id));
+        return reply.send({ transaction: mapTxRow(joined) });
+      }
       await db.update(transactions).set(patch as never).where(eq(transactions.id, id)); // Atualiza registros existentes no banco
-
-      const [joined] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select(txSelectFields) // Instrução do programa — parte da lógica deste arquivo
-        .from(transactions) // Instrução do programa — parte da lógica deste arquivo
+      const [joined] = await db
+        .select(txSelectFields)
+        .from(transactions)
         .leftJoin(categories, eq(transactions.categoryId, categories.id)) // Junta outra tabela trazendo dados relacionados
-        .where(eq(transactions.id, id)); // Filtra quais linhas do banco entram na consulta
-
-      const meta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
-      const inactivated = parsed.data.isActive === false; // Guarda um valor que não muda durante a execução deste trecho
-      const activated = parsed.data.isActive === true; // Guarda um valor que não muda durante a execução deste trecho
-      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
-        userId, // Instrução do programa — parte da lógica deste arquivo
-        routine: inactivated ? "transactions.inactivate" : activated ? "transactions.activate" : "transactions.update", // Instrução do programa — parte da lógica deste arquivo
-        action: inactivated ? "inactivate" : activated ? "activate" : "update", // Instrução do programa — parte da lógica deste arquivo
-        entity: "transactions", // Instrução do programa — parte da lógica deste arquivo
-        entityId: id, // Instrução do programa — parte da lógica deste arquivo
-        ...meta, // Espalha campos de outro objeto neste
-        details: patch, // Instrução do programa — parte da lógica deste arquivo
-      }); // Fecha chamada de função ou método
-
-      return reply.send({ transaction: mapTxRow(joined) }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+        .where(eq(transactions.id, id));
+      const meta = requestAuditMeta(request);
+      const inactivated = parsed.data.isActive === false;
+      const activated = parsed.data.isActive === true;
+      await writeAuditLog({
+        userId,
+        routine: inactivated ? "transactions.inactivate" : activated ? "transactions.activate" : "transactions.update",
+        action: inactivated ? "inactivate" : activated ? "activate" : "update",
+        entity: "transactions",
+        entityId: id,
+        ...meta,
+        details: patch,
+      });
+      return reply.send({ transaction: mapTxRow(joined) });
+    });
     /** DELETE /api/transactions/:id — inativa lançamento (sem exclusão física). */
     r.delete<{ Params: { id: string } }>("/transactions/:id", async (request, reply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const { id } = request.params; // Guarda um valor que não muda durante a execução deste trecho
-      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .update(transactions) // Instrução do programa — parte da lógica deste arquivo
-        .set({ isActive: false }) // Define quais colunas serão alteradas no UPDATE
-        .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isActive, true))) // Filtra quais linhas do banco entram na consulta
-        .returning({ id: transactions.id }); // Pede ao banco devolver os dados gravados
-      if (!row) return reply.status(404).send({ error: "Not found" }); // Só executa o bloco abaixo se esta condição for verdadeira
-      const meta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
-      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
-        userId, // Instrução do programa — parte da lógica deste arquivo
-        routine: "transactions.inactivate", // Instrução do programa — parte da lógica deste arquivo
-        action: "inactivate", // Instrução do programa — parte da lógica deste arquivo
-        entity: "transactions", // Instrução do programa — parte da lógica deste arquivo
-        entityId: id, // Instrução do programa — parte da lógica deste arquivo
-        ...meta, // Espalha campos de outro objeto neste
-      }); // Fecha chamada de função ou método
-      return reply.send({ ok: true, inactivated: true }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      const userId = request.user!.id;
+      const { id } = request.params;
+      const [row] = await db
+        .update(transactions)
+        .set({ isActive: false })
+        .where(and(eq(transactions.id, id), eq(transactions.userId, userId), eq(transactions.isActive, true)))
+        .returning({ id: transactions.id });
+      if (!row) return reply.status(404).send({ error: "Not found" });
+      const meta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: "transactions.inactivate",
+        action: "inactivate",
+        entity: "transactions",
+        entityId: id,
+        ...meta,
+      });
+      return reply.send({ ok: true, inactivated: true });
+    });
     /** GET /api/budgets?month=YYYY-MM — orçamento do mês. */
     r.get("/budgets", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const q = request.query as { month?: string }; // Guarda um valor que não muda durante a execução deste trecho
-      if (!q.month || !/^\d{4}-\d{2}$/.test(q.month)) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Query month=YYYY-MM required" }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const [row] = await db.select().from(budgets).where(and(eq(budgets.userId, userId), eq(budgets.month, q.month))); // Guarda um valor que não muda durante a execução deste trecho
-      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-        budget: row // Instrução do programa — parte da lógica deste arquivo
-          ? { // Instrução do programa — parte da lógica deste arquivo
-              month: row.month, // Instrução do programa — parte da lógica deste arquivo
-              totalIncomeExpected: row.totalIncomeExpected != null ? num(row.totalIncomeExpected) : null, // Atribui ou calcula um valor para usar adiante
-              totalExpenseLimit: row.totalExpenseLimit != null ? num(row.totalExpenseLimit) : null, // Atribui ou calcula um valor para usar adiante
-              notes: row.notes, // Instrução do programa — parte da lógica deste arquivo
-            } // Fecha um bloco de código (if, função, objeto, etc.)
-          : null, // Instrução do programa — parte da lógica deste arquivo
-      }); // Fecha chamada de função ou método
-    }); // Fecha chamada de função ou método
-
+      const userId = request.user!.id;
+      const q = request.query as { month?: string };
+      if (!q.month || !/^\d{4}-\d{2}$/.test(q.month)) {
+        return reply.status(400).send({ error: "Query month=YYYY-MM required" });
+      }
+      const [row] = await db.select().from(budgets).where(and(eq(budgets.userId, userId), eq(budgets.month, q.month)));
+      return reply.send({
+        budget: row
+          ? {
+              month: row.month,
+              totalIncomeExpected: row.totalIncomeExpected != null ? num(row.totalIncomeExpected) : null,
+              totalExpenseLimit: row.totalExpenseLimit != null ? num(row.totalExpenseLimit) : null,
+              notes: row.notes,
+            }
+          : null,
+      });
+    });
     /** PUT /api/budgets — upsert orçamento mensal. */
     r.put("/budgets", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const parsed = budgetPutBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
-      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const { month, totalIncomeExpected, totalExpenseLimit, notes } = parsed.data; // Guarda um valor que não muda durante a execução deste trecho
-
-      const [existing] = await db.select().from(budgets).where(and(eq(budgets.userId, userId), eq(budgets.month, month))); // Guarda um valor que não muda durante a execução deste trecho
-      const inc = // Guarda um valor que não muda durante a execução deste trecho
-        totalIncomeExpected !== undefined ? totalIncomeExpected : existing?.totalIncomeExpected ?? null; // Instrução do programa — parte da lógica deste arquivo
-      const lim = // Guarda um valor que não muda durante a execução deste trecho
-        totalExpenseLimit !== undefined ? totalExpenseLimit : existing?.totalExpenseLimit ?? null; // Instrução do programa — parte da lógica deste arquivo
-      const n = notes !== undefined ? notes : existing?.notes ?? null; // Guarda um valor que não muda durante a execução deste trecho
-
-      const [row] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .insert(budgets) // Instrução do programa — parte da lógica deste arquivo
-        .values({ // Informa os valores a inserir na tabela
-          userId, // Instrução do programa — parte da lógica deste arquivo
-          month, // Instrução do programa — parte da lógica deste arquivo
-          totalIncomeExpected: inc, // Instrução do programa — parte da lógica deste arquivo
-          totalExpenseLimit: lim, // Instrução do programa — parte da lógica deste arquivo
-          notes: n, // Instrução do programa — parte da lógica deste arquivo
-        }) // Fecha bloco iniciado anteriormente
+      const parsed = budgetPutBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const { month, totalIncomeExpected, totalExpenseLimit, notes } = parsed.data;
+      const [existing] = await db.select().from(budgets).where(and(eq(budgets.userId, userId), eq(budgets.month, month)));
+      const inc =
+        totalIncomeExpected !== undefined ? totalIncomeExpected : existing?.totalIncomeExpected ?? null;
+      const lim =
+        totalExpenseLimit !== undefined ? totalExpenseLimit : existing?.totalExpenseLimit ?? null;
+      const n = notes !== undefined ? notes : existing?.notes ?? null;
+      const [row] = await db
+        .insert(budgets)
+        .values({
+          userId,
+          month,
+          totalIncomeExpected: inc,
+          totalExpenseLimit: lim,
+          notes: n,
+        })
         .onConflictDoUpdate({ // Se já existir, atualiza em vez de dar erro de duplicado
-          target: [budgets.userId, budgets.month], // Instrução do programa — parte da lógica deste arquivo
-          set: { // Instrução do programa — parte da lógica deste arquivo
-            totalIncomeExpected: inc, // Instrução do programa — parte da lógica deste arquivo
-            totalExpenseLimit: lim, // Instrução do programa — parte da lógica deste arquivo
-            notes: n, // Instrução do programa — parte da lógica deste arquivo
-          }, // Fecha um bloco de código (if, função, objeto, etc.)
-        }) // Fecha bloco iniciado anteriormente
-        .returning(); // Pede ao banco devolver os dados gravados
-
-      const budgetMeta = requestAuditMeta(request); // Guarda um valor que não muda durante a execução deste trecho
-      await writeAuditLog({ // Espera terminar uma tarefa assíncrona antes de continuar
-        userId, // Instrução do programa — parte da lógica deste arquivo
-        routine: existing ? "budgets.update" : "budgets.create", // Instrução do programa — parte da lógica deste arquivo
-        action: existing ? "update" : "insert", // Instrução do programa — parte da lógica deste arquivo
-        entity: "budgets", // Instrução do programa — parte da lógica deste arquivo
-        entityId: row.id, // Instrução do programa — parte da lógica deste arquivo
-        ...budgetMeta, // Espalha campos de outro objeto neste
-      }); // Fecha chamada de função ou método
-
+          target: [budgets.userId, budgets.month],
+          set: {
+            totalIncomeExpected: inc,
+            totalExpenseLimit: lim,
+            notes: n,
+          },
+        })
+        .returning();
+      const budgetMeta = requestAuditMeta(request);
+      await writeAuditLog({
+        userId,
+        routine: existing ? "budgets.update" : "budgets.create",
+        action: existing ? "update" : "insert",
+        entity: "budgets",
+        entityId: row.id,
+        ...budgetMeta,
+      });
       // Renda informada no painel → transação + recorrência + saldo no dashboard
-      if (totalIncomeExpected !== undefined && inc != null) { // Só executa o bloco abaixo se esta condição for verdadeira
-        const incomeAmount = num(inc); // Guarda um valor que não muda durante a execução deste trecho
-        if (incomeAmount > 0) { // Só executa o bloco abaixo se esta condição for verdadeira
-          const [settingsRow] = await db // Guarda um valor que não muda durante a execução deste trecho
-            .select({ // Instrução do programa — parte da lógica deste arquivo
-              incomeRecurrence: userSettings.incomeRecurrence, // Instrução do programa — parte da lógica deste arquivo
-              incomePayDay: userSettings.incomePayDay, // Instrução do programa — parte da lógica deste arquivo
-              incomeType: userSettings.incomeType, // Instrução do programa — parte da lógica deste arquivo
-            }) // Fecha bloco iniciado anteriormente
-            .from(userSettings) // Instrução do programa — parte da lógica deste arquivo
-            .where(eq(userSettings.userId, userId)); // Filtra quais linhas do banco entram na consulta
-          const recurrence = (settingsRow?.incomeRecurrence as IncomeRecurrence | null) ?? "manual"; // Guarda um valor que não muda durante a execução deste trecho
-          if (recurrence === "monthly_fixed") { // Só executa o bloco abaixo se esta condição for verdadeira
-            await syncFullIncomeProfile(userId, incomeAmount, { // Espera terminar uma tarefa assíncrona antes de continuar
-              recurrence: "monthly_fixed", // Instrução do programa — parte da lógica deste arquivo
-              payDay: settingsRow?.incomePayDay ?? 1, // Instrução do programa — parte da lógica deste arquivo
-              incomeType: (settingsRow?.incomeType as IncomeType | null) ?? null, // Instrução do programa — parte da lógica deste arquivo
-            }); // Fecha chamada de função ou método
-          } else { // Fecha bloco iniciado anteriormente
-            await syncIncomeToDashboard(userId, incomeAmount, { // Espera terminar uma tarefa assíncrona antes de continuar
-              recurrence, // Instrução do programa — parte da lógica deste arquivo
-              payDay: settingsRow?.incomePayDay ?? null, // Instrução do programa — parte da lógica deste arquivo
-              month, // Instrução do programa — parte da lógica deste arquivo
-              incomeType: (settingsRow?.incomeType as IncomeType | null) ?? null, // Instrução do programa — parte da lógica deste arquivo
-            }); // Fecha chamada de função ou método
-          } // Fecha um bloco de código (if, função, objeto, etc.)
-          await db // Operação no banco de dados
-            .update(userSettings) // Instrução do programa — parte da lógica deste arquivo
-            .set({ onboardingCompleted: true, updatedAt: new Date() }) // Define quais colunas serão alteradas no UPDATE
-            .where(eq(userSettings.userId, userId)); // Filtra quais linhas do banco entram na consulta
-        } // Fecha um bloco de código (if, função, objeto, etc.)
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-        budget: { // Instrução do programa — parte da lógica deste arquivo
-          month: row.month, // Instrução do programa — parte da lógica deste arquivo
-          totalIncomeExpected: row.totalIncomeExpected != null ? num(row.totalIncomeExpected) : null, // Atribui ou calcula um valor para usar adiante
-          totalExpenseLimit: row.totalExpenseLimit != null ? num(row.totalExpenseLimit) : null, // Atribui ou calcula um valor para usar adiante
-          notes: row.notes, // Instrução do programa — parte da lógica deste arquivo
-        }, // Fecha um bloco de código (if, função, objeto, etc.)
-      }); // Fecha chamada de função ou método
-    }); // Fecha chamada de função ou método
-
+      if (totalIncomeExpected !== undefined && inc != null) {
+        const incomeAmount = num(inc);
+        if (incomeAmount > 0) {
+          const [settingsRow] = await db
+            .select({
+              incomeRecurrence: userSettings.incomeRecurrence,
+              incomePayDay: userSettings.incomePayDay,
+              incomeType: userSettings.incomeType,
+            })
+            .from(userSettings)
+            .where(eq(userSettings.userId, userId));
+          const recurrence = (settingsRow?.incomeRecurrence as IncomeRecurrence | null) ?? "manual";
+          if (recurrence === "monthly_fixed") {
+            await syncFullIncomeProfile(userId, incomeAmount, {
+              recurrence: "monthly_fixed",
+              payDay: settingsRow?.incomePayDay ?? 1,
+              incomeType: (settingsRow?.incomeType as IncomeType | null) ?? null,
+            });
+          } else {
+            await syncIncomeToDashboard(userId, incomeAmount, {
+              recurrence,
+              payDay: settingsRow?.incomePayDay ?? null,
+              month,
+              incomeType: (settingsRow?.incomeType as IncomeType | null) ?? null,
+            });
+          }
+          await db
+            .update(userSettings)
+            .set({ onboardingCompleted: true, updatedAt: new Date() })
+            .where(eq(userSettings.userId, userId));
+        }
+      }
+      return reply.send({
+        budget: {
+          month: row.month,
+          totalIncomeExpected: row.totalIncomeExpected != null ? num(row.totalIncomeExpected) : null,
+          totalExpenseLimit: row.totalExpenseLimit != null ? num(row.totalExpenseLimit) : null,
+          notes: row.notes,
+        },
+      });
+    });
     /** GET /api/settings — preferências do usuário. */
     r.get("/settings", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const s = await getOrCreateSettings(userId); // Guarda um valor que não muda durante a execução deste trecho
-      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-        settings: { // Instrução do programa — parte da lógica deste arquivo
-          alertAt80: s.alertAt80, // Instrução do programa — parte da lógica deste arquivo
-          alertAt100: s.alertAt100, // Instrução do programa — parte da lógica deste arquivo
-          weeklyReport: s.weeklyReport, // Instrução do programa — parte da lógica deste arquivo
-          twoFactorEnabled: s.twoFactorEnabled, // Instrução do programa — parte da lógica deste arquivo
-          themePreference: s.themePreference, // Instrução do programa — parte da lógica deste arquivo
-          onboardingCompleted: s.onboardingCompleted, // Instrução do programa — parte da lógica deste arquivo
-          initialBalance: s.initialBalance != null ? num(s.initialBalance) : null, // Atribui ou calcula um valor para usar adiante
-          incomeRecurrence: s.incomeRecurrence ?? null, // Instrução do programa — parte da lógica deste arquivo
-          incomePayDay: s.incomePayDay ?? null, // Instrução do programa — parte da lógica deste arquivo
-          incomePayWeekday: s.incomePayWeekday ?? null, // Instrução do programa — parte da lógica deste arquivo
-        }, // Fecha um bloco de código (if, função, objeto, etc.)
-      }); // Fecha chamada de função ou método
-    }); // Fecha chamada de função ou método
-
+      const userId = request.user!.id;
+      const s = await getOrCreateSettings(userId);
+      return reply.send({
+        settings: {
+          alertAt80: s.alertAt80,
+          alertAt100: s.alertAt100,
+          weeklyReport: s.weeklyReport,
+          twoFactorEnabled: s.twoFactorEnabled,
+          themePreference: s.themePreference,
+          onboardingCompleted: s.onboardingCompleted,
+          initialBalance: s.initialBalance != null ? num(s.initialBalance) : null,
+          incomeRecurrence: s.incomeRecurrence ?? null,
+          incomePayDay: s.incomePayDay ?? null,
+          incomePayWeekday: s.incomePayWeekday ?? null,
+        },
+      });
+    });
     /** PATCH /api/settings — atualiza preferências parciais. */
     r.patch("/settings", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const parsed = settingsPatchBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
-      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      await getOrCreateSettings(userId); // Espera terminar uma tarefa assíncrona antes de continuar
-      const patch = Object.fromEntries( // Guarda um valor que não muda durante a execução deste trecho
-        Object.entries(parsed.data).filter(([, v]) => v !== undefined), // Instrução do programa — parte da lógica deste arquivo
-      ) as Partial<{ // Fecha parêntese aberto antes
-        alertAt80: boolean; // Instrução do programa — parte da lógica deste arquivo
-        alertAt100: boolean; // Instrução do programa — parte da lógica deste arquivo
-        weeklyReport: boolean; // Instrução do programa — parte da lógica deste arquivo
-        themePreference: "light" | "dark" | "system"; // Instrução do programa — parte da lógica deste arquivo
-      }>; // Fecha bloco iniciado anteriormente
-      if (Object.keys(patch).length === 0) { // Só executa o bloco abaixo se esta condição for verdadeira
-        const s = await getOrCreateSettings(userId); // Guarda um valor que não muda durante a execução deste trecho
-        return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-          settings: { // Instrução do programa — parte da lógica deste arquivo
-            alertAt80: s.alertAt80, // Instrução do programa — parte da lógica deste arquivo
-            alertAt100: s.alertAt100, // Instrução do programa — parte da lógica deste arquivo
-            weeklyReport: s.weeklyReport, // Instrução do programa — parte da lógica deste arquivo
-            twoFactorEnabled: s.twoFactorEnabled, // Instrução do programa — parte da lógica deste arquivo
-            themePreference: s.themePreference, // Instrução do programa — parte da lógica deste arquivo
-          }, // Fecha um bloco de código (if, função, objeto, etc.)
-        }); // Fecha chamada de função ou método
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const [updated] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .update(userSettings) // Instrução do programa — parte da lógica deste arquivo
-        .set({ // Define quais colunas serão alteradas no UPDATE
-          ...patch, // Espalha campos de outro objeto neste
-          updatedAt: new Date(), // Instrução do programa — parte da lógica deste arquivo
-        }) // Fecha bloco iniciado anteriormente
-        .where(eq(userSettings.userId, userId)) // Filtra quais linhas do banco entram na consulta
-        .returning(); // Pede ao banco devolver os dados gravados
-
-      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-        settings: { // Instrução do programa — parte da lógica deste arquivo
-          alertAt80: updated.alertAt80, // Instrução do programa — parte da lógica deste arquivo
-          alertAt100: updated.alertAt100, // Instrução do programa — parte da lógica deste arquivo
-          weeklyReport: updated.weeklyReport, // Instrução do programa — parte da lógica deste arquivo
-          twoFactorEnabled: updated.twoFactorEnabled, // Instrução do programa — parte da lógica deste arquivo
-          themePreference: updated.themePreference, // Instrução do programa — parte da lógica deste arquivo
-        }, // Fecha um bloco de código (if, função, objeto, etc.)
-      }); // Fecha chamada de função ou método
-    }); // Fecha chamada de função ou método
-
+      const parsed = settingsPatchBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      await getOrCreateSettings(userId);
+      const patch = Object.fromEntries(
+        Object.entries(parsed.data).filter(([, v]) => v !== undefined),
+      ) as Partial<{
+        alertAt80: boolean;
+        alertAt100: boolean;
+        weeklyReport: boolean;
+        themePreference: "light" | "dark" | "system";
+      }>;
+      if (Object.keys(patch).length === 0) {
+        const s = await getOrCreateSettings(userId);
+        return reply.send({
+          settings: {
+            alertAt80: s.alertAt80,
+            alertAt100: s.alertAt100,
+            weeklyReport: s.weeklyReport,
+            twoFactorEnabled: s.twoFactorEnabled,
+            themePreference: s.themePreference,
+          },
+        });
+      }
+      const [updated] = await db
+        .update(userSettings)
+        .set({
+          ...patch,
+          updatedAt: new Date(),
+        })
+        .where(eq(userSettings.userId, userId))
+        .returning();
+      return reply.send({
+        settings: {
+          alertAt80: updated.alertAt80,
+          alertAt100: updated.alertAt100,
+          weeklyReport: updated.weeklyReport,
+          twoFactorEnabled: updated.twoFactorEnabled,
+          themePreference: updated.themePreference,
+        },
+      });
+    });
     /** PATCH /api/me/profile — nome e telefone do usuário logado. */
     r.patch("/me/profile", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const parsed = profilePatchBody.safeParse(request.body); // Guarda um valor que não muda durante a execução deste trecho
-      if (!parsed.success) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const { name, phone } = parsed.data; // Guarda um valor que não muda durante a execução deste trecho
-      const phoneNorm = phone === undefined ? undefined : phone === null ? null : normalizePhone(phone); // Guarda um valor que não muda durante a execução deste trecho
-      if (phone !== undefined && phone !== null && phone.length > 0 && !phoneNorm) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(400).send({ error: "Invalid phone number" }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      const update: { name?: string; phone?: string | null } = {}; // Guarda um valor que não muda durante a execução deste trecho
-      if (name !== undefined) update.name = name; // Só executa o bloco abaixo se esta condição for verdadeira
-      if (phone !== undefined) update.phone = phoneNorm; // Só executa o bloco abaixo se esta condição for verdadeira
-
-      if (Object.keys(update).length === 0) { // Só executa o bloco abaixo se esta condição for verdadeira
-        const [u] = await db // Guarda um valor que não muda durante a execução deste trecho
-          .select({ // Instrução do programa — parte da lógica deste arquivo
-            id: users.id, // Instrução do programa — parte da lógica deste arquivo
-            name: users.name, // Instrução do programa — parte da lógica deste arquivo
-            email: users.email, // Instrução do programa — parte da lógica deste arquivo
-            phone: users.phone, // Instrução do programa — parte da lógica deste arquivo
-            plan: users.plan, // Instrução do programa — parte da lógica deste arquivo
-            createdAt: users.createdAt, // Instrução do programa — parte da lógica deste arquivo
-          }) // Fecha bloco iniciado anteriormente
-          .from(users) // Instrução do programa — parte da lógica deste arquivo
-          .where(eq(users.id, userId)); // Filtra quais linhas do banco entram na consulta
-        return reply.send({ user: u }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      if (phoneNorm) { // Só executa o bloco abaixo se esta condição for verdadeira
-        await releasePhoneFromOtherUsers(phoneNorm, userId); // Espera terminar uma tarefa assíncrona antes de continuar
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-
-      const [u] = await db // Guarda um valor que não muda durante a execução deste trecho
-        .update(users) // Instrução do programa — parte da lógica deste arquivo
-        .set(update) // Define quais colunas serão alteradas no UPDATE
-        .where(eq(users.id, userId)) // Filtra quais linhas do banco entram na consulta
-        .returning({ // Pede ao banco devolver os dados gravados
-          id: users.id, // Instrução do programa — parte da lógica deste arquivo
-          name: users.name, // Instrução do programa — parte da lógica deste arquivo
-          email: users.email, // Instrução do programa — parte da lógica deste arquivo
-          phone: users.phone, // Instrução do programa — parte da lógica deste arquivo
-          plan: users.plan, // Instrução do programa — parte da lógica deste arquivo
-          createdAt: users.createdAt, // Instrução do programa — parte da lógica deste arquivo
-        }); // Fecha chamada de função ou método
-
-      return reply.send({ user: u }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      const parsed = profilePatchBody.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+      }
+      const userId = request.user!.id;
+      const { name, phone } = parsed.data;
+      const phoneNorm = phone === undefined ? undefined : phone === null ? null : normalizePhone(phone);
+      if (phone !== undefined && phone !== null && phone.length > 0 && !phoneNorm) {
+        return reply.status(400).send({ error: "Invalid phone number" });
+      }
+      const update: { name?: string; phone?: string | null } = {};
+      if (name !== undefined) update.name = name;
+      if (phone !== undefined) update.phone = phoneNorm;
+      if (Object.keys(update).length === 0) {
+        const [u] = await db
+          .select({
+            id: users.id,
+            name: users.name,
+            email: users.email,
+            phone: users.phone,
+            plan: users.plan,
+            createdAt: users.createdAt,
+          })
+          .from(users)
+          .where(eq(users.id, userId));
+        return reply.send({ user: u });
+      }
+      if (phoneNorm) {
+        await releasePhoneFromOtherUsers(phoneNorm, userId);
+      }
+      const [u] = await db
+        .update(users)
+        .set(update)
+        .where(eq(users.id, userId))
+        .returning({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          phone: users.phone,
+          plan: users.plan,
+          createdAt: users.createdAt,
+        });
+      return reply.send({ user: u });
+    });
     /** POST /api/account/seed-demo — popula transações demo se conta vazia. */
     r.post("/account/seed-demo", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      const result = await seedMockDataForUser(userId); // Guarda um valor que não muda durante a execução deste trecho
-      if (result.skipped) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.send({ ok: true, skipped: true, message: "Conta já possui transações." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      return reply.send({ ok: true, skipped: false, inserted: result.inserted }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      const userId = request.user!.id;
+      const result = await seedMockDataForUser(userId);
+      if (result.skipped) {
+        return reply.send({ ok: true, skipped: true, message: "Conta já possui transações." });
+      }
+      return reply.send({ ok: true, skipped: false, inserted: result.inserted });
+    });
     /** POST /api/account/seed-rich-demo — pacote completo (conta demo configurada). */
     r.post("/account/seed-rich-demo", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const email = request.user!.email.toLowerCase(); // Guarda um valor que não muda durante a execução deste trecho
-      if (email !== RICH_DEMO_EMAIL) { // Só executa o bloco abaixo se esta condição for verdadeira
-        return reply.status(403).send({ error: "Pacote completo disponível apenas para a conta configurada." }); // Envia resposta HTTP de volta ao navegador ou app
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const { inserted } = await seedRichMockForUserId(request.user!.id); // Guarda um valor que não muda durante a execução deste trecho
-      return reply.send({ ok: true, inserted, message: "Transações anteriores foram substituídas pelo pacote completo." }); // Envia resposta HTTP de volta ao navegador ou app
-    }); // Fecha chamada de função ou método
-
+      const email = request.user!.email.toLowerCase();
+      if (email !== RICH_DEMO_EMAIL) {
+        return reply.status(403).send({ error: "Pacote completo disponível apenas para a conta configurada." });
+      }
+      const { inserted } = await seedRichMockForUserId(request.user!.id);
+      return reply.send({ ok: true, inserted, message: "Transações anteriores foram substituídas pelo pacote completo." });
+    });
     /** GET /api/reports/monthly — agregação receita/despesa por mês. */
     r.get("/reports/monthly", async (request: FastifyRequest, reply: FastifyReply) => { // Define endpoint REST dentro do grupo de rotas
-      const userId = request.user!.id; // Guarda um valor que não muda durante a execução deste trecho
-      await materializeDueRecurringIncomes(userId); // Espera terminar uma tarefa assíncrona antes de continuar
-
-      const rows = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select({ // Instrução do programa — parte da lógica deste arquivo
-          amount: transactions.amount, // Instrução do programa — parte da lógica deste arquivo
-          type: transactions.type, // Instrução do programa — parte da lógica deste arquivo
-          occurredAt: transactions.occurredAt, // Instrução do programa — parte da lógica deste arquivo
-        }) // Fecha bloco iniciado anteriormente
-        .from(transactions) // Instrução do programa — parte da lógica deste arquivo
-        .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true))); // Filtra quais linhas do banco entram na consulta
-
-      const budgetRows = await db // Guarda um valor que não muda durante a execução deste trecho
-        .select({ month: budgets.month, income: budgets.totalIncomeExpected }) // Instrução do programa — parte da lógica deste arquivo
-        .from(budgets) // Instrução do programa — parte da lógica deste arquivo
-        .where(eq(budgets.userId, userId)); // Filtra quais linhas do banco entram na consulta
-
-      const byMonth = new Map<string, { income: number; expense: number }>(); // Guarda um valor que não muda durante a execução deste trecho
-      for (const t of rows) { // Repete o bloco para cada item da lista
+      const userId = request.user!.id;
+      await materializeDueRecurringIncomes(userId);
+      const rows = await db
+        .select({
+          amount: transactions.amount,
+          type: transactions.type,
+          occurredAt: transactions.occurredAt,
+        })
+        .from(transactions)
+        .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true)));
+      const budgetRows = await db
+        .select({ month: budgets.month, income: budgets.totalIncomeExpected })
+        .from(budgets)
+        .where(eq(budgets.userId, userId));
+      const byMonth = new Map<string, { income: number; expense: number }>();
+      for (const t of rows) {
         const key = t.occurredAt.toISOString().slice(0, 7); // YYYY-MM
-        const cur = byMonth.get(key) ?? { income: 0, expense: 0 }; // Guarda um valor que não muda durante a execução deste trecho
-        if (t.type === "income") cur.income += num(t.amount); // Só executa o bloco abaixo se esta condição for verdadeira
+        const cur = byMonth.get(key) ?? { income: 0, expense: 0 };
+        if (t.type === "income") cur.income += num(t.amount);
         else cur.expense += num(t.amount); // Caminho alternativo quando o if não passou
-        byMonth.set(key, cur); // Instrução do programa — parte da lógica deste arquivo
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      for (const b of budgetRows) { // Repete o bloco para cada item da lista
-        const expected = b.income != null ? num(b.income) : 0; // Guarda um valor que não muda durante a execução deste trecho
-        if (expected <= 0) continue; // Só executa o bloco abaixo se esta condição for verdadeira
-        const cur = byMonth.get(b.month) ?? { income: 0, expense: 0 }; // Guarda um valor que não muda durante a execução deste trecho
-        if (cur.income < expected) cur.income = expected; // Só executa o bloco abaixo se esta condição for verdadeira
-        byMonth.set(b.month, cur); // Instrução do programa — parte da lógica deste arquivo
-      } // Fecha um bloco de código (if, função, objeto, etc.)
-      const sorted = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0])); // Guarda um valor que não muda durante a execução deste trecho
-      return reply.send({ // Envia resposta HTTP de volta ao navegador ou app
-        months: sorted.map(([month, v]) => ({ // Atribui ou calcula um valor para usar adiante
-          month, // Instrução do programa — parte da lógica deste arquivo
-          income: Math.round(v.income * 100) / 100, // Instrução do programa — parte da lógica deste arquivo
-          expense: Math.round(v.expense * 100) / 100, // Instrução do programa — parte da lógica deste arquivo
-          balance: Math.round((v.income - v.expense) * 100) / 100, // Instrução do programa — parte da lógica deste arquivo
-        })), // Fecha bloco iniciado anteriormente
-      }); // Fecha chamada de função ou método
-    }); // Fecha chamada de função ou método
+        byMonth.set(key, cur);
+      }
+      for (const b of budgetRows) {
+        const expected = b.income != null ? num(b.income) : 0;
+        if (expected <= 0) continue;
+        const cur = byMonth.get(b.month) ?? { income: 0, expense: 0 };
+        if (cur.income < expected) cur.income = expected;
+        byMonth.set(b.month, cur);
+      }
+      const sorted = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      return reply.send({
+        months: sorted.map(([month, v]) => ({
+          month,
+          income: Math.round(v.income * 100) / 100,
+          expense: Math.round(v.expense * 100) / 100,
+          balance: Math.round((v.income - v.expense) * 100) / 100,
+        })),
+      });
+    });
   }, { prefix: "/api" }); // Fecha registro de rotas informando o prefixo da URL
-} // Fecha um bloco de código (if, função, objeto, etc.)
+}

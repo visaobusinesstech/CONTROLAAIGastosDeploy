@@ -1,5 +1,14 @@
 /**
  * Persistência de transações — converte FinancialIntent em linha no banco — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { and, eq } from "drizzle-orm"; // Operadores para filtros de saldo mensal
@@ -24,14 +33,12 @@ export async function createTransactionFromIntent(
   if (intent.intent !== "transaction" || !intent.type || intent.type === "transfer") {
     return null; // Não é transação ou é transferência — ignora
   }
-
   if (!intent.value || intent.value <= 0) {
     return {
       transactionId: "",
       response: "❌ Não consegui identificar o valor. Informe quanto foi, ex: *Gastei 50 no mercado*",
     }; // Valor ausente — pede esclarecimento sem salvar
   }
-
   const type = intent.type === "income" ? "income" : "expense"; // Normaliza tipo para o banco
   const { id: categoryId, resolvedName: categoryName } = await findCategoryId(
     userId,
@@ -39,9 +46,7 @@ export async function createTransactionFromIntent(
     type,
     intent.description ?? rawMessage, // Usa descrição ou mensagem bruta para inferência
   );
-
   const occurredAt = intent.date ? new Date(`${intent.date}T12:00:00.000Z`) : new Date(); // Data informada ou hoje (meio-dia UTC)
-
   const [row] = await db
     .insert(transactions) // INSERT na tabela transactions
     .values({
@@ -57,7 +62,6 @@ export async function createTransactionFromIntent(
       installments: intent.installments ?? null, // Parcelas se informadas
     })
     .returning({ id: transactions.id }); // Retorna UUID gerado
-
   await writeAuditLog({
     userId,
     routine: "transactions.create_whatsapp",
@@ -65,16 +69,13 @@ export async function createTransactionFromIntent(
     entity: "transactions",
     entityId: row.id,
   });
-
   await recordCategoryUsage(userId, categoryName);
-
   const response = await buildRichPostTransactionResponse(userId, {
     type,
     categoryName,
     amount: intent.value,
     userName: options?.userName,
   });
-
   return { transactionId: row.id, response };
 }
 

@@ -1,4 +1,16 @@
-/** Seed de conta demo rica — transações, orçamentos e categorias para apresentação. */
+/**
+ * Seed de conta demo rica — transações, orçamentos e categorias para apresentação.
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import { eq } from "drizzle-orm";
 import { db } from "./index.js";
 import { budgets, categories, transactions, users } from "./schema.js";
@@ -60,7 +72,6 @@ function amountBetween(seed: number, min: number, max: number): string {
 function buildRichTransactionList(): SeedTx[] {
   const out: SeedTx[] = [];
   let s = 0;
-
   const months: { y: number; m: number; salary: string; rent: string }[] = [
     { y: 2025, m: 10, salary: "7100.00", rent: "1750.00" },
     { y: 2025, m: 11, salary: "7100.00", rent: "1750.00" },
@@ -70,7 +81,6 @@ function buildRichTransactionList(): SeedTx[] {
     { y: 2026, m: 3, salary: "8200.00", rent: "1800.00" },
     { y: 2026, m: 4, salary: "8500.00", rent: "1800.00" },
   ];
-
   for (const { y, m, salary, rent } of months) {
     out.push({
       categoryName: "Salário",
@@ -81,7 +91,6 @@ function buildRichTransactionList(): SeedTx[] {
       source: "recurring",
     });
     s++;
-
     if (rnd(s + y + m) > 0.35) {
       out.push({
         categoryName: "Freelance",
@@ -93,7 +102,6 @@ function buildRichTransactionList(): SeedTx[] {
       });
       s++;
     }
-
     if (rnd(s + y * 2) > 0.5) {
       out.push({
         categoryName: "Investimentos",
@@ -105,7 +113,6 @@ function buildRichTransactionList(): SeedTx[] {
       });
       s++;
     }
-
     out.push({
       categoryName: "Moradia",
       type: "expense",
@@ -115,7 +122,6 @@ function buildRichTransactionList(): SeedTx[] {
       source: "recurring",
     });
     s++;
-
     if (m === 12 || m === 3) {
       out.push({
         categoryName: "Moradia",
@@ -127,7 +133,6 @@ function buildRichTransactionList(): SeedTx[] {
       });
       s++;
     }
-
     const numExtras = 18 + Math.floor(rnd(s + m * 13) * 14);
     for (let i = 0; i < numExtras; i++) {
       const tmpl = expenseTemplates[(s + i + y * 31 + m) % expenseTemplates.length];
@@ -145,7 +150,6 @@ function buildRichTransactionList(): SeedTx[] {
       s++;
     }
   }
-
   /* Extras manuais pontuais */
   const extras: SeedTx[] = [
     {
@@ -182,7 +186,6 @@ function buildRichTransactionList(): SeedTx[] {
     },
   ];
   out.push(...extras);
-
   return out;
 }
 
@@ -202,11 +205,9 @@ const BUDGET_MONTHS: { month: string; income: string; limit: string }[] = [
  */
 export async function seedRichMockForUserId(userId: string): Promise<{ deleted: boolean; inserted: number }> {
   await db.delete(transactions).where(eq(transactions.userId, userId));
-
   const rows = buildRichTransactionList();
   const cats = await db.select().from(categories);
   const byName = new Map(cats.map((c) => [c.name, c.id]));
-
   let inserted = 0;
   for (const row of rows) {
     const categoryId =
@@ -224,7 +225,6 @@ export async function seedRichMockForUserId(userId: string): Promise<{ deleted: 
     });
     inserted++;
   }
-
   for (const b of BUDGET_MONTHS) {
     await db
       .insert(budgets)
@@ -244,7 +244,6 @@ export async function seedRichMockForUserId(userId: string): Promise<{ deleted: 
         },
       });
   }
-
   return { deleted: true, inserted };
 }
 

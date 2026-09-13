@@ -1,4 +1,16 @@
-/** Seed de categorias padrão (gastos e receitas) — executar manualmente após migrations. */
+/**
+ * Seed de categorias padrão (gastos e receitas) — executar manualmente após migrations.
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import "dotenv/config";
 import { db } from "./index.js";
 import { categories } from "./schema.js";
@@ -29,7 +41,6 @@ async function seed() {
     console.log("Seed skipped: categories already exist.");
     process.exit(0);
   }
-
   await db.insert(categories).values(
     expenseDefaults.map((c) => ({
       userId: null,

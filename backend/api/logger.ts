@@ -1,5 +1,14 @@
 /**
  * Registro de operações OpenAI na tabela ai_logs — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { db } from "../src/db/index.js"; // Cliente Drizzle para inserir em ai_logs
@@ -28,7 +37,6 @@ export async function logAiOperation(input: AiLogInput): Promise<string> {
     input.inputTokens != null && input.outputTokens != null
       ? estimateCostUsd(input.inputTokens, input.outputTokens, input.model ?? undefined) // Só calcula custo se tokens informados
       : null;
-
   const [row] = await db
     .insert(aiLogs) // INSERT na tabela de auditoria
     .values({
@@ -47,6 +55,5 @@ export async function logAiOperation(input: AiLogInput): Promise<string> {
       metadata: input.metadata ?? null,
     })
     .returning({ id: aiLogs.id }); // Retorna id para correlacionar com transação
-
   return row.id; // UUID do log criado
 }

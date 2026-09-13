@@ -1,5 +1,14 @@
 /**
  * Página 404 — exibida quando o usuário acessa uma URL que não existe no app.
+ *
+ * Papel no sistema: Página React Router — UI autenticada consumindo api.ts e auth.tsx.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 // Hook que informa qual URL o usuário tentou abrir (para log de diagnóstico)
@@ -11,12 +20,10 @@ import { useEffect } from "react";
 const NotFound = () => {
   // Objeto com pathname (caminho) e demais dados da rota atual
   const location = useLocation();
-
   // Registra no console do navegador qual URL inválida foi acessada (útil para debug)
   useEffect(() => {
     console.error("404 Error: User attempted to access non-existent route:", location.pathname);
   }, [location.pathname]); // Reexecuta se o usuário navegar para outra rota inválida
-
   return (
     // Fundo cinza claro, conteúdo centralizado na tela inteira
     <div className="flex min-h-screen items-center justify-center bg-muted">

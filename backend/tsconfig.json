@@ -1,4 +1,5 @@
 {
+  "_tcc": "TypeScript config do BACKEND (API Fastify + WhatsApp). Diz ao compilador como transformar .ts em .js na pasta dist/. Usado no npm run build antes do deploy na Railway. Inclui src/, api/ e whatsapp/. Não afeta o frontend (Vercel). Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar.",
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",

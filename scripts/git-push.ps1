@@ -1,5 +1,23 @@
-# Usage: .\scripts\git-push.ps1 "commit message"
-# Or: npm run git:push -- "commit message"
+# =============================================================================
+# GIT-PUSH.PS1 — Commit e push seguro para o GitHub
+# =============================================================================
+#
+# O que é: script auxiliar que adiciona, commita e envia alterações ao repositório remoto.
+#
+# Para que serve: fluxo diário de desenvolvimento sem esquecer passos. Bloqueia commit de
+# arquivos .env (segredos). Se não houver mudanças, tenta push de commits pendentes.
+#
+# Uso:
+#   .\scripts\git-push.ps1 "minha mensagem"
+#   npm run git:push -- "minha mensagem"
+#   capush "msg"   (após setup-terminal.ps1)
+#
+# Conexões:
+#   - GitHub: visaobusinesstech/CONTROLAAIGastosDeploy
+#   - Push → Railway rebuild (backend) + Vercel redeploy (frontend)
+#
+# Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+# =============================================================================
 
 param(
     [Parameter(Position = 0)]

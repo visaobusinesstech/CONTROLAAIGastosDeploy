@@ -1,5 +1,14 @@
 /**
  * Fluxo conversacional para criar metas financeiras via WhatsApp / chat IA — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { eq, and, or, isNull, ilike } from "drizzle-orm"; // Operadores SQL para buscar categorias
@@ -88,7 +97,6 @@ export function hasGoalDataInText(text: string): boolean {
     return false;
   }
   if (/\b(gasto|despesa)\s+(de\s+)?(r\$\s*)?\d/i.test(t)) return false;
-
   if (parseGoalAmount(t)) return true; // Tem valor monetário de meta
   if (parseGoalType(t)) return true; // Menciona poupança ou limite
   if (parseDurationMonths(t) != null) return true; // Tem prazo
@@ -142,7 +150,6 @@ async function resolveCategoryId(
     [/educa|curso|livro|escola/i, "Educação"],
     [/servi[cç]o|assinatura/i, "Serviços"],
   ];
-
   for (const [re, catName] of hints) {
     if (!re.test(lower)) continue;
     const [row] = await db
@@ -187,7 +194,6 @@ function isDraftComplete(draft: GoalSession, originalText: string): boolean {
 /** Parseia mensagem e atualiza rascunho da sessão de meta. */
 async function parseMessageIntoDraft(userId: string, session: GoalSession, trimmed: string): Promise<GoalSession> {
   const parsed = await parseGoalMessage(trimmed); // IA + regex local
-
   let draft = mergeDraft(session, {
     goalType: parsed.goalType ?? undefined,
     name: parsed.name ?? undefined,
@@ -196,13 +202,11 @@ async function parseMessageIntoDraft(userId: string, session: GoalSession, trimm
     periodType: parsed.periodType ?? undefined,
     lastText: trimmed,
   });
-
   if (!draft.categoryId && draft.goalType === "limit") {
     const cat = await resolveCategoryId(userId, trimmed); // Metas de limite podem ter categoria
     draft.categoryId = cat.id;
     draft.categoryName = cat.name ?? undefined;
   }
-
   return draft;
 }
 
@@ -212,7 +216,6 @@ async function createGoalFromDraft(userId: string, draft: GoalSession): Promise<
   const goalType = draft.goalType!;
   const period = draft.periodType ?? "monthly";
   const durationMonths = draft.durationMonths ?? null;
-
   await createGoalForUser(userId, {
     name: draft.name!,
     limitAmount: amount,
@@ -222,14 +225,11 @@ async function createGoalFromDraft(userId: string, draft: GoalSession): Promise<
     durationMonths,
     categoryId: draft.categoryId ?? null,
   });
-
   clearGoalSession(userId);
   setConversationPhase(userId, "expenses"); // Próximo passo: registrar gastos
-
   const periodLabel = formatDurationLabel(durationMonths, period);
   const valueLine = `✅ Meta *${draft.name}* registrada · ${formatBrl(amount)}`;
   const timeLine = durationMonths != null ? ` · prazo: *${periodLabel}*` : ` · ${periodLabel}`;
-
   return `${valueLine}${timeLine}|||Agora me conta seus gastos e receitas — pode mandar texto, áudio ou comprovante.|||Ex: _"Gastei 45 no almoço"_ · _"Recebi 3 mil de salário"_`;
 }
 
@@ -286,7 +286,6 @@ export async function processGoalAgentMessage(
   options?: { userName?: string | null; isNewGoalRequest?: boolean; forcePrompt?: boolean },
 ): Promise<GoalAgentResult> {
   const trimmed = text.trim();
-
   if (options?.forcePrompt && !sessions.has(userId)) {
     sessions.set(userId, { step: "collecting" });
     return {
@@ -295,11 +294,9 @@ export async function processGoalAgentMessage(
       goalCreated: false,
     };
   }
-
   if (!trimmed) {
     return { handled: false, response: "", goalCreated: false };
   }
-
   if (CANCEL_RE.test(trimmed)) {
     if (sessions.has(userId)) {
       clearGoalSession(userId);
@@ -311,15 +308,12 @@ export async function processGoalAgentMessage(
     }
     return { handled: false, response: "", goalCreated: false };
   }
-
   let session = sessions.get(userId);
   const mentionsGoal = isGoalRequest(trimmed);
   const hasData = hasGoalDataInText(trimmed);
-
   if ((options?.isNewGoalRequest || mentionsGoal) && !session) {
     session = { step: "collecting" };
     sessions.set(userId, session);
-
     if (isBareGoalRequest(trimmed) && !hasData) {
       return {
         handled: true,
@@ -333,7 +327,6 @@ export async function processGoalAgentMessage(
   } else if (!session) {
     return { handled: false, response: "", goalCreated: false };
   }
-
   // Gasto explícito durante sessão de meta → não cria meta; devolve para o agente financeiro
   if (await isExpenseNotGoalMessage(trimmed)) {
     if (!mentionsGoal) {
@@ -341,7 +334,6 @@ export async function processGoalAgentMessage(
       return { handled: false, response: "", goalCreated: false };
     }
   }
-
   if (looksLikeIncomeNotGoal(trimmed) && !looksLikeGoalAmount(trimmed)) {
     return {
       handled: true,
@@ -349,10 +341,8 @@ export async function processGoalAgentMessage(
       goalCreated: false,
     };
   }
-
   const draft = await parseMessageIntoDraft(userId, session!, trimmed);
   sessions.set(userId, draft);
-
   if (!isDraftComplete(draft, trimmed)) {
     const fields = {
       goalType: draft.goalType ?? null,
@@ -368,7 +358,6 @@ export async function processGoalAgentMessage(
       goalCreated: false,
     };
   }
-
   const response = await createGoalFromDraft(userId, draft);
   return { handled: true, response, goalCreated: true };
 }

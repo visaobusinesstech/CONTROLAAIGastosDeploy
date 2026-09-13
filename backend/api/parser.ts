@@ -1,5 +1,14 @@
 /**
  * Parser financeiro OpenAI — extrai gastos/receitas de texto, áudio, imagem e PDF — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { z } from "zod"; // Validação do JSON retornado pela IA
@@ -51,7 +60,6 @@ function parseLocalIntent(text: string): FinancialIntent {
     return { intent: "unknown" }; // Saudação não é intent financeiro
   }
   const value = parseMoneyAmount(text) ?? undefined; // Tenta extrair valor
-
   if (/quais dias.*gast|dia.*mais gast|dias que.*gast/i.test(lower)) {
     return { intent: "query", queryType: "top_spending_days" };
   }
@@ -73,15 +81,12 @@ function parseLocalIntent(text: string): FinancialIntent {
   if (/economizei|compar/i.test(lower)) {
     return { intent: "query", queryType: "month_comparison" };
   }
-
   if (/\b(meta|metas|objetivo)\b|quero\s+(registrar|criar|cadastrar).*meta|criar\s+(uma\s+)?meta/i.test(lower)) {
     // Gasto explícito vence meta mesmo se a frase tiver palavras ambíguas
     if (!isTransactionMessage(text) && !isExpenseMessage(text)) return { intent: "goal" };
   }
-
   const isIncome = isIncomeMessage(text);
   const isExpense = isExpenseMessage(text);
-
   if (isIncome || isExpense) {
     const type = isIncome ? "income" : "expense";
     return {
@@ -92,7 +97,6 @@ function parseLocalIntent(text: string): FinancialIntent {
       description: text.slice(0, 200), // Limita tamanho da descrição
     };
   }
-
   return { intent: "unknown" }; // Não reconheceu padrão
 }
 
@@ -102,14 +106,11 @@ function enrichIntentFromText(intent: FinancialIntent, text: string): FinancialI
     const local = parseLocalIntent(text);
     if (local.intent === "query") return local; // Consulta local prevalece
   }
-
   const localValue = parseMoneyAmount(text);
   let enriched: FinancialIntent = { ...intent };
-
   if (localValue && (!enriched.value || enriched.value <= 0)) {
     enriched = { ...enriched, value: localValue }; // Preenche valor ausente
   }
-
   if (isTransactionMessage(text)) {
     const local = parseLocalIntent(text);
     if (local.intent === "transaction" && local.type) {
@@ -123,7 +124,6 @@ function enrichIntentFromText(intent: FinancialIntent, text: string): FinancialI
       }; // Força transaction quando regex detectou
     }
   }
-
   if (enriched.intent === "transaction" && enriched.type && enriched.type !== "transfer") {
     const fromText = inferLocalCategory(text, enriched.type);
     const fallback = enriched.type === "income" ? "Outras receitas" : "Outros gastos";
@@ -133,7 +133,6 @@ function enrichIntentFromText(intent: FinancialIntent, text: string): FinancialI
       enriched = { ...enriched, category: fromText }; // Descrição prevalece sobre IA
     }
   }
-
   return enriched;
 }
 
@@ -149,18 +148,15 @@ export async function parseFinancialIntent(
   },
 ): Promise<FinancialIntent> {
   const start = Date.now(); // Marca início para latência em ai_logs
-
   if (!isOpenAIConfigured()) {
     return enrichIntentFromText(parseLocalIntent(text), text); // Sem API key — só regex
   }
-
   const categoryHint = buildParserPromptWithContext(
     context?.topCategories ?? [],
     context?.expenseCategories,
     context?.incomeCategories,
     context?.conversationHistory,
   ); // Prompt enriquecido com contexto do usuário
-
   try {
     const openai = getOpenAI();
     const model = getOpenAIModel();
@@ -173,12 +169,10 @@ export async function parseFinancialIntent(
         { role: "user", content: text },
       ],
     });
-
     const raw = completion.choices[0]?.message?.content ?? "{}";
     const parsed = financialIntentSchema.safeParse(JSON.parse(raw)); // Valida com Zod
     const base = parsed.success ? parsed.data : parseLocalIntent(text); // Fallback se JSON inválido
     const result = enrichIntentFromText(base, text); // Corrige com heurísticas locais
-
     await logAiOperation({
       userId: context?.userId,
       source: "whatsapp",
@@ -191,7 +185,6 @@ export async function parseFinancialIntent(
       processingMs: Date.now() - start,
       metadata: { parsed: result },
     });
-
     return result;
   } catch (err) {
     await logAiOperation({
@@ -215,11 +208,9 @@ export async function parseDocumentText(
   if (!isOpenAIConfigured()) {
     return []; // Sem IA — import vazio
   }
-
   const start = Date.now();
   const openai = getOpenAI();
   const model = getOpenAIModel();
-
   const completion = await openai.chat.completions.create({
     model,
     temperature: 0.1,
@@ -232,7 +223,6 @@ export async function parseDocumentText(
       { role: "user", content: extractedText.slice(0, 12000) }, // Limita tokens do PDF
     ],
   });
-
   const raw = completion.choices[0]?.message?.content ?? '{"transactions":[]}';
   await logAiOperation({
     userId,
@@ -245,7 +235,6 @@ export async function parseDocumentText(
     outputTokens: completion.usage?.completion_tokens,
     processingMs: Date.now() - start,
   });
-
   try {
     const data = JSON.parse(raw) as { transactions?: Array<{ type: string; value: number; description: string; category?: string; date?: string }> };
     return (data.transactions ?? [])
@@ -271,11 +260,9 @@ export async function parseReceiptImage(
   if (!isOpenAIConfigured()) {
     return { intent: "unknown" };
   }
-
   const start = Date.now();
   const openai = getOpenAI();
   const model = getOpenAIModel();
-
   const completion = await openai.chat.completions.create({
     model,
     temperature: 0.1,
@@ -294,7 +281,6 @@ export async function parseReceiptImage(
       },
     ],
   });
-
   const raw = completion.choices[0]?.message?.content ?? "{}";
   await logAiOperation({
     userId,
@@ -306,7 +292,6 @@ export async function parseReceiptImage(
     outputTokens: completion.usage?.completion_tokens,
     processingMs: Date.now() - start,
   });
-
   try {
     const parsed = financialIntentSchema.safeParse(JSON.parse(raw));
     return parsed.success ? enrichIntentFromText(parsed.data, "[imagem]") : { intent: "unknown" };

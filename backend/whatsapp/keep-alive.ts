@@ -26,95 +26,85 @@ export const DEFAULT_KEEPALIVE_MS = 30 * 60 * 1000; // Constante exportada — v
 /** Lê intervalo do .env ou usa DEFAULT_KEEPALIVE_MS (mínimo 60s). */
 export function getKeepAliveIntervalMs(): number { // Função exportada — pode ser usada em outros arquivos
   const raw = process.env.WHATSAPP_KEEPALIVE_INTERVAL_MS; // Ex: 1800000
-  const parsed = raw ? Number(raw) : DEFAULT_KEEPALIVE_MS; // Guarda um valor que não muda durante a execução deste trecho
+  const parsed = raw ? Number(raw) : DEFAULT_KEEPALIVE_MS;
   return Number.isFinite(parsed) && parsed >= 60_000 ? parsed : DEFAULT_KEEPALIVE_MS; // Clamp mínimo 1 min
-} // Fecha um bloco de código (if, função, objeto, etc.)
+}
 
 /** Estatísticas expostas em GET /api/admin/whatsapp/keepalive */
-export type KeepAliveStats = { // Exporta um tipo de dados para outros arquivos usarem
+export type KeepAliveStats = {
   lastRunAt: string | null; // ISO da última execução
-  lastResult: "skipped" | "healthy" | "refreshed" | "reconnected" | "failed" | null; // Instrução do programa — parte da lógica deste arquivo
+  lastResult: "skipped" | "healthy" | "refreshed" | "reconnected" | "failed" | null;
   lastError: string | null; // Mensagem se failed
   intervalMs: number; // Intervalo configurado
   runCount: number; // Total de ciclos desde boot
-}; // Fecha bloco de objeto ou estrutura
+};
 
 /**
  * Timer periódico que delega a lógica de fallback para o WhatsAppClient.
  * Um único timer por processo — evita múltiplos intervals ao reiniciar hot-reload.
  */
-export class WhatsAppKeepAlive { // Instrução do programa — parte da lógica deste arquivo
+export class WhatsAppKeepAlive {
   private timer: ReturnType<typeof setInterval> | null = null; // Handle do setInterval
   private client: WhatsAppClient | null = null; // Referência ao cliente Baileys
   private stats: KeepAliveStats = { // Membro interno da classe — só usado dentro dela
-    lastRunAt: null, // Instrução do programa — parte da lógica deste arquivo
-    lastResult: null, // Instrução do programa — parte da lógica deste arquivo
-    lastError: null, // Instrução do programa — parte da lógica deste arquivo
-    intervalMs: getKeepAliveIntervalMs(), // Instrução do programa — parte da lógica deste arquivo
-    runCount: 0, // Instrução do programa — parte da lógica deste arquivo
-  }; // Fecha bloco de objeto ou estrutura
-
+    lastRunAt: null,
+    lastResult: null,
+    lastError: null,
+    intervalMs: getKeepAliveIntervalMs(),
+    runCount: 0,
+  };
   /** Inicia o ciclo de fallback. Seguro chamar mais de uma vez — reinicia o timer. */
-  start(client: WhatsAppClient): void { // Instrução do programa — parte da lógica deste arquivo
+  start(client: WhatsAppClient): void {
     this.stop(); // Limpa timer anterior se existir
     this.client = client; // Guarda referência para tick()
     this.stats.intervalMs = getKeepAliveIntervalMs(); // Acessa propriedade ou método desta instância da classe
-
-    const minutes = Math.round(this.stats.intervalMs / 60_000); // Guarda um valor que não muda durante a execução deste trecho
+    const minutes = Math.round(this.stats.intervalMs / 60_000);
     console.log(`[whatsapp-keepalive] ativo — verificação a cada ${minutes} min`); // Escreve mensagem no terminal para diagnóstico
-    appendBaileysLog("info", `Keep-alive ativo — verificação a cada ${minutes} min`, { // Instrução do programa — parte da lógica deste arquivo
-      intervalMs: this.stats.intervalMs, // Instrução do programa — parte da lógica deste arquivo
-    }); // Fecha chamada de função ou método
-
+    appendBaileysLog("info", `Keep-alive ativo — verificação a cada ${minutes} min`, {
+      intervalMs: this.stats.intervalMs,
+    });
     setTimeout(() => void this.tick("boot-delay"), 2 * 60_000); // Primeira checagem após 2 min (boot)
-
     this.timer = setInterval(() => void this.tick("interval"), this.stats.intervalMs); // Ciclo periódico
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-
+  }
   /** Para o timer (ex.: logout admin ou desligar WhatsApp). */
-  stop(): void { // Instrução do programa — parte da lógica deste arquivo
-    if (this.timer) { // Só executa o bloco abaixo se esta condição for verdadeira
-      clearInterval(this.timer); // Instrução do programa — parte da lógica deste arquivo
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
       this.timer = null; // Acessa propriedade ou método desta instância da classe
-    } // Fecha um bloco de código (if, função, objeto, etc.)
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-
+    }
+  }
   /** Retorna cópia das estatísticas (evita mutação externa). */
-  getStats(): KeepAliveStats { // Instrução do programa — parte da lógica deste arquivo
-    return { ...this.stats }; // Devolve um valor e encerra a função aqui
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-
+  getStats(): KeepAliveStats {
+    return { ...this.stats };
+  }
   /** Executa um ciclo manual — usado pelo timer e POST /keepalive/run. */
-  async tick(reason = "manual"): Promise<KeepAliveStats> { // Atribui ou calcula um valor para usar adiante
-    if (!this.client) { // Só executa o bloco abaixo se esta condição for verdadeira
+  async tick(reason = "manual"): Promise<KeepAliveStats> {
+    if (!this.client) {
       return this.stats; // Sem cliente — nada a fazer
-    } // Fecha um bloco de código (if, função, objeto, etc.)
-
+    }
     this.stats.runCount++; // Incrementa contador
     this.stats.lastRunAt = new Date().toISOString(); // Acessa propriedade ou método desta instância da classe
     this.stats.lastError = null; // Acessa propriedade ou método desta instância da classe
-
-    try { // Tenta executar código que pode falhar
+    try {
       const result = await this.client.runKeepAliveFallback(reason); // Delega ao client.ts
       this.stats.lastResult = result; // Acessa propriedade ou método desta instância da classe
-      appendBaileysLog("info", `Keep-alive: ${result}`, { reason, result }); // Instrução do programa — parte da lógica deste arquivo
-    } catch (err) { // Fecha bloco iniciado anteriormente
+      appendBaileysLog("info", `Keep-alive: ${result}`, { reason, result });
+    } catch (err) {
       this.stats.lastResult = "failed"; // Acessa propriedade ou método desta instância da classe
       this.stats.lastError = err instanceof Error ? err.message : String(err); // Acessa propriedade ou método desta instância da classe
       console.error("[whatsapp-keepalive] erro no ciclo:", this.stats.lastError); // Escreve mensagem no terminal para diagnóstico
-      appendBaileysLog("error", "Erro no keep-alive", { error: this.stats.lastError, reason }); // Instrução do programa — parte da lógica deste arquivo
-    } // Fecha um bloco de código (if, função, objeto, etc.)
-
-    return this.getStats(); // Devolve um valor e encerra a função aqui
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-} // Fecha um bloco de código (if, função, objeto, etc.)
+      appendBaileysLog("error", "Erro no keep-alive", { error: this.stats.lastError, reason });
+    }
+    return this.getStats();
+  }
+}
 
 let guardianSingleton: WhatsAppKeepAlive | null = null; // Uma instância por processo Node
 
 /** Singleton — mesmo guardian usado por client.ts e routes.ts */
 export function getWhatsAppKeepAlive(): WhatsAppKeepAlive { // Função exportada — pode ser usada em outros arquivos
-  if (!guardianSingleton) { // Só executa o bloco abaixo se esta condição for verdadeira
-    guardianSingleton = new WhatsAppKeepAlive(); // Atribui ou calcula um valor para usar adiante
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-  return guardianSingleton; // Devolve um valor e encerra a função aqui
-} // Fecha um bloco de código (if, função, objeto, etc.)
+  if (!guardianSingleton) {
+    guardianSingleton = new WhatsAppKeepAlive();
+  }
+  return guardianSingleton;
+}

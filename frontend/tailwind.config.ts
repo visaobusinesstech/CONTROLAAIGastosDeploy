@@ -1,3 +1,17 @@
+/**
+ * TAILWIND CONFIG — Paleta visual e utilitários CSS do painel Controla.AI.
+ *
+ * O que é: configura o Tailwind CSS (framework de estilos por classes como bg-primary).
+ *
+ * Para que serve: define cores da marca (verde cgreen, cinzas cgray), tema claro/escuro,
+ * bordas arredondadas e animações usadas em botões, cards e sidebar. Escaneia src/, pages/
+ * e components/ para incluir só o CSS realmente usado (tree-shaking).
+ *
+ * Conexões: lê variáveis CSS de src/index.css; integra shadcn/ui (components.json).
+ * Só afeta o frontend — backend e Railway não usam este arquivo.
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import type { Config } from "tailwindcss";
 
 export default {

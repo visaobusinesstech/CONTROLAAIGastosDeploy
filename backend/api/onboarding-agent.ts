@@ -1,6 +1,15 @@
 /**
  * Rapport de onboarding e perfil de renda — Controla.ai
- * Fluxo curto: renda → recorrência → dia do recebimento → saldo (novos).
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { and, eq, sql } from "drizzle-orm"; // Operadores SQL para budgets e settings
 import { db } from "../src/db/index.js"; // Cliente PostgreSQL
@@ -48,7 +57,6 @@ export function appendDashboardIfIncomeJustSaved(userId: string, response: strin
 
 const SKIP_RE = /^(pular|depois|nao sei|não sei|skip|passar|ignorar)([!?.…,\s]*|$)/i;
 const CANCEL_RE = /^(cancelar|cancela|sair)([!?.…,\s]*|$)/i;
-
 const INCOME_PROFILE_RE =
   /configur(ar|e)\s+(a\s+)?renda|informar\s+renda|minha\s+renda|renda\s+mensal|cadastr(ar|e)\s+renda/i;
 
@@ -105,7 +113,6 @@ async function ensureIncomeDefaultsInDb(userId: string): Promise<void> {
   const f = await getUserProfileFlags(userId);
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   let dirty = false;
-
   if (!f.incomeRecurrence) {
     patch.incomeRecurrence = "manual";
     dirty = true;
@@ -118,9 +125,7 @@ async function ensureIncomeDefaultsInDb(userId: string): Promise<void> {
     patch.onboardingCompleted = true;
     dirty = true;
   }
-
   if (!dirty) return;
-
   await db
     .insert(userSettings)
     .values({
@@ -145,15 +150,12 @@ async function getUserProfileFlags(userId: string) {
     })
     .from(userSettings)
     .where(eq(userSettings.userId, userId));
-
   const [txRow] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(transactions)
     .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true)));
-
   const monthlyIncome = await getMonthlyIncomeBudget(userId);
   const recurrence = (settings?.incomeRecurrence as IncomeRecurrence | null) ?? null;
-
   return {
     onboardingCompleted: settings?.onboardingCompleted ?? false,
     incomeRecurrence: recurrence,
@@ -189,9 +191,7 @@ export async function needsOnboarding(userId: string): Promise<boolean> {
 export async function needsIncomeProfile(userId: string): Promise<boolean> {
   // Renda já informada e salva — não insistir em completar perfil
   if (await hasMonthlyIncomeSaved(userId)) return false;
-
   const f = await getUserProfileFlags(userId);
-
   // Sincroniza memória → budgets se renda estava só na preferência
   if (f.monthlyIncome == null) {
     const { getUserPreferences } = await import("./financial-memory.js");
@@ -204,7 +204,6 @@ export async function needsIncomeProfile(userId: string): Promise<boolean> {
     }
     return true;
   }
-
   return false;
 }
 
@@ -367,7 +366,6 @@ function buildProfileCompleteMessage(
   const when = payTimingLabel(recurrence, payDay, payWeekday);
   if (when) parts.push(when);
   if (accountBalance != null) parts.push(`conta ${formatBrl(accountBalance)}`);
-
   const summary = parts.length ? parts.join(" · ") : "Perfil salvo";
   const base = `✅ Renda registrada: *${summary}*|||🎯 Qual é sua meta? Ex: _"Juntar 10 mil em 12 meses"_|||Quer registrar um *gasto* agora ou prefere ver o *painel*?`;
   return appendDashboardLink(base);
@@ -390,12 +388,10 @@ async function saveMonthlyIncome(
       target: [budgets.userId, budgets.month],
       set: { totalIncomeExpected: String(amount) },
     });
-
   await setUserPreference(userId, "income_profile", {
     monthlyAmount: amount,
     updatedAt: new Date().toISOString(),
   });
-
   // Registra receita no painel na hora — alimenta saldo e gráficos
   await syncIncomeToDashboard(userId, amount, {
     incomeType: options?.incomeType,
@@ -403,7 +399,6 @@ async function saveMonthlyIncome(
     payDay: options?.payDay,
     month,
   });
-
   await ensureIncomeDefaultsInDb(userId);
 }
 
@@ -427,7 +422,6 @@ export async function persistIncomeProgress(
       });
     }
   }
-
   const patch: Record<string, unknown> = { updatedAt: new Date() };
   if (session.incomeRecurrence) patch.incomeRecurrence = session.incomeRecurrence;
   if (session.incomeType) patch.incomeType = session.incomeType;
@@ -437,7 +431,6 @@ export async function persistIncomeProgress(
   if (session.incomePayWeekday != null) patch.incomePayWeekday = session.incomePayWeekday;
   if (options?.markOnboardingComplete) patch.onboardingCompleted = true;
   if (options?.accountBalance != null) patch.initialBalance = String(options.accountBalance);
-
   await db
     .insert(userSettings)
     .values({
@@ -452,7 +445,6 @@ export async function persistIncomeProgress(
       incomePayWeekday: session.incomePayWeekday ?? null,
     })
     .onConflictDoUpdate({ target: userSettings.userId, set: patch });
-
   if (session.monthlyIncome || session.incomeRecurrence || session.incomePayDay != null || session.incomePayWeekday != null) {
     await setUserPreference(userId, "income_profile", {
       monthlyAmount: session.monthlyIncome ?? null,
@@ -465,7 +457,6 @@ export async function persistIncomeProgress(
       updatedAt: new Date().toISOString(),
     });
   }
-
   if (options?.markOnboardingComplete) {
     const { countUserGoals } = await import("../src/goals-service.js");
     const goalCount = await countUserGoals(userId);
@@ -480,11 +471,9 @@ export async function persistIncomeProgress(
 export async function flushOnboardingSessionToDb(userId: string): Promise<void> {
   const session = sessions.get(userId);
   if (!session) return;
-
   if (session.monthlyIncome != null && session.monthlyIncome > 0 && !session.incomeRecurrence) {
     session.incomeRecurrence = "manual";
   }
-
   if (session.monthlyIncome != null && session.monthlyIncome > 0) {
     await persistIncomeProgress(userId, session);
     if (session.incomeRecurrence) markIncomeProfileSaved(userId);
@@ -584,7 +573,6 @@ export async function processOnboardingAgentMessage(
   options?: { userName?: string | null; forceStart?: boolean },
 ): Promise<OnboardingAgentResult> {
   const trimmed = normalizeInboundText(text);
-
   if (CANCEL_RE.test(trimmed)) {
     clearOnboardingSession(userId);
     return {
@@ -593,22 +581,18 @@ export async function processOnboardingAgentMessage(
       onboardingCompleted: false,
     };
   }
-
   // Saudação — delega ao agente principal (menu de boas-vindas)
   if (isGreetingMessage(trimmed)) {
     return { handled: false, response: "", onboardingCompleted: false };
   }
-
   const reconfiguring = isIncomeProfileTrigger(trimmed) || (options?.forceStart ?? false);
   if ((await hasMonthlyIncomeSaved(userId)) && !reconfiguring) {
     if (sessions.has(userId)) clearOnboardingSession(userId);
     await ensureIncomeDefaultsInDb(userId);
     return { handled: false, response: "", onboardingCompleted: true };
   }
-
   let session = sessions.get(userId);
   const mode = await resolveSetupMode(userId);
-
   if (!session && mode && shouldStartProfileFlow(trimmed, options?.forceStart ?? false)) {
     const initial = await resolveInitialStep(userId, mode);
     session = {
@@ -618,7 +602,6 @@ export async function processOnboardingAgentMessage(
       incomeRecurrence: initial.incomeRecurrence,
     };
     sessions.set(userId, session);
-
     if (initial.step === "income_type") {
       return { handled: true, response: buildIncomeTypeMessage(initial.monthlyIncome ?? null), onboardingCompleted: false };
     }
@@ -631,7 +614,6 @@ export async function processOnboardingAgentMessage(
     if (initial.step === "balance") {
       return { handled: true, response: buildOnboardingBalanceMessage(initial.monthlyIncome ?? null), onboardingCompleted: false };
     }
-
     const quickIncome = parseMoneyAmount(trimmed);
     if (quickIncome && !isGreetingMessage(trimmed) && !SKIP_RE.test(trimmed) && !isIncomeProfileTrigger(trimmed)) {
       if (mode === "full") {
@@ -644,14 +626,12 @@ export async function processOnboardingAgentMessage(
       const response = await saveIncomeProfileOnce(userId, quickIncome);
       return { handled: true, response, onboardingCompleted: true };
     }
-
     return {
       handled: true,
       response: buildOnboardingIncomeMessage(options?.userName, mode === "income_only"),
       onboardingCompleted: false,
     };
   }
-
   if (!session && mode && parseMoneyAmount(trimmed) && !SKIP_RE.test(trimmed)) {
     if (await hasMonthlyIncomeSaved(userId)) {
       return { handled: false, response: "", onboardingCompleted: false };
@@ -677,11 +657,9 @@ export async function processOnboardingAgentMessage(
       onboardingCompleted: true,
     };
   }
-
   if (!session) {
     return { handled: false, response: "", onboardingCompleted: false };
   }
-
   // Mensagem fora do fluxo — persiste renda parcial; ganhos/gastos seguem para o agente
   const looksLikeExpense = isExpenseMessage(trimmed);
   const looksLikeGain = /recebi|ganhei|caiu|entrou|vendi|faturei/i.test(trimmed) && !isIncomeProfileMessage(trimmed);
@@ -690,19 +668,16 @@ export async function processOnboardingAgentMessage(
     await flushOnboardingSessionToDb(userId);
     return { handled: false, response: "", onboardingCompleted: false };
   }
-
   if (session.step === "income") {
     if (SKIP_RE.test(trimmed)) {
       clearOnboardingSession(userId);
       return { handled: false, response: "", onboardingCompleted: false };
     }
-
     const amount = parseMoneyAmount(trimmed);
     if (!amount) {
       clearOnboardingSession(userId);
       return { handled: false, response: "", onboardingCompleted: false };
     }
-
     session.monthlyIncome = amount;
     await saveMonthlyIncome(userId, amount);
     markIncomeProfileSaved(userId);
@@ -718,7 +693,6 @@ export async function processOnboardingAgentMessage(
       onboardingCompleted: true,
     };
   }
-
   if (session.step === "income_type") {
     if (await hasMonthlyIncomeSaved(userId) && !reconfiguring) {
       clearOnboardingSession(userId);
@@ -731,18 +705,15 @@ export async function processOnboardingAgentMessage(
     session.incomeType = incomeType;
     sessions.set(userId, session);
     await persistIncomeProgress(userId, session);
-
     if (incomeType === "freelance") {
       session.step = "freelance_recurring";
       sessions.set(userId, session);
       return { handled: true, response: buildFreelanceRecurringMessage(), onboardingCompleted: false };
     }
-
     session.step = "recurrence";
     sessions.set(userId, session);
     return { handled: true, response: buildRecurrenceMessage(session.monthlyIncome ?? null, incomeType), onboardingCompleted: false };
   }
-
   if (session.step === "freelance_recurring") {
     const recurring = parseFreelanceRecurring(trimmed);
     if (recurring == null) {
@@ -751,13 +722,11 @@ export async function processOnboardingAgentMessage(
     session.incomeIsRecurring = recurring;
     sessions.set(userId, session);
     await persistIncomeProgress(userId, session);
-
     if (recurring) {
       session.step = "recurrence";
       sessions.set(userId, session);
       return { handled: true, response: buildRecurrenceMessage(session.monthlyIncome ?? null, "freelance"), onboardingCompleted: false };
     }
-
     session.incomeRecurrence = "manual";
     session.step = session.mode === "full" ? "balance" : "balance";
     sessions.set(userId, session);
@@ -765,7 +734,6 @@ export async function processOnboardingAgentMessage(
     if (session.mode === "income_only") return finishProfile(userId, session, null);
     return { handled: true, response: buildOnboardingBalanceMessage(session.monthlyIncome ?? null), onboardingCompleted: false };
   }
-
   if (session.step === "freelance_end") {
     session.incomeEndDate = parseIncomeEndDate(trimmed);
     sessions.set(userId, session);
@@ -775,7 +743,6 @@ export async function processOnboardingAgentMessage(
     sessions.set(userId, session);
     return { handled: true, response: buildOnboardingBalanceMessage(session.monthlyIncome ?? null), onboardingCompleted: false };
   }
-
   if (session.step === "recurrence") {
     if (SKIP_RE.test(trimmed)) {
       session.incomeRecurrence = "manual";
@@ -788,17 +755,14 @@ export async function processOnboardingAgentMessage(
       }
       return finishProfile(userId, session, null);
     }
-
     const recurrence = parseRecurrence(trimmed);
     if (!recurrence) {
       return { handled: true, response: `Escolha *1*, *2* ou *3*.`, onboardingCompleted: false };
     }
-
     session.incomeRecurrence = recurrence;
     session.step = stepAfterRecurrence(session);
     sessions.set(userId, session);
     await persistIncomeProgress(userId, session);
-
     if (session.step === "payday") {
       return { handled: true, response: buildPayDayMessage(recurrence, session.incomeType), onboardingCompleted: false };
     }
@@ -811,10 +775,8 @@ export async function processOnboardingAgentMessage(
       onboardingCompleted: false,
     };
   }
-
   if (session.step === "payday") {
     const recurrence = session.incomeRecurrence ?? "monthly_fixed";
-
     if (SKIP_RE.test(trimmed)) {
       if (session.mode === "full") {
         session.step = "balance";
@@ -824,7 +786,6 @@ export async function processOnboardingAgentMessage(
       }
       return finishProfile(userId, session, null);
     }
-
     if (recurrence === "weekly") {
       const weekday = parsePayWeekday(trimmed);
       if (weekday == null) {
@@ -838,16 +799,13 @@ export async function processOnboardingAgentMessage(
       }
       session.incomePayDay = day;
     }
-
     sessions.set(userId, session);
     await persistIncomeProgress(userId, session);
-
     if (session.incomeType === "freelance" && session.incomeIsRecurring) {
       session.step = "freelance_end";
       sessions.set(userId, session);
       return { handled: true, response: buildFreelanceEndMessage(), onboardingCompleted: false };
     }
-
     if (session.mode === "full") {
       session.step = "balance";
       sessions.set(userId, session);
@@ -855,7 +813,6 @@ export async function processOnboardingAgentMessage(
     }
     return finishProfile(userId, session, null);
   }
-
   if (session.step === "balance") {
     let accountBalance: number | null = null;
     if (!SKIP_RE.test(trimmed)) {
@@ -866,7 +823,6 @@ export async function processOnboardingAgentMessage(
     }
     return finishProfile(userId, session, accountBalance);
   }
-
   return { handled: false, response: "", onboardingCompleted: false };
 }
 
@@ -886,4 +842,3 @@ export async function getOnboardingWelcomeIfNeeded(
   if (initial.step === "balance") return buildOnboardingBalanceMessage(initial.monthlyIncome ?? null);
   return buildOnboardingIncomeMessage(userName, mode === "income_only");
 }
-

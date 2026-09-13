@@ -1,6 +1,19 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
+  "description": "Painel web Controla.AI (TCC) — React, Vite, shadcn/ui. Deploy estático + serverless na Vercel.",
+  "_tcc": {
+    "doc": "TCC_DOCUMENTACAO.md — atualizar ao modificar",
+    "paraQueServe": "Interface web do Controla.AI: login, dashboard, metas, configurações. Pasta api/ contém funções serverless Vercel (auth, 2FA, proxy Railway). Build gera dist/ servido pela Vercel; rewrites em vercel.json roteiam /api e /auth.",
+    "packageLock": "O package-lock.json desta pasta é GERADO pelo npm e NÃO deve ser editado à mão. Garante builds reproduzíveis na Vercel. Para atualizar dependências: edite este package.json e rode npm install.",
+    "scriptsPrincipais": {
+      "dev": "Servidor Vite local (porta 5179, proxy para backend :3333)",
+      "build": "Gera dist/ para deploy na Vercel",
+      "preview": "Pré-visualiza build de produção localmente",
+      "lint": "ESLint nos arquivos .ts/.tsx",
+      "test": "Vitest — testes unitários do frontend"
+    }
+  },
   "version": "0.0.0",
   "type": "module",
   "scripts": {

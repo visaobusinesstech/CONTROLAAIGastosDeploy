@@ -1,11 +1,20 @@
 /**
  * Handler serverless Vercel — expõe API Fastify sem WhatsApp — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import "dotenv/config"; // Carrega variáveis de ambiente do .env
 import Fastify from "fastify"; // Framework HTTP usado como servidor REST
-import cors from "@fastify/cors"; // Plugin CORS para o frontend React acessar a API
-import { sql } from "drizzle-orm"; // SQL bruto para health check SELECT 1
+import cors from "@fastify/cors";
+import { sql } from "drizzle-orm";
 import { db } from "../src/db/index.js"; // Cliente Drizzle PostgreSQL
 import { registerAuthRoutes } from "../src/auth.js"; // Rotas /auth/register, /auth/login, /auth/me
 import { registerApiRoutes } from "../src/api-routes.js"; // CRUD transações, categorias, dashboard
@@ -21,9 +30,7 @@ let app: ReturnType<typeof Fastify> | null = null; // Singleton Fastify — reut
 /** Inicializa Fastify uma vez e registra rotas + CORS (lazy singleton). */
 async function init() {
   if (app) return app; // Já inicializado — retorna instância existente
-
   app = Fastify({ logger: true }); // Logger integrado (pino) para debug em Vercel
-
   await app.register(cors, {
     origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) return cb(null, true); // Requisições sem Origin (curl, server-side) — permite
@@ -40,7 +47,6 @@ async function init() {
     },
     credentials: true, // Permite cookies/Authorization cross-origin
   });
-
   app.get("/health", async () => {
     let dbOk = false; // Flag de conectividade com PostgreSQL
     try {
@@ -51,11 +57,9 @@ async function init() {
     }
     return { ok: true, db: dbOk, whatsapp: false }; // WhatsApp desabilitado no deploy Vercel
   });
-
   await registerAuthRoutes(app); // Monta rotas de autenticação JWT
   await registerApiRoutes(app); // Monta rotas CRUD principais
   await registerExtendedRoutes(app); // Monta rotas estendidas (chat, KPIs, metas)
-
   await app.ready(); // Finaliza registro de plugins antes de aceitar requests
   return app;
 }
@@ -70,7 +74,6 @@ export default async function handler(req: { method?: string; url?: string; head
       headers: req.headers ?? {}, // Headers repassados ao Fastify
       payload: req.body, // Corpo JSON (POST/PUT/PATCH)
     }); // Simula request HTTP internamente sem abrir porta
-
     res.statusCode = response.statusCode; // Propaga status HTTP
     for (const [key, value] of Object.entries(response.headers)) {
       if (typeof value === "string") res.setHeader(key, value); // Copia headers da resposta Fastify

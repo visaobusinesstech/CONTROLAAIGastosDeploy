@@ -1,3 +1,18 @@
+/**
+ * DRIZZLE CONFIG — Configuração do Drizzle Kit (ferramenta de banco de dados).
+ *
+ * O que é: arquivo que diz ao Drizzle onde está o schema SQL do projeto e como conectar
+ * ao PostgreSQL. Não roda sozinho — é usado pelos comandos npm db:push, db:setup etc.
+ *
+ * Para que serve: sincronizar as tabelas do Controla.AI (usuários, gastos, metas…) com o
+ * banco real. Em desenvolvimento aponta para o .env local; em produção usa DATABASE_URL
+ * da Railway (Postgres hospedado na nuvem).
+ *
+ * Conexões: lê backend/.env → schema em src/db/schema.ts → migrations em drizzle/.
+ * Railway usa a mesma DATABASE_URL no deploy. O frontend (Vercel) NÃO usa este arquivo.
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import { config } from "dotenv";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

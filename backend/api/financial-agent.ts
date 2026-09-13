@@ -1,5 +1,14 @@
 /**
  * Agente financeiro unificado — WhatsApp e chat web usam a mesma lógica — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { parseFinancialIntent } from "./parser.js"; // Parser OpenAI/local de intents financeiros
@@ -116,9 +125,7 @@ async function handleAcknowledgment(
   if (hasActiveOnboardingSession(userId) || hasActiveGoalSession(userId)) {
     return null;
   }
-
   const phase = getConversationPhase(userId);
-
   if (phase === "goals" || (await needsInitialGoals(userId))) {
     const goalResult = await processGoalAgentMessage(userId, "", {
       userName,
@@ -128,7 +135,6 @@ async function handleAcknowledgment(
       return { response: goalResult.response, transactionCreated: false };
     }
   }
-
   if (phase === "expenses") {
     return {
       response: await finalizeResponse(
@@ -138,14 +144,12 @@ async function handleAcknowledgment(
       transactionCreated: false,
     };
   }
-
   if (await needsIncomeProfile(userId)) {
     return {
       response: `Combinado. Qual sua *renda mensal*? Ex: _4500_`,
       transactionCreated: false,
     };
   }
-
   return {
     response: `Perfeito! Ex: _"Gastei 50 no mercado"_ · _"Quais dias gastei mais?"_ · _"Quanto posso gastar?"_`,
     transactionCreated: false,
@@ -159,20 +163,15 @@ export async function handlePostRegistrationFlow(
   userName?: string | null,
 ): Promise<AgentMessageResult | null> {
   const { isJustRegistered, consumeJustRegistered, setConversationPhase } = await import("./conversation-context.js");
-
   if (!isJustRegistered(userId)) return null;
-
   // Se já mandou gasto/receita/meta na primeira mensagem, pula parabéns e processa direto
   if (hasGoalDataInText(text) || isGoalRequest(text) || /gastei|paguei|recebi|ganhei|comprei/i.test(text)) {
     setConversationPhase(userId, hasGoalDataInText(text) || isGoalRequest(text) ? "goals" : "expenses");
     consumeJustRegistered(userId);
     return null;
   }
-
   if (!consumeJustRegistered(userId)) return null;
-
   setConversationPhase(userId, "income");
-
   if (await needsProfileSetup(userId)) {
     const onboardingResult = await processOnboardingAgentMessage(userId, text, {
       userName,
@@ -185,7 +184,6 @@ export async function handlePostRegistrationFlow(
       };
     }
   }
-
   const bubbles = buildPostRegistrationWelcome(userName);
   return {
     response: bubbles.join("|||"),
@@ -215,11 +213,9 @@ export async function processFinancialAgentMessage(
       transactionCreated: false,
     };
   }
-
   // Pós-registro: parabéns + meta (prioridade máxima, salvo se msg já traz dados)
   const postReg = await handlePostRegistrationFlow(userId, trimmed, options?.userName);
   if (postReg) return postReg;
-
   // Saudação — prioridade máxima; limpa onboarding preso pedindo valor
   if (isGreetingMessage(trimmed) || isHelpMessage(trimmed)) {
     if (hasActiveOnboardingSession(userId)) {
@@ -258,11 +254,9 @@ export async function processFinancialAgentMessage(
       transactionCreated: false,
     };
   }
-
   const userCtx = await getUserFinancialContext(userId);
   const isTxExpense = isExpenseMessage(trimmed);
   const isTxIncome = isIncomeMessage(trimmed) || isIncomeProfileMessage(trimmed) || hasIncomeClarifySession(userId);
-
   // Consultas — prioridade sobre registro
   if (isQueryMessage(trimmed)) {
     const intent = await parseFinancialIntent(trimmed, {
@@ -283,7 +277,6 @@ export async function processFinancialAgentMessage(
       };
     }
   }
-
   // Renda mensal vs ganho pontual
   if (isTxIncome && !isTxExpense) {
     const routerResult = await processIncomeRouter(userId, trimmed, userCtx);
@@ -320,16 +313,13 @@ export async function processFinancialAgentMessage(
       }
     }
   }
-
   const isTxMessage = isTransactionMessage(trimmed);
   const incomeSaved =
     userCtx.incomeProfile.monthlyAmount != null && userCtx.incomeProfile.monthlyAmount > 0;
-
   // Transação explícita tem prioridade sobre onboarding de renda mensal
   if (isTxMessage && hasActiveOnboardingSession(userId)) {
     await flushOnboardingSessionToDb(userId);
   }
-
   // Perfil de renda — só se ainda não cadastrou ou pediu explicitamente
   if (
     !isTxMessage &&
@@ -348,19 +338,16 @@ export async function processFinancialAgentMessage(
       };
     }
   }
-
   if (isAcknowledgment(trimmed)) {
     const ack = await handleAcknowledgment(userId, options?.userName);
     if (ack) return ack;
   }
-
   // PRIORIDADE: lançamento explícito de gasto/ganho SEMPRE antes de meta
   // Corrige bug: "Quero registrar um gasto de 30 reais em comida" virava meta
   const isExplicitTx =
     isExpenseMessage(trimmed) ||
     isIncomeMessage(trimmed) ||
     isTransactionMessage(trimmed);
-
   if (isExplicitTx && !isGoalRequest(trimmed)) {
     // Se havia sessão de meta presa, cancela para não engolir o gasto
     if (hasActiveGoalSession(userId)) {
@@ -379,7 +366,6 @@ export async function processFinancialAgentMessage(
     ]
       .filter(Boolean)
       .join("\n\n");
-
     const txIntent = await parseFinancialIntent(trimmed, {
       userId,
       topCategories: topCategoriesEarly,
@@ -387,7 +373,6 @@ export async function processFinancialAgentMessage(
       incomeCategories: incomeCategoriesEarly,
       conversationHistory: conversationHistoryEarly,
     });
-
     // Força transaction se o regex já disse que é gasto/ganho
     const forcedIntent =
       txIntent.intent === "transaction"
@@ -399,7 +384,6 @@ export async function processFinancialAgentMessage(
             category: txIntent.category,
             description: txIntent.description ?? trimmed.slice(0, 200),
           };
-
     if (forcedIntent.intent === "transaction") {
       const result = await createTransactionFromIntent(userId, forcedIntent, trimmed, {
         userName: options?.userName,
@@ -414,7 +398,6 @@ export async function processFinancialAgentMessage(
       }
     }
   }
-
   // Metas — só se NÃO for lançamento explícito
   if (
     isGoalRequest(trimmed) ||
@@ -433,7 +416,6 @@ export async function processFinancialAgentMessage(
       };
     }
   }
-
   const topCategories = userCtx.topCategories.length ? userCtx.topCategories : (options?.topCategories ?? (await getTopCategories(userId)));
   const expenseCategories =
     options?.expenseCategories ?? (await listAvailableCategories(userId, "expense"));
@@ -443,7 +425,6 @@ export async function processFinancialAgentMessage(
     await buildParserConversationHistory(userId, 10),
     userCtx.summaryForAi,
   ].filter(Boolean).join("\n\n");
-
   const intent = await parseFinancialIntent(trimmed, {
     userId,
     topCategories,
@@ -451,7 +432,6 @@ export async function processFinancialAgentMessage(
     incomeCategories,
     conversationHistory,
   });
-
   if (intent.intent === "goal") {
     const goalResult = await processGoalAgentMessage(userId, trimmed, {
       userName: options?.userName,
@@ -465,7 +445,6 @@ export async function processFinancialAgentMessage(
       };
     }
   }
-
   if (intent.intent === "transaction") {
     const result = await createTransactionFromIntent(userId, intent, trimmed, {
       userName: options?.userName,
@@ -479,7 +458,6 @@ export async function processFinancialAgentMessage(
       };
     }
   }
-
   if (intent.intent === "query" || intent.intent === "report") {
     let response: string;
     if (/relat[oó]rio|resumo semanal|resumo mensal|resumo anual|proje[cç]/i.test(trimmed)) {
@@ -494,7 +472,6 @@ export async function processFinancialAgentMessage(
       transactionCreated: false,
     };
   }
-
   if (hasGoalDataInText(trimmed) && isGoalRequest(trimmed)) {
     const goalResult = await processGoalAgentMessage(userId, trimmed, {
       userName: options?.userName,
@@ -507,7 +484,6 @@ export async function processFinancialAgentMessage(
       };
     }
   }
-
   return {
     response: await finalizeResponse(userId, buildAgentWelcomeResponse(options?.userName)),
     transactionCreated: false,

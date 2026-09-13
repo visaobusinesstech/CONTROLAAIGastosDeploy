@@ -1,50 +1,40 @@
 /**
  * Auditoria de cadastros — inclusão, alteração, inativação e reativação.
+ *
+ * Papel no sistema: Página React Router — UI autenticada consumindo api.ts e auth.tsx.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-// Importa funções/componentes de @tanstack/react-query
 import { useQuery } from "@tanstack/react-query";
-// Importa funções/componentes de @/lib/auth
 import { useAuth } from "@/lib/auth";
-// Importa funções/componentes de @/lib/api
 import { apiGetAuditLogs } from "@/lib/api";
-// Importa funções/componentes de @/components/ui/card
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// Importa funções/componentes de @/components/ui/badge
 import { Badge } from "@/components/ui/badge";
-// Importa funções/componentes de @/components/ui/table
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-// Instrução do fluxo — parte da lógica de negócio ou interface
 const ACTION_LABEL: Record<string, string> = {
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   insert: "Inclusão",
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   update: "Alteração",
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   inactivate: "Inativação",
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   activate: "Ativação",
 };
 
-// Exporta como padrão do módulo (import default)
 export default function AdminAuditLogsPage() {
   // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token } = useAuth();
-
   // Consulta à API com cache (React Query)
   const query = useQuery({
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     queryKey: ["audit-logs", token],
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     queryFn: () => apiGetAuditLogs(token!),
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     enabled: Boolean(token),
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     refetchInterval: 15_000,
   });
-
-  // Retorna valor ou JSX para quem chamou
   return (
     // Tag HTML na interface
     <div className="space-y-6">
@@ -54,13 +44,11 @@ export default function AdminAuditLogsPage() {
         <h1 className="text-2xl font-bold">Auditoria</h1>
         // Tag HTML na interface
         <p className="mt-1 text-sm text-muted-foreground">
-          // Instrução do fluxo — parte da lógica de negócio ou interface
           Inclusão, alteração e inativação por rotina, data, hora e usuário
         // Tag HTML na interface
         </p>
       // Tag HTML na interface
       </div>
-
       // Elemento/componente React na tela
       <Card>
         // Elemento/componente React na tela
@@ -71,11 +59,9 @@ export default function AdminAuditLogsPage() {
         </CardHeader>
         // Elemento/componente React na tela
         <CardContent className="overflow-x-auto p-0">
-          // Instrução do fluxo — parte da lógica de negócio ou interface
           {query.isLoading ? (
             // Tag HTML na interface
             <p className="p-6 text-sm text-muted-foreground">Carregando…</p>
-          // Passo do algoritmo — executa parte da regra de negócio ou da interface
           ) : (
             // Elemento/componente React na tela
             <Table>
@@ -123,7 +109,6 @@ export default function AdminAuditLogsPage() {
                     <TableCell>
                       // Elemento/componente React na tela
                       <Badge variant={log.action === "inactivate" ? "destructive" : "secondary"}>
-                        // Instrução do fluxo — parte da lógica de negócio ou interface
                         {ACTION_LABEL[log.action] ?? log.action}
                       // Elemento/componente React na tela
                       </Badge>
@@ -131,7 +116,6 @@ export default function AdminAuditLogsPage() {
                     </TableCell>
                     // Elemento/componente React na tela
                     <TableCell className="text-xs">
-                      // Instrução do fluxo — parte da lógica de negócio ou interface
                       {log.entity}
                       // Recorta parte da lista (paginação ou limite)
                       {log.entityId ? ` · ${log.entityId.slice(0, 8)}` : ""}
@@ -139,13 +123,11 @@ export default function AdminAuditLogsPage() {
                     </TableCell>
                   // Elemento/componente React na tela
                   </TableRow>
-                // Passo do algoritmo — executa parte da regra de negócio ou da interface
                 ))}
               // Elemento/componente React na tela
               </TableBody>
             // Elemento/componente React na tela
             </Table>
-          // Passo do algoritmo — executa parte da regra de negócio ou da interface
           )}
         // Elemento/componente React na tela
         </CardContent>
@@ -153,6 +135,5 @@ export default function AdminAuditLogsPage() {
       </Card>
     // Tag HTML na interface
     </div>
-  // Passo do algoritmo — executa parte da regra de negócio ou da interface
   );
 }

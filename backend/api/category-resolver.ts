@@ -1,5 +1,14 @@
 /**
  * Normalização e resolução de categorias do parser para o banco — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { and, eq, ilike, isNull, or } from "drizzle-orm";
@@ -99,15 +108,12 @@ export function normalizeCategoryLabel(raw: string | undefined, type: "expense" 
   if (!raw?.trim()) {
     return type === "income" ? "Outras receitas" : "Outros gastos"; // Fallback quando parser não informou categoria
   }
-
   const key = stripAccents(raw.trim().toLowerCase()); // Chave normalizada para lookup
   const map = type === "income" ? INCOME_ALIASES : EXPENSE_ALIASES; // Escolhe mapa pelo tipo
   if (map[key]) return map[key]; // Match exato no alias
-
   for (const [alias, canonical] of Object.entries(map)) {
     if (key.includes(alias) || alias.includes(key)) return canonical; // Match parcial (substring)
   }
-
   return raw.trim(); // Mantém label original se não houver alias
 }
 
@@ -121,7 +127,6 @@ export async function listAvailableCategories(
     .from(categories)
     .where(and(or(isNull(categories.userId), eq(categories.userId, userId)), eq(categories.type, type))) // Globais (userId null) + do usuário
     .orderBy(categories.name); // Ordem alfabética
-
   return rows.map((r) => r.name);
 }
 
@@ -132,13 +137,11 @@ export async function resolveCategoryWithAi(
   availableCategories: string[],
 ): Promise<string | null> {
   if (!isOpenAIConfigured() || !description.trim()) return null;
-
   const cats = availableCategories.length
     ? availableCategories.join(", ")
     : type === "income"
       ? "Salário, Freelance, Investimentos, Outras receitas"
       : "Alimentação, Transporte, Moradia, Saúde, Educação, Lazer, Roupas, Tecnologia, Serviços, Outros gastos";
-
   try {
     const openai = getOpenAI();
     const completion = await openai.chat.completions.create({
@@ -177,18 +180,15 @@ export async function findCategoryId(
 ): Promise<{ id: string | null; resolvedName: string }> {
   const fallbackDefault = type === "income" ? "Outras receitas" : "Outros gastos";
   const text = description?.trim() || categoryName?.trim() || "";
-
   const available = (await listAvailableCategories(userId, type));
   const fromAi = text ? await resolveCategoryWithAi(text, type, available) : null;
   const fromDescription = inferCategoryFromDescription(text, type);
   const normalizedParser = normalizeCategoryLabel(categoryName, type);
-
   let resolvedName = fromAi ?? fromDescription ?? normalizedParser;
   if (resolvedName === fallbackDefault && fromDescription) resolvedName = fromDescription;
   if (fromAi && available.some((c) => c.toLowerCase() === fromAi.toLowerCase())) {
     resolvedName = available.find((c) => c.toLowerCase() === fromAi.toLowerCase()) ?? fromAi;
   }
-
   const [exact] = await db
     .select({ id: categories.id, name: categories.name })
     .from(categories)
@@ -200,9 +200,7 @@ export async function findCategoryId(
       ),
     )
     .limit(1);
-
   if (exact) return { id: exact.id, resolvedName: exact.name }; // Match exato encontrado
-
   const fallbackName = type === "income" ? "Outras receitas" : "Outros gastos";
   const [fallback] = await db
     .select({ id: categories.id, name: categories.name })
@@ -215,6 +213,5 @@ export async function findCategoryId(
       ),
     )
     .limit(1);
-
   return { id: fallback?.id ?? null, resolvedName: fallback?.name ?? resolvedName }; // Fallback ou nome resolvido sem id
 }

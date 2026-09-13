@@ -1,4 +1,16 @@
-/** CLI para rodar seed-rich-leonardo (conta demo completa). */
+/**
+ * CLI para rodar seed-rich-leonardo (conta demo completa).
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import "dotenv/config";
 import { seedRichMockByEmail, RICH_DEMO_EMAIL } from "./seed-rich-leonardo.js";
 

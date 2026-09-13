@@ -1,6 +1,21 @@
 {
   "name": "controla-ai-backend",
   "private": true,
+  "description": "API Controla.AI (TCC) — Fastify, WhatsApp Baileys, OpenAI, Postgres. Roda na Railway em produção.",
+  "_tcc": {
+    "doc": "TCC_DOCUMENTACAO.md — atualizar ao modificar",
+    "paraQueServe": "Backend principal do Controla.AI: recebe mensagens WhatsApp, processa gastos com IA, autentica usuários, integra Stripe e expõe REST /api/*. Deploy via railway.toml; build gera dist/ com tsc.",
+    "packageLock": "O package-lock.json desta pasta é GERADO pelo npm e NÃO deve ser editado à mão. Trava versões exatas das dependências para o build na Railway ser idêntico ao local. Para atualizar libs: altere dependencies aqui e rode npm install (o lock é reescrito automaticamente).",
+    "scriptsPrincipais": {
+      "dev": "Sobe API local com hot-reload (tsx watch, porta 3333)",
+      "build": "Compila TypeScript → dist/ (Railway roda isso no deploy)",
+      "start": "Inicia API compilada (node dist/src/index.js) — comando de produção Railway",
+      "db:push": "Sincroniza schema Drizzle com Postgres (DATABASE_URL)",
+      "db:setup": "db:push + seed inicial (usuário admin, categorias)",
+      "db:migrate:*": "Migrations SQL pontuais (LGPD, billing, 2FA…)",
+      "tcc:*": "Gera PDFs e diagramas para documentação do TCC"
+    }
+  },
   "version": "1.0.0",
   "type": "module",
   "engines": {

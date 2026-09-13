@@ -1,96 +1,87 @@
 /**
- * Proxy Edge — encaminha /api e auth restantes ao Railway.
- * login/me/forgot/reset ficam nas funções Node Vercel (Postgres direto).
+ * =============================================================================
+ * MIDDLEWARE VERCEL (Edge) — ponte do site para o backend na Railway
+ * =============================================================================
+ *
+ * O QUE É: código que a Vercel executa ANTES de certas rotas chegarem ao React
+ * ou às funções serverless. Aqui ele só faz UMA coisa: encaminhar o pedido HTTP
+ * para o servidor Node/Fastify que roda 24h na Railway.
+ *
+ * PARA QUE SERVE: o usuário abre controlaai-frontend.vercel.app e chama /api/...
+ * Sem este arquivo (e sem os rewrites de vercel.json), o navegador não saberia
+ * falar com a API. O middleware monta a URL do Railway e faz fetch proxy.
+ *
+ * O QUE NÃO PASSA POR AQUI (fica nas funções Node em frontend/api/):
+ *   login, me, forgot, reset, 2FA, settings — auth rápido no mesmo domínio.
+ *
+ * vercel.json (mesma pasta frontend/) — NÃO aceita comentários JSON. Ele mapeia:
+ *   /auth/login → api/auth/login.ts
+ *   /api/*      → api/backend-proxy ou este middleware (matcher abaixo)
+ *   rotas SPA   → index.html
+ *
+ * Variável BACKEND_URL no painel Vercel = URL pública Railway
+ * (fallback: controlaai-backend-production.up.railway.app).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ * =============================================================================
  */
 
-/** Backend Railway atual (CONTROLAAi-backend). Override via BACKEND_URL no Vercel. */
-// Constante local
+/** URL oficial do backend Railway se BACKEND_URL estiver vazia ou antiga. */
 const DEFAULT_BACKEND_URL = "https://controlaai-backend-production.up.railway.app";
 
-// Constante local
+/** Hosts que NUNCA devem ser usados como API (front Vercel ou Railway morto). */
 const INVALID_BACKEND =
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|controlaaigastosdeploy\.up\.railway\.app|backend-production-c328\.up\.railway\.app|localhost|127\.0\.0\.1/i;
 
-// Declara função auxiliar interna
+/** Decide a URL do backend: env válida ou fallback oficial. */
 function resolveBackendUrl(): string {
-  // Constante local
   const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? "")
-    // Remove espaços no início/fim do texto
     .trim()
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     .replace(/\/+$/, "");
   // Env antiga/morta ou vazia → sempre o Railway novo (WhatsApp precisa disso)
   if (!raw || INVALID_BACKEND.test(raw)) return DEFAULT_BACKEND_URL;
-  // Constante local
   const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
-  // Se alguém setou URL diferente mas o default é o serviço oficial, preferir o oficial
+  // Preferir sempre o serviço oficial se a env apontar para outro host
   if (!normalized.includes("controlaai-backend-production.up.railway.app")) {
-    // Retorna valor ou JSX para quem chamou
     return DEFAULT_BACKEND_URL;
   }
-  // Retorna valor ou JSX para quem chamou
   return normalized;
 }
 
-// Exporta constante/tipo/classe pública
+/** Quais caminhos da Vercel passam por este proxy (os demais usam funções locais). */
 export const config = {
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   matcher: [
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     "/auth/register",
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     "/auth/legal",
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     "/health",
     // settings → rewrite vercel.json → /api/user-settings (não proxy Railway)
     "/api/((?!backend-proxy|relay|auth|auth-2fa|user-settings|settings).*)",
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   ],
 };
 
-// Exporta como padrão do módulo (import default)
+/** Repassa método, headers e body para o Fastify na Railway. */
 export default async function middleware(request: Request): Promise<Response> {
-  // Constante local
   const backend = resolveBackendUrl();
-  // Constante local
   const incoming = new URL(request.url);
-  // Constante local
   const target = `${backend}${incoming.pathname}${incoming.search}`;
 
-  // Constante local
   const headers = new Headers(request.headers);
-  // Instrução do fluxo — parte da lógica de negócio ou interface
-  headers.delete("host");
+  headers.delete("host"); // host deve ser o da Railway, não o da Vercel
 
-  // Instrução do fluxo — parte da lógica de negócio ou interface
   const init: RequestInit = { method: request.method, headers };
-  // Condição — executa bloco só se verdadeira
   if (request.method !== "GET" && request.method !== "HEAD") {
-    // Instrução do fluxo — parte da lógica de negócio ou interface
     init.body = await request.text();
   }
 
-  // Tenta executar — erros vão para catch
   try {
-    // Constante local
     const res = await fetch(target, init);
-    // Constante local
     const outHeaders = new Headers(res.headers);
-    // Instrução do fluxo — parte da lógica de negócio ou interface
-    outHeaders.delete("content-encoding");
-    // Retorna valor ou JSX para quem chamou
+    outHeaders.delete("content-encoding"); // evita corpo ilegível no browser
     return new Response(res.body, { status: res.status, headers: outHeaders });
-  // Passo do algoritmo — executa parte da regra de negócio ou da interface
   } catch {
-    // Retorna valor ou JSX para quem chamou
     return Response.json(
-      // Instrução do fluxo — parte da lógica de negócio ou interface
       { error: "Backend offline ou BACKEND_URL incorreto." },
-      // Instrução do fluxo — parte da lógica de negócio ou interface
       { status: 502 },
-    // Passo do algoritmo — executa parte da regra de negócio ou da interface
     );
   }
 }

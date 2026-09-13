@@ -1,5 +1,14 @@
 /**
  * NavLink estilizado — link de menu que muda aparência quando a rota está ativa.
+ *
+ * Papel no sistema: Componente reutilizável do frontend — compõe páginas ou layout.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 // NavLink nativo do react-router — sabe se a rota atual corresponde ao link

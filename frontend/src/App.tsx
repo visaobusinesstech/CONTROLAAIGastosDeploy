@@ -1,16 +1,21 @@
 /**
- * Rotas da aplicação — dashboard, metas, chat IA, admin WhatsApp e autenticação.
+ * Raiz React — rotas, providers e layout global
+ *
+ * O que faz: BrowserRouter, AuthProvider, QueryClientProvider, ThemeProvider e
+ * definição de rotas públicas (/login, /register) vs protegidas (/dashboard, admin).
+ *
+ * Onde entra: main.tsx renderiza App; centraliza guards (RequireAdmin, RequireStaff)
+ * e componentes Layout/DocumentTitle.
+ *
+ * Integrações: pages/*, components/Layout, lib/auth, lib/routes, billing paywall
+ * quando assinatura/trial expira.
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-// Importa funções/componentes de @tanstack/react-query
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; // Cache global de requisições
-// Importa funções/componentes de react-router-dom
 import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router-dom"; // Roteamento SPA
-// Importa funções/componentes de @/components/ui/sonner
 import { Toaster as Sonner } from "@/components/ui/sonner"; // Toast Sonner (notificações)
-// Importa funções/componentes de @/components/ui/toaster
 import { Toaster } from "@/components/ui/toaster"; // Toast shadcn legado
-// Importa funções/componentes de @/components/ui/tooltip
 import { TooltipProvider } from "@/components/ui/tooltip"; // Tooltips globais
 // Importa de @/components/Layout
 import Layout from "@/components/Layout"; // Shell com sidebar e outlet
@@ -48,14 +53,10 @@ import RequireAdmin from "@/components/RequireAdmin"; // Guard WhatsApp / modelo
 import RequireStaff from "@/components/RequireStaff"; // Guard governança
 // Importa de @/components/RequireAdminAuth
 import RequireAdminAuth from "@/components/RequireAdminAuth"; // Guard só admin@admin.com
-// Importa funções/componentes de @/components/DocumentTitle
 import { DocumentTitle } from "@/components/DocumentTitle"; // Título dinâmico da aba
-// Importa funções/componentes de @/components/AppErrorBoundary
 import { AppErrorBoundaryWithRouter } from "@/components/AppErrorBoundary"; // Captura erros de render
-// Importa funções/componentes de @/lib/auth
 import { useAuth } from "@/lib/auth"; // Hook de sessão JWT
 
-// Constante local
 const queryClient = new QueryClient();
 
 /** Redireciona para /login se não houver token válido. */
@@ -63,33 +64,25 @@ const queryClient = new QueryClient();
 function RequireAuth() {
   // Desestrutura valores do hook/contexto (acesso direto às variáveis)
   const { token, loading } = useAuth();
-  // Condição — executa bloco só se verdadeira
   if (loading) {
-    // Retorna valor ou JSX para quem chamou
     return (
       // Tag HTML na interface
       <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        // Instrução do fluxo — parte da lógica de negócio ou interface
         Carregando…
       // Tag HTML na interface
       </div>
-    // Passo do algoritmo — executa parte da regra de negócio ou da interface
     );
   }
-  // Condição — executa bloco só se verdadeira
   if (!token) return <Navigate to="/login" replace />;
-  // Retorna valor ou JSX para quem chamou
   return <Outlet />;
 }
 
 /** Layout com sidebar para rotas autenticadas. */
 // Declara função auxiliar interna
 function AuthenticatedShell() {
-  // Retorna valor ou JSX para quem chamou
   return <Layout />;
 }
 
-// Constante local
 const App = () => (
   // Elemento/componente React na tela
   <QueryClientProvider client={queryClient}>
@@ -115,7 +108,6 @@ const App = () => (
             <Route path="/forgot-password" element={<ForgotPassword />} />
             // Elemento/componente React na tela
             <Route path="/reset-password" element={<ResetPassword />} />
-
             {/* Rotas protegidas — exigem JWT */}
             <Route element={<RequireAuth />}>
               // Elemento/componente React na tela
@@ -130,9 +122,7 @@ const App = () => (
                 <Route path="settings" element={<SettingsPage />} />
                 {/* Rotas admin — WhatsApp Baileys e logs OpenAI */}
                 <Route
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   path="admin/whatsapp"
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   element={
                     // Elemento/componente React na tela
                     <RequireAdmin>
@@ -141,13 +131,10 @@ const App = () => (
                     // Elemento/componente React na tela
                     </RequireAdmin>
                   }
-                // Instrução do fluxo — parte da lógica de negócio ou interface
                 />
                 // Elemento/componente React na tela
                 <Route
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   path="admin/subscribers"
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   element={
                     // Elemento/componente React na tela
                     <RequireAdminAuth>
@@ -156,13 +143,10 @@ const App = () => (
                     // Elemento/componente React na tela
                     </RequireAdminAuth>
                   }
-                // Instrução do fluxo — parte da lógica de negócio ou interface
                 />
                 // Elemento/componente React na tela
                 <Route
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   path="admin/audit"
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   element={
                     // Elemento/componente React na tela
                     <RequireStaff>
@@ -171,13 +155,10 @@ const App = () => (
                     // Elemento/componente React na tela
                     </RequireStaff>
                   }
-                // Instrução do fluxo — parte da lógica de negócio ou interface
                 />
                 // Elemento/componente React na tela
                 <Route
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   path="admin/lgpd"
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   element={
                     // Elemento/componente React na tela
                     <RequireStaff>
@@ -186,13 +167,10 @@ const App = () => (
                     // Elemento/componente React na tela
                     </RequireStaff>
                   }
-                // Instrução do fluxo — parte da lógica de negócio ou interface
                 />
                 // Elemento/componente React na tela
                 <Route
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   path="admin/ai-logs"
-                  // Instrução do fluxo — parte da lógica de negócio ou interface
                   element={
                     // Elemento/componente React na tela
                     <RequireStaff>
@@ -201,13 +179,11 @@ const App = () => (
                     // Elemento/componente React na tela
                     </RequireStaff>
                   }
-                // Instrução do fluxo — parte da lógica de negócio ou interface
                 />
               // Elemento/componente React na tela
               </Route>
             // Elemento/componente React na tela
             </Route>
-
             // Elemento/componente React na tela
             <Route path="/admin/login" element={<Navigate to="/login" replace />} />
             // Elemento/componente React na tela
@@ -224,8 +200,6 @@ const App = () => (
     </TooltipProvider>
   // Elemento/componente React na tela
   </QueryClientProvider>
-// Passo do algoritmo — executa parte da regra de negócio ou da interface
 );
 
-// Exporta como padrão do módulo (import default)
 export default App;

@@ -1,5 +1,14 @@
 /**
  * Integração Stripe — checkout, portal e webhooks — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import Stripe from "stripe"; // SDK oficial Stripe
@@ -71,17 +80,14 @@ export async function ensureStripeCustomer(userId: string): Promise<string> {
     })
     .from(users)
     .where(eq(users.id, userId));
-
   if (!user) throw new Error("Usuário não encontrado");
   if (user.stripeCustomerId) return user.stripeCustomerId; // Já vinculado
-
   const stripe = getStripeClient();
   const customer = await stripe.customers.create({
     email: user.email,
     name: user.name,
     metadata: { userId: user.id }, // Correlaciona customer → userId
   });
-
   await db.update(users).set({ stripeCustomerId: customer.id }).where(eq(users.id, userId));
   return customer.id;
 }
@@ -95,15 +101,12 @@ export async function createCheckoutSession(
   if (isAdminEmail(email)) {
     throw new Error("Conta admin não precisa de assinatura");
   }
-
   const stripe = getStripeClient();
   const customerId = await ensureStripeCustomer(userId);
   const priceId = getPriceId(interval);
   const base = appBaseUrl();
-
   // branding_settings: logo Controla.AI + fundo verde (API Stripe; tipos SDK ainda sem o campo)
   const branding_settings = await buildCheckoutBrandingSettings();
-
   const session = await stripe.checkout.sessions.create({
     mode: "subscription", // Assinatura recorrente
     customer: customerId,
@@ -119,7 +122,6 @@ export async function createCheckoutSession(
     allow_promotion_codes: true,
     branding_settings,
   } as Stripe.Checkout.SessionCreateParams);
-
   if (!session.url) throw new Error("Stripe não retornou URL de checkout");
   return session.url; // URL para redirecionar o usuário
 }
@@ -130,17 +132,14 @@ export async function createBillingPortalSession(userId: string): Promise<string
     .select({ stripeCustomerId: users.stripeCustomerId })
     .from(users)
     .where(eq(users.id, userId));
-
   if (!user?.stripeCustomerId) {
     throw new Error("Nenhuma assinatura encontrada para este usuário");
   }
-
   const stripe = getStripeClient();
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripeCustomerId,
     return_url: `${appBaseUrl()}/settings`, // Volta às configurações após portal
   });
-
   return session.url;
 }
 
@@ -164,12 +163,10 @@ export async function upsertSubscriptionFromStripe(
   const periodEnd = stripeSub.current_period_end
     ? new Date(stripeSub.current_period_end * 1000) // Unix → Date
     : null;
-
   const [existing] = await db
     .select({ id: subscriptions.id })
     .from(subscriptions)
     .where(eq(subscriptions.stripeSubId, stripeSub.id));
-
   if (existing) {
     await db
       .update(subscriptions)
@@ -190,7 +187,6 @@ export async function upsertSubscriptionFromStripe(
       currentPeriodEnd: periodEnd,
     });
   }
-
   const userPlan = ACTIVE_STATUSES.has(status) ? plan : "free"; // Inativo → plano free
   await db.update(users).set({ plan: userPlan }).where(eq(users.id, userId));
 }
@@ -206,22 +202,18 @@ async function resolveUserIdForStripe(
 ): Promise<string | null> {
   if (userId) return userId; // Já veio no metadata
   if (!customerId) return null;
-
   const customer = await stripe.customers.retrieve(String(customerId));
   if (customer.deleted || !("email" in customer) || !customer.email) return null;
-
   const [user] = await db
     .select({ id: users.id })
     .from(users)
     .where(eq(users.email, customer.email.toLowerCase()));
-
   return user?.id ?? null; // Match por e-mail
 }
 
 /** Processa eventos do webhook Stripe — sincroniza assinaturas com o banco. */
 export async function handleStripeWebhookEvent(event: Stripe.Event): Promise<void> {
   const stripe = getStripeClient();
-
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;

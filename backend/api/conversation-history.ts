@@ -1,5 +1,14 @@
 /**
  * Histórico conversacional WhatsApp — evita repetição e mantém contexto — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { and, desc, eq } from "drizzle-orm"; // Filtros e ordenação SQL
@@ -35,7 +44,6 @@ export async function getRecentOutboundMessages(
     .where(and(eq(whatsappMessages.userId, userId), eq(whatsappMessages.direction, "outbound")))
     .orderBy(desc(whatsappMessages.createdAt)) // Mais recentes primeiro
     .limit(limit);
-
   return rows.map((r) => r.content?.trim() ?? "").filter(Boolean); // Remove vazios
 }
 
@@ -50,7 +58,6 @@ export async function getRecentInboundMessages(
     .where(and(eq(whatsappMessages.userId, userId), eq(whatsappMessages.direction, "inbound")))
     .orderBy(desc(whatsappMessages.createdAt))
     .limit(limit);
-
   return rows.map((r) => r.content?.trim() ?? "").filter(Boolean);
 }
 
@@ -63,7 +70,6 @@ function normalizeForCompare(text: string): string {
 export function isDuplicateResponse(response: string, recentOutbound: string[]): boolean {
   const norm = normalizeForCompare(response);
   if (!norm) return false;
-
   for (const prev of recentOutbound) {
     const prevNorm = normalizeForCompare(prev);
     if (prevNorm === norm) return true; // Igualdade exata
@@ -91,7 +97,6 @@ let variationIndex = 0;
 /** Retorna resposta alternativa se for duplicata das recentes. */
 export function ensureUniqueResponse(response: string, recentOutbound: string[]): string {
   if (!isDuplicateResponse(response, recentOutbound)) return response;
-
   variationIndex = (variationIndex + 1) % VARIATION_SUFFIXES.length;
   const suffix = VARIATION_SUFFIXES[variationIndex];
   if (!suffix) {
@@ -100,7 +105,6 @@ export function ensureUniqueResponse(response: string, recentOutbound: string[])
     if (lines.length > 1) return lines.slice(-1)[0];
     return response;
   }
-
   const varied = response + suffix;
   if (isDuplicateResponse(varied, recentOutbound)) {
     return response.split("\n\n")[0] ?? response; // Primeiro parágrafo apenas
@@ -113,7 +117,6 @@ export async function buildConversationContextSummary(userId: string): Promise<s
   const inbound = await getRecentInboundMessages(userId, 3);
   const outbound = await getRecentOutboundMessages(userId, 2);
   if (inbound.length === 0 && outbound.length === 0) return "";
-
   const parts: string[] = [];
   if (inbound.length) parts.push(`Usuário disse recentemente: ${inbound.reverse().join(" | ")}`); // Ordem cronológica
   if (outbound.length) parts.push(`Assistente respondeu: ${outbound.reverse().join(" | ")}`);
@@ -131,9 +134,7 @@ export async function buildParserConversationHistory(userId: string, limit = 6):
     .where(eq(whatsappMessages.userId, userId))
     .orderBy(desc(whatsappMessages.createdAt))
     .limit(limit);
-
   if (rows.length === 0) return "";
-
   const lines = rows
     .reverse() // Mais antiga → mais recente
     .map((r) => {
@@ -142,6 +143,5 @@ export async function buildParserConversationHistory(userId: string, limit = 6):
       return text ? `${role}: ${text}` : null;
     })
     .filter(Boolean);
-
   return lines.join("\n");
 }

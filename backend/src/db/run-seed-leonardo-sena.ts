@@ -1,4 +1,16 @@
-/** CLI para rodar seed-leonardo-sena (email/senha via SEED_EMAIL e SEED_PASSWORD). */
+/**
+ * CLI para rodar seed-leonardo-sena (email/senha via SEED_EMAIL e SEED_PASSWORD).
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import "dotenv/config";
 import { seedLeonardoSenaAccount, LEONARDO_SENA_EMAIL } from "./seed-leonardo-sena.js";
 

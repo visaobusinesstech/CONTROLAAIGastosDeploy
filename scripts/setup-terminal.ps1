@@ -1,5 +1,22 @@
-# Run once: .\scripts\setup-terminal.ps1
-# Then use: ca | castatus | capush "message"
+# =============================================================================
+# SETUP-TERMINAL.PS1 — Atalhos PowerShell para o dia a dia do TCC
+# =============================================================================
+#
+# O que é: configura funções no perfil do PowerShell do Windows (roda UMA vez).
+#
+# Para que serve: cria atalhos ca (ir à pasta do projeto), castatus (git status) e
+# capush (git add + commit + push via git-push.ps1). Agiliza o fluxo de desenvolvimento.
+#
+# Uso:
+#   .\scripts\setup-terminal.ps1
+#   Depois reabra o terminal ou rode: . $PROFILE
+#
+# Conexões:
+#   - Aponta para a raiz do monorepo Controla.AI
+#   - capush → scripts/git-push.ps1 → GitHub → Railway/Vercel
+#
+# Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+# =============================================================================
 
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $ProfilePath = $PROFILE.CurrentUserAllHosts

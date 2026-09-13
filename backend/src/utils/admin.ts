@@ -1,5 +1,14 @@
 /**
  * Controle de acesso admin — apenas admin@admin.com.
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 
@@ -11,55 +20,55 @@ export const SYSTEM_ADMIN_EMAIL = "admin@admin.com"; // Constante exportada — 
 
 /** Lista de e-mails admin (extensível via env no futuro; hoje só um). */
 export function getAdminEmails(): string[] { // Função exportada — pode ser usada em outros arquivos
-  return [SYSTEM_ADMIN_EMAIL]; // Devolve um valor e encerra a função aqui
-} // Fecha um bloco de código (if, função, objeto, etc.)
+  return [SYSTEM_ADMIN_EMAIL];
+}
 
 /** Verifica se o e-mail pertence ao admin do sistema. */
 export function isAdminEmail(email: string): boolean { // Função exportada — pode ser usada em outros arquivos
   return email.trim().toLowerCase() === SYSTEM_ADMIN_EMAIL; // Comparação case-insensitive
-} // Fecha um bloco de código (if, função, objeto, etc.)
+}
 
 /** Admin por e-mail histórico ou por coluna access_level. */
 export function userIsAdmin(user: { email: string; accessLevel?: AccessLevel } | undefined): boolean { // Função exportada — pode ser usada em outros arquivos
-  if (!user) return false; // Só executa o bloco abaixo se esta condição for verdadeira
-  return isAdminEmail(user.email) || user.accessLevel === "admin"; // Devolve um valor e encerra a função aqui
-} // Fecha um bloco de código (if, função, objeto, etc.)
+  if (!user) return false;
+  return isAdminEmail(user.email) || user.accessLevel === "admin";
+}
 
 /** Middleware Fastify — bloqueia rotas /api/admin/* para não-admins. */
-export async function adminPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> { // Função assíncrona exportada — outros módulos podem chamar
+export async function adminPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   const user = request.user; // Preenchido pelo authPreHandler anterior na cadeia
-  if (!user) { // Só executa o bloco abaixo se esta condição for verdadeira
+  if (!user) {
     reply.status(401).send({ error: "Unauthorized" }); // Sem JWT válido
-    return; // Instrução do programa — parte da lógica deste arquivo
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-  if (!userIsAdmin(user)) { // Só executa o bloco abaixo se esta condição for verdadeira
+    return;
+  }
+  if (!userIsAdmin(user)) {
     reply.status(403).send({ error: "Admin access required" }); // JWT ok mas não é admin
-    return; // Instrução do programa — parte da lógica deste arquivo
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-} // Fecha um bloco de código (if, função, objeto, etc.)
+    return;
+  }
+}
 
 /** Painel de governança — admin, operator e viewer (não o cliente titular). */
-export async function staffPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> { // Função assíncrona exportada — outros módulos podem chamar
-  const user = request.user; // Guarda um valor que não muda durante a execução deste trecho
-  if (!user) { // Só executa o bloco abaixo se esta condição for verdadeira
-    reply.status(401).send({ error: "Unauthorized" }); // Instrução do programa — parte da lógica deste arquivo
-    return; // Instrução do programa — parte da lógica deste arquivo
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-  if (!userIsAdmin(user) && !isStaffLevel(user.accessLevel)) { // Só executa o bloco abaixo se esta condição for verdadeira
-    reply.status(403).send({ error: "Staff access required" }); // Instrução do programa — parte da lógica deste arquivo
-    return; // Instrução do programa — parte da lógica deste arquivo
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-} // Fecha um bloco de código (if, função, objeto, etc.)
+export async function staffPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const user = request.user;
+  if (!user) {
+    reply.status(401).send({ error: "Unauthorized" });
+    return;
+  }
+  if (!userIsAdmin(user) && !isStaffLevel(user.accessLevel)) {
+    reply.status(403).send({ error: "Staff access required" });
+    return;
+  }
+}
 
 /** Somente admin@admin.com — CRUD Assinantes e rotas exclusivas do sistema. */
-export async function systemAdminPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> { // Função assíncrona exportada — outros módulos podem chamar
-  const user = request.user; // Guarda um valor que não muda durante a execução deste trecho
-  if (!user) { // Só executa o bloco abaixo se esta condição for verdadeira
-    reply.status(401).send({ error: "Unauthorized" }); // Instrução do programa — parte da lógica deste arquivo
-    return; // Instrução do programa — parte da lógica deste arquivo
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-  if (!isAdminEmail(user.email)) { // Só executa o bloco abaixo se esta condição for verdadeira
-    reply.status(403).send({ error: "Somente admin@admin.com acessa Assinantes" }); // Instrução do programa — parte da lógica deste arquivo
-    return; // Instrução do programa — parte da lógica deste arquivo
-  } // Fecha um bloco de código (if, função, objeto, etc.)
-} // Fecha um bloco de código (if, função, objeto, etc.)
+export async function systemAdminPreHandler(request: FastifyRequest, reply: FastifyReply): Promise<void> {
+  const user = request.user;
+  if (!user) {
+    reply.status(401).send({ error: "Unauthorized" });
+    return;
+  }
+  if (!isAdminEmail(user.email)) {
+    reply.status(403).send({ error: "Somente admin@admin.com acessa Assinantes" });
+    return;
+  }
+}

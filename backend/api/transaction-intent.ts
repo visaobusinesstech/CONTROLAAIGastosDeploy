@@ -1,8 +1,15 @@
 /**
  * Detecção de transações e normalização de valores — Controla.ai
- * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  *
- * Prioridade absoluta: gasto/ganho explícito NUNCA vira meta.
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { parseMoneyAmount } from "../src/utils/money.js"; // Converte "5 mil", "R$ 50" em número
 
@@ -30,7 +37,6 @@ export function isQueryMessage(text: string): boolean {
 export function isExplicitExpenseRegistration(text: string): boolean {
   const t = text.trim().toLowerCase(); // Texto normalizado
   if (!t || isQueryMessage(t)) return false; // Vazio ou pergunta — não é registro
-
   // Pedido direto de cadastro de gasto/despesa
   if (
     /\b(quero|preciso|vou|pode|pod[eê]|me\s+ajuda\s+a)?\s*(registrar|cadastrar|lan[cç]ar|anotar|adicionar|incluir|salvar|criar)\s+(um[a]?\s+)?(gasto|despesa|compra|pagamento)/i.test(

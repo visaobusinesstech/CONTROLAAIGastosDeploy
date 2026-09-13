@@ -1,5 +1,14 @@
 /**
  * Hook useIsMobile — detecta se a tela é de celular (largura menor que 768px).
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 // Importa todo o React como namespace (padrão shadcn)
@@ -15,7 +24,6 @@ const MOBILE_BREAKPOINT = 768;
 export function useIsMobile() {
   // Estado: undefined inicialmente (SSR/hidratação), depois true ou false
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
-
   // Efeito roda uma vez ao montar — registra listener de resize
   React.useEffect(() => {
     // MediaQueryList: API do browser que observa largura máxima (767px = mobile)
@@ -31,7 +39,6 @@ export function useIsMobile() {
     // Cleanup: remove listener quando componente desmonta (evita vazamento de memória)
     return () => mql.removeEventListener("change", onChange);
   }, []); // Array vazio = executa só na montagem
-
   // !! converte undefined → false (seguro para JSX condicional)
   return !!isMobile;
 }

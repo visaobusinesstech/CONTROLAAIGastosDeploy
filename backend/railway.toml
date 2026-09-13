@@ -1,3 +1,24 @@
+# =============================================================================
+# RAILWAY.TOML (backend/) — Receita de deploy do BACKEND na Railway
+# =============================================================================
+#
+# O que é: arquivo que a plataforma Railway lê quando o serviço aponta para a pasta backend/.
+#
+# Para que serve: define COMO construir e COMO iniciar a API Fastify (WhatsApp + OpenAI +
+# Postgres). O build compila TypeScript; o start roda node dist/src/index.js na nuvem.
+#
+# Conexões:
+#   - Build: npm install + npm run build (usa tsconfig.json, gera dist/)
+#   - Start: npm start → API na porta que a Railway injeta (PORT)
+#   - Healthcheck: GET /health — Railway reinicia se falhar 10 vezes
+#   - Banco: DATABASE_URL (Postgres Railway/Neon) via variáveis de ambiente
+#   - Frontend Vercel chama esta API via BACKEND_URL no proxy (frontend/api/backend-proxy)
+#
+# Se o serviço Railway tiver Root Directory = raiz do monorepo, use railway.toml da raiz.
+#
+# Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+# =============================================================================
+
 [build]
 builder = "nixpacks"
 buildCommand = "npm install --include=dev && npm run build"

@@ -1,5 +1,14 @@
 /**
  * Regras de acesso por assinatura / trial — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { desc, eq } from "drizzle-orm"; // Ordenação e filtro SQL
@@ -64,7 +73,6 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
       subscription: null,
     };
   }
-
   const [user] = await db
     .select({
       trialEndsAt: users.trialEndsAt,
@@ -75,7 +83,6 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
     })
     .from(users)
     .where(eq(users.id, userId));
-
   if (user && (userIsAdmin({ email: user.email, accessLevel: user.accessLevel as AccessLevel }) || isStaffLevel(user.accessLevel as AccessLevel))) {
     return {
       hasAccess: true,
@@ -86,14 +93,12 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
       subscription: null,
     };
   }
-
   const [sub] = await db
     .select()
     .from(subscriptions)
     .where(eq(subscriptions.userId, userId))
     .orderBy(desc(subscriptions.createdAt)) // Assinatura mais recente
     .limit(1);
-
   const subscription =
     sub && ACTIVE_SUB_STATUSES.has(sub.status)
       ? {
@@ -104,7 +109,6 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
           stripePriceId: sub.stripePriceId,
         }
       : null;
-
   if (user?.billingGrandfathered) {
     return {
       hasAccess: true,
@@ -115,7 +119,6 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
       subscription,
     };
   }
-
   if (subscription) {
     return {
       hasAccess: true,
@@ -126,7 +129,6 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
       subscription,
     };
   }
-
   if (user?.trialEndsAt && user.trialEndsAt.getTime() > Date.now()) {
     return {
       hasAccess: true,
@@ -137,7 +139,6 @@ export async function getBillingAccess(userId: string, email: string): Promise<B
       subscription: null,
     };
   }
-
   return {
     hasAccess: false,
     reason: "expired", // Trial acabou e sem assinatura

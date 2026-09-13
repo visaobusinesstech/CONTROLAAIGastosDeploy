@@ -1,5 +1,14 @@
 /**
  * Branding do Stripe Checkout — logo Controla.AI e cores verdes.
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import fs from "node:fs"; // Leitura do arquivo PNG da marca
@@ -30,7 +39,6 @@ async function uploadBrandFile(stripe: Stripe, purpose: "business_logo" | "busin
   if (!fs.existsSync(BRAND_ICON_PATH)) {
     throw new Error(`Logo Stripe não encontrada: ${BRAND_ICON_PATH}`); // Arquivo obrigatório
   }
-
   const buffer = fs.readFileSync(BRAND_ICON_PATH); // Lê PNG em memória
   const file = await stripe.files.create({
     purpose, // Stripe distingue logo vs ícone
@@ -40,14 +48,12 @@ async function uploadBrandFile(stripe: Stripe, purpose: "business_logo" | "busin
       type: "image/png", // MIME type
     },
   });
-
   return file.id; // file_xxx usado no branding_settings
 }
 
 /** Retorna file_id do logo (env, cache ou upload único por processo). */
 async function resolveStripeLogoFileId(): Promise<string> {
   if (cachedLogoFileId) return cachedLogoFileId; // Reutiliza cache
-
   const stripe = getStripe();
   cachedLogoFileId = await uploadBrandFile(stripe, "business_logo"); // Upload e cache
   return cachedLogoFileId;
@@ -56,7 +62,6 @@ async function resolveStripeLogoFileId(): Promise<string> {
 /** Retorna file_id do ícone (env, cache ou upload único por processo). */
 async function resolveStripeIconFileId(): Promise<string> {
   if (cachedIconFileId) return cachedIconFileId;
-
   const stripe = getStripe();
   cachedIconFileId = await uploadBrandFile(stripe, "business_icon");
   return cachedIconFileId;
@@ -66,7 +71,6 @@ async function resolveStripeIconFileId(): Promise<string> {
 export async function buildCheckoutBrandingSettings(): Promise<Record<string, unknown>> {
   const logoFileId = await resolveStripeLogoFileId(); // Logo horizontal
   const iconFileId = await resolveStripeIconFileId(); // Ícone quadrado
-
   return {
     display_name: "Controla.AI", // Nome exibido no Checkout
     background_color: CHECKOUT_BACKGROUND_COLOR, // Fundo verde escuro

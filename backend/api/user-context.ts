@@ -1,5 +1,14 @@
 /**
  * Contexto financeiro completo do usuário — IA acessa perfil, transações, metas — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { and, desc, eq, sql } from "drizzle-orm"; // Filtros, ordenação e subquery SQL
@@ -74,15 +83,12 @@ export async function loadUserIncomeProfile(userId: string): Promise<UserIncomeP
     })
     .from(userSettings)
     .where(eq(userSettings.userId, userId));
-
   const [budget] = await db
     .select({ income: budgets.totalIncomeExpected })
     .from(budgets)
     .where(and(eq(budgets.userId, userId), eq(budgets.month, month)));
-
   const monthlyAmount = budget?.income != null ? num(budget.income) : null;
   const recurrence = (settings?.incomeRecurrence as IncomeRecurrence | null) ?? null;
-
   const base = {
     monthlyAmount: monthlyAmount && monthlyAmount > 0 ? monthlyAmount : null,
     recurrence,
@@ -92,7 +98,6 @@ export async function loadUserIncomeProfile(userId: string): Promise<UserIncomeP
     isRecurring: settings?.incomeIsRecurring ?? null,
     endDate: settings?.incomeEndDate ?? null,
   };
-
   const missingFields = buildMissingFields(base);
   const incomeSaved = base.monthlyAmount != null && base.monthlyAmount > 0;
   return {
@@ -105,7 +110,6 @@ export async function loadUserIncomeProfile(userId: string): Promise<UserIncomeP
 /** Monta texto resumido do perfil para o prompt da IA. */
 export function formatIncomeProfileForAi(profile: UserIncomeProfile): string {
   if (!profile.monthlyAmount) return "Renda mensal: NÃO cadastrada.";
-
   const parts = [`Renda mensal: ${formatBrl(profile.monthlyAmount)}`];
   if (profile.incomeType) {
     const labels: Record<IncomeType, string> = {
@@ -143,20 +147,17 @@ export async function getUserFinancialContext(userId: string): Promise<UserFinan
   const monthStart = new Date(`${month}-01T00:00:00.000Z`);
   const monthEnd = new Date(monthStart);
   monthEnd.setUTCMonth(monthEnd.getUTCMonth() + 1);
-
   const [user] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId));
   const incomeProfile = await loadUserIncomeProfile(userId);
   const monthBalance = await getUserBalance(userId, monthStart, monthEnd);
   const snap = await getFinancialSnapshot(userId);
   const topCategories = await getTopCategories(userId, 5);
   const preferences = await getUserPreferences(userId);
-
   const goalRows = await db
     .select({ name: goals.name, limitAmount: goals.limitAmount, goalType: goals.goalType })
     .from(goals)
     .where(and(eq(goals.userId, userId), eq(goals.isActive, true)))
     .limit(5);
-
   const txRows = await db
     .select({
       type: transactions.type,
@@ -168,25 +169,21 @@ export async function getUserFinancialContext(userId: string): Promise<UserFinan
     .where(and(eq(transactions.userId, userId), eq(transactions.isActive, true)))
     .orderBy(desc(transactions.occurredAt))
     .limit(8);
-
   const recentTransactions = txRows.map((t) => ({
     type: t.type,
     amount: num(t.amount),
     description: t.description ?? "",
     category: t.categoryName ?? null,
   }));
-
   const activeGoals = goalRows.map((g) => ({
     name: g.name,
     target: num(g.limitAmount),
     type: g.goalType,
   }));
-
   const snapLine =
     snap.expectedIncome > 0
       ? `Disponível estimado (renda ${formatBrl(snap.expectedIncome)} − gastos): ${formatBrl(snap.projectedAvailable)}`
       : "";
-
   const summaryForAi = [
     `Usuário: ${user?.name ?? "sem nome"}`,
     formatIncomeProfileForAi(incomeProfile),
@@ -205,7 +202,6 @@ export async function getUserFinancialContext(userId: string): Promise<UserFinan
   ]
     .filter(Boolean)
     .join("\n");
-
   return {
     userId,
     userName: user?.name ?? null,

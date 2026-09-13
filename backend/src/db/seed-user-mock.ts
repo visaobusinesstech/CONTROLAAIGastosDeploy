@@ -1,4 +1,16 @@
-/** Seed de transações mock para um usuário existente — desenvolvimento/testes. */
+/**
+ * Seed de transações mock para um usuário existente — desenvolvimento/testes.
+ *
+ * Papel no sistema: Módulo backend Fastify — registrado ou importado por index.ts.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
+ * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+ */
 import { eq } from "drizzle-orm";
 import { db } from "./index.js";
 import { budgets, categories, transactions, userSettings } from "./schema.js";
@@ -42,10 +54,8 @@ export async function seedMockDataForUser(userId: string): Promise<{ inserted: n
   if (existing.length > 0) {
     return { inserted: 0, skipped: true };
   }
-
   const cats = await db.select().from(categories);
   const byName = new Map(cats.map((c) => [c.name, c.id]));
-
   let inserted = 0;
   for (const row of MOCK_TRANSACTIONS) {
     const categoryId = byName.get(row.categoryName) ?? null;
@@ -60,7 +70,6 @@ export async function seedMockDataForUser(userId: string): Promise<{ inserted: n
     });
     inserted++;
   }
-
   await db
     .insert(budgets)
     .values({
@@ -71,7 +80,6 @@ export async function seedMockDataForUser(userId: string): Promise<{ inserted: n
       notes: "Orçamento demo Controla.AI",
     })
     .onConflictDoNothing({ target: [budgets.userId, budgets.month] });
-
   await db
     .insert(userSettings)
     .values({
@@ -82,6 +90,5 @@ export async function seedMockDataForUser(userId: string): Promise<{ inserted: n
       themePreference: "dark",
     })
     .onConflictDoNothing();
-
   return { inserted, skipped: false };
 }

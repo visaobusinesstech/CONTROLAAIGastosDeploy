@@ -1,5 +1,14 @@
 /**
  * Processamento de mídia — Whisper (áudio) e extração de PDF — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { createReadStream, writeFileSync, unlinkSync, mkdirSync, existsSync } from "node:fs"; // I/O temporário para áudio
@@ -14,13 +23,11 @@ export async function transcribeAudio(buffer: Buffer, userId?: string): Promise<
   if (!isOpenAIConfigured()) {
     return ""; // Sem API key — não transcreve
   }
-
   const start = Date.now(); // Marca início para latência em ai_logs
   const dir = join(tmpdir(), "controla-ai"); // Pasta temporária dedicada ao Controla.ai
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true }); // Cria pasta se não existir
   const filePath = join(dir, `${randomUUID()}.ogg`); // Arquivo único .ogg para a API Whisper
   writeFileSync(filePath, buffer); // Grava buffer em disco (Whisper exige file stream)
-
   try {
     const openai = getOpenAI(); // Singleton OpenAI
     const model = getWhisperModel(); // whisper-1 por padrão
@@ -29,7 +36,6 @@ export async function transcribeAudio(buffer: Buffer, userId?: string): Promise<
       file: createReadStream(filePath), // Stream do arquivo temporário
       language: "pt", // Força português brasileiro
     });
-
     await logAiOperation({
       userId,
       source: "whatsapp",
@@ -38,7 +44,6 @@ export async function transcribeAudio(buffer: Buffer, userId?: string): Promise<
       model,
       processingMs: Date.now() - start, // Latência total
     });
-
     return transcription.text; // Texto para o parser financeiro
   } catch (err) {
     await logAiOperation({

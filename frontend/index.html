@@ -1,3 +1,16 @@
+<!--
+  INDEX.HTML — Página HTML mínima que abre o Controla.AI no navegador.
+
+  O que é: único arquivo HTML do frontend; o React monta todo o app dentro de <div id="root">.
+
+  Para que serve: carrega main.tsx (Vite), favicon, meta tags SEO/Open Graph e idioma pt-BR.
+  Em produção a Vercel serve este arquivo para rotas /login, /register e SPA (ver vercel.json).
+
+  Conexões: Vite dev (porta 5179) → src/main.tsx → React Router. Deploy: build estático na Vercel;
+  chamadas /api e /auth vão para funções serverless ou proxy Railway (vercel.json rewrites).
+
+  Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+-->
 <!doctype html>
 <html lang="pt-BR" suppressHydrationWarning>
   <head>

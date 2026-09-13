@@ -1,5 +1,14 @@
 /**
  * Parser estruturado de metas financeiras — separa valor e prazo — Controla.ai
+ *
+ * Papel no sistema: Lógica de domínio/IA compartilhada entre HTTP e WhatsApp.
+ *
+ * Responsabilidade: concentra a lógica descrita no título; evite duplicar regras
+ * de negócio em outros arquivos — importe daqui quando precisar reutilizar.
+ *
+ * Entradas/saídas: seguir tipos exportados e contratos HTTP/documentados em
+ * TCC_DOCUMENTACAO.md (rotas, payloads JSON, tabelas SQL relacionadas).
+ *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import { getOpenAI, getOpenAIModel, isOpenAIConfigured } from "./openai-client.js";
@@ -41,46 +50,38 @@ export function stripTimePhrases(text: string): string {
 /** Extrai prazo em meses — "5 meses" → 5, "1 ano" → 12. */
 export function parseDurationMonths(text: string): number | null {
   const lower = text.toLowerCase();
-
   const monthMatch = lower.match(/(?:em|dentro\s+de|por|durante)\s+(\d{1,3})\s*m[eê]s(?:es|e)?/);
   if (monthMatch) {
     const n = parseInt(monthMatch[1], 10);
     if (n >= 1 && n <= 360) return n;
   }
-
   const bareMonths = lower.match(/\b(\d{1,3})\s*m[eê]s(?:es|e)?\b/);
   if (bareMonths) {
     const n = parseInt(bareMonths[1], 10);
     if (n >= 1 && n <= 360) return n;
   }
-
   if (/\b(1|um)\s*ano\b|\b12\s*m[eê]s|\banual\b/.test(lower)) return 12;
   if (/\b(2|dois)\s*anos?\b/.test(lower)) return 24;
   if (/\b(6|seis)\s*m[eê]s|\bmeio\s*ano\b/.test(lower)) return 6;
   if (/\b(3|tr[eê]s)\s*m[eê]s|\btrimestre\b/.test(lower)) return 3;
-
   if (/\/\s*m[eê]s|\bpor\s*m[eê]s\b|\bmensal\b|\btodo\s*m[eê]s\b|\bcada\s*m[eê]s\b/.test(lower)) {
     return 1;
   }
-
   return null;
 }
 
 /** Extrai valor monetário — ignora números que são prazo. */
 export function parseGoalAmount(text: string): number | null {
   const cleaned = stripTimePhrases(text);
-
   const kMatch = cleaned.match(/(\d+(?:[.,]\d+)?)\s*k\b/i);
   if (kMatch) {
     const v = parseFloat(kMatch[1].replace(",", "."));
     if (Number.isFinite(v) && v > 0) return v * 1000;
   }
-
   const match = cleaned.match(
     /(?:r\$?\s*)?(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d+)?)\s*(?:mil|k|milh[oõ]es?)?/i,
   );
   if (!match) return null;
-
   let raw = match[1].replace(/\./g, "").replace(",", ".");
   let value = parseFloat(raw);
   if (/mil|k/i.test(match[0])) value *= 1000;
@@ -184,17 +185,14 @@ REGRAS CRÍTICAS:
 export async function parseGoalMessage(text: string): Promise<ParsedGoalFields> {
   const trimmed = text.trim();
   const ai = await parseGoalWithAi(trimmed);
-
   const durationMonths = parseDurationMonths(trimmed) ?? ai?.durationMonths ?? null;
   const amount = parseGoalAmount(trimmed) ?? ai?.amount ?? null;
   const goalType = parseGoalType(trimmed) ?? ai?.goalType ?? null;
   const periodType =
     ai?.periodType ??
     (durationMonths != null ? periodTypeFromDuration(durationMonths) : null);
-
   const resolvedType = goalType ?? "saving";
   const name = ai?.name ?? parseGoalName(trimmed, resolvedType);
-
   return {
     goalType,
     name,
@@ -219,7 +217,6 @@ export function validateGoalFields(fields: ParsedGoalFields): {
     mentionsDuration(fields.name ?? "") === false &&
     fields.durationMonths == null &&
     fields.periodType == null;
-
   return {
     complete: !missingAmount && !missingType,
     missingAmount,
@@ -233,12 +230,10 @@ export function buildGoalMissingPrompt(fields: ParsedGoalFields, originalText: s
   const parts: string[] = [];
   if (!fields.goalType) parts.push("se é *poupança* ou *limite de gastos*");
   if (!fields.amount || fields.amount <= 0) parts.push("o *valor* (ex: _10 mil_, _R$ 400_)");
-
   const wantedDuration = mentionsDuration(originalText) || parseDurationMonths(originalText) != null;
   if (wantedDuration && fields.durationMonths == null) {
     parts.push("o *prazo* (ex: _5 meses_, _1 ano_)");
   }
-
   if (parts.length === 0) {
     return `Quase lá — confirme: valor e prazo.\nEx: _"Juntar 10 mil em 12 meses"_`;
   }

@@ -1,4 +1,5 @@
 {
+  "_tcc": "TypeScript só para arquivos de configuração Node (vite.config.ts) — separado do app React. Permite tipos ES2023 no bundler. Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar.",
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2023"],

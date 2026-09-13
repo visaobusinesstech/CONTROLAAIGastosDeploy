@@ -1,5 +1,25 @@
-# Deploy Railway a partir da raiz do monorepo (Root Directory = /).
-# Se o serviço já tiver Root Directory = backend, usa backend/railway.toml.
+# =============================================================================
+# RAILWAY.TOML (raiz) — Deploy do backend quando Root Directory = /
+# =============================================================================
+#
+# O que é: versão do railway.toml para monorepos — a Railway executa comandos a partir
+# da raiz do repositório, não de backend/.
+#
+# Para que serve: instala e compila o backend (--prefix backend) e sobe a API Fastify
+# que atende WhatsApp, finanças, Stripe e healthcheck. Mesma lógica de backend/railway.toml,
+# mas com caminhos relativos à raiz.
+#
+# Conexões:
+#   - Git push → Railway detecta mudanças → build → deploy automático
+#   - API pública: controlaai-backend-production.up.railway.app (ou URL do serviço)
+#   - Vercel (frontend): proxy em frontend/api/backend-proxy encaminha /api/* e /auth/*
+#   - Postgres: DATABASE_URL configurada no painel Railway
+#
+# Se o serviço já usa Root Directory = backend/, prefira backend/railway.toml.
+#
+# Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+# =============================================================================
+
 [build]
 builder = "nixpacks"
 buildCommand = "npm install --prefix backend --include=dev && npm run build --prefix backend"
