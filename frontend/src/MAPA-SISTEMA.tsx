@@ -46,6 +46,7 @@
  * COMPONENTES DE APLICAÇÃO
  *   components/Layout.tsx           → Sidebar + navegação + outlet
  *   components/DashboardDialogs.tsx → Modais de transação e orçamento
+ *   components/ExpensePeriodCompare.tsx → Gastos atuais × período anterior (filtros data/semana/mês/trimestre/semestre/ano)
  *   components/NavLink.tsx          → NavLink estilizado (react-router)
  *   components/RequireAdmin.tsx     → Guard isAdmin via capabilities
  *   components/RequireStaff.tsx     → Guard staff (admin/operator/viewer)
@@ -115,6 +116,7 @@ export const FRONTEND_APPLICATION_FILES = [
   "pages/NotFound.tsx",
   "components/Layout.tsx",
   "components/DashboardDialogs.tsx",
+  "components/ExpensePeriodCompare.tsx",
   "components/NavLink.tsx",
   "components/RequireAdmin.tsx",
   "components/RequireStaff.tsx",

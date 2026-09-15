@@ -14,6 +14,9 @@ import {
   EMPTY_FINANCIAL_COPY,
   parseTxAmount,
   roundMoney,
+  previousEquivalentRange,
+  computeExpenseComparison,
+  compareKindFromFilter,
 } from "@/lib/financial-summary";
 
 describe("computeFinancialPeriodSummary — fonte única de verdade", () => {
@@ -217,5 +220,81 @@ describe("helpers monetários", () => {
     expect(parseTxAmount("10.555")).toBeCloseTo(10.555);
     expect(roundMoney(10.555)).toBe(10.56);
     expect(parseTxAmount("abc")).toBe(0);
+  });
+});
+
+describe("comparativo de gastos × período anterior", () => {
+  it("19) mês atual recua um mês no mesmo recorte de dias", () => {
+    const from = new Date(2026, 8, 1);
+    const to = new Date(2026, 8, 15, 23, 59, 59, 999);
+    const prev = previousEquivalentRange("mes", from, to);
+    expect(prev.from.getFullYear()).toBe(2026);
+    expect(prev.from.getMonth()).toBe(7);
+    expect(prev.from.getDate()).toBe(1);
+    expect(prev.to.getMonth()).toBe(7);
+    expect(prev.to.getDate()).toBe(15);
+  });
+
+  it("19b) mês completo compara com o mês anterior inteiro (ago tem 31 dias)", () => {
+    const from = new Date(2026, 8, 1);
+    const to = new Date(2026, 8, 30, 23, 59, 59, 999);
+    const prev = previousEquivalentRange("mes", from, to);
+    expect(prev.from.getMonth()).toBe(7);
+    expect(prev.from.getDate()).toBe(1);
+    expect(prev.to.getMonth()).toBe(7);
+    expect(prev.to.getDate()).toBe(31);
+  });
+
+  it("20) trimestre recua 3 meses e semestre recua 6", () => {
+    const from = new Date(2026, 6, 1);
+    const to = new Date(2026, 8, 15);
+    const tri = previousEquivalentRange("trimestre", from, to);
+    expect(tri.from.getMonth()).toBe(3);
+    expect(tri.from.getDate()).toBe(1);
+    const sem = previousEquivalentRange("semestre", from, to);
+    expect(sem.from.getFullYear()).toBe(2026);
+    expect(sem.from.getMonth()).toBe(0);
+  });
+
+  it("21) semana recua 7 dias e ano recua 1 ano", () => {
+    const from = new Date(2026, 8, 13);
+    const to = new Date(2026, 8, 15);
+    const week = previousEquivalentRange("semana", from, to);
+    expect(week.from.getDate()).toBe(6);
+    const year = previousEquivalentRange("ano", from, to);
+    expect(year.from.getFullYear()).toBe(2025);
+    expect(year.from.getMonth()).toBe(8);
+    expect(year.from.getDate()).toBe(13);
+  });
+
+  it("22) data customizada usa o bloco imediatamente anterior", () => {
+    const from = new Date(2026, 8, 10);
+    const to = new Date(2026, 8, 12, 23, 59, 59, 999);
+    const prev = previousEquivalentRange("data", from, to);
+    expect(prev.to.getDate()).toBe(9);
+    expect(prev.from.getDate()).toBe(7);
+  });
+
+  it("23) aumento de gastos é tendência up com percentual positivo", () => {
+    const c = computeExpenseComparison(3000, 2000);
+    expect(c.delta).toBe(1000);
+    expect(c.percent).toBe(50);
+    expect(c.trend).toBe("up");
+  });
+
+  it("24) queda de gastos é tendência down; sem base anterior percent é null", () => {
+    const down = computeExpenseComparison(2000, 3000);
+    expect(down.trend).toBe("down");
+    expect(down.percent).toBeCloseTo(-33.3);
+    const noBase = computeExpenseComparison(150, 0);
+    expect(noBase.percent).toBeNull();
+    expect(noBase.trend).toBe("up");
+  });
+
+  it("25) filtros da UI mapeiam para o tipo de comparação", () => {
+    expect(compareKindFromFilter("mes")).toBe("mes");
+    expect(compareKindFromFilter("trimestre")).toBe("trimestre");
+    expect(compareKindFromFilter("hoje")).toBe("data");
+    expect(compareKindFromFilter("90d")).toBe("data");
   });
 });

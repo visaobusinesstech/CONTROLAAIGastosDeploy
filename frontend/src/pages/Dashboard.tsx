@@ -7,8 +7,8 @@
  * Onde entra: rota /dashboard após login; consome api.ts via React Query com cache
  * e invalidação após mutações (POST/PATCH/DELETE transação, PUT budget).
  *
- * UX: filtros por período, tema claro/escuro nos gráficos, demo seed opcional,
- * export CSV e insights quando plano permite.
+ * UX: comparativo de gastos vs período anterior (data/semana/mês/trimestre/semestre/ano),
+ * filtros extras, tema claro/escuro nos gráficos, demo seed opcional, export CSV e insights.
  *
  * Integrações: financial-summary.ts (cálculos locais), DashboardDialogs, CategoryIcon,
  * backend /api/transactions, /api/kpis, /api/insights.
@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MonthlyBudgetDialog, TransactionDialog } from "@/components/DashboardDialogs";
+import { ExpensePeriodCompare } from "@/components/ExpensePeriodCompare";
 import { CategoryIcon } from "@/lib/category-icons";
 import { useAuth } from "@/lib/auth";
 import {
@@ -48,9 +49,14 @@ import {
   type ApiTransaction,
 } from "@/lib/api";
 import {
+  COMPARE_PREVIOUS_CAPTION,
+  compareKindFromFilter,
+  computeExpenseComparison,
   computeFinancialPeriodSummary,
   EMPTY_FINANCIAL_COPY,
   INCOME_FREQUENCY_LABELS,
+  previousEquivalentRange,
+  type ComparePeriodKind,
   type IncomeFrequency,
 } from "@/lib/financial-summary";
 import {
@@ -272,6 +278,7 @@ function MetricCard({
   prefix = "R$ ",
   suffix = "",
   trend,
+  changeLabel = "vs mês anterior",
 }: {
   label: string;
   value: string;
@@ -279,6 +286,7 @@ function MetricCard({
   prefix?: string;
   suffix?: string;
   trend?: "up" | "down" | "neutral";
+  changeLabel?: string;
 }) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -309,7 +317,7 @@ function MetricCard({
           </p>
           <div className={cn("flex items-center gap-1 text-[11px] font-medium leading-none", trendColor)}>
             <TrendIcon size={12} strokeWidth={2.25} className="shrink-0" />
-            <span>{Math.abs(change)}% vs mês anterior</span>
+            <span>{Math.abs(change)}% {changeLabel}</span>
           </div>
         </div>
       </MagicCard>
@@ -546,6 +554,26 @@ export default function Dashboard() {
       setRangeOverride({ from: startOfMonthFromYm(ym), to: endOfMonthFromYm(ym) });
       return;
     }
+    if (preset === "trimestre") {
+      const q = Math.floor(now.getMonth() / 3);
+      setRangeOverride({
+        from: startOfDay(new Date(now.getFullYear(), q * 3, 1)),
+        to: endOfDay(now),
+      });
+      return;
+    }
+    if (preset === "semestre") {
+      const startMonth = now.getMonth() < 6 ? 0 : 6;
+      setRangeOverride({
+        from: startOfDay(new Date(now.getFullYear(), startMonth, 1)),
+        to: endOfDay(now),
+      });
+      return;
+    }
+    if (preset === "data") {
+      setCalOpen(true);
+      return;
+    }
     if (preset === "ano") {
       setRangeOverride({
         from: startOfDay(new Date(now.getFullYear(), 0, 1)),
@@ -571,8 +599,15 @@ export default function Dashboard() {
     [currentMonth],
   );
   const activeRange = rangeOverride ?? defaultRange;
+  const compareKind = compareKindFromFilter(periodFilter);
+  const previousRange = useMemo(
+    () => previousEquivalentRange(compareKind, activeRange.from, activeRange.to),
+    [compareKind, activeRange],
+  );
   const fromIso = activeRange.from.toISOString();
   const toIso = activeRange.to.toISOString();
+  const prevFromIso = previousRange.from.toISOString();
+  const prevToIso = previousRange.to.toISOString();
   const rangeDays = Math.max(
     1,
     Math.ceil((activeRange.to.getTime() - activeRange.from.getTime()) / (24 * 60 * 60 * 1000)) + 1,
@@ -594,6 +629,14 @@ export default function Dashboard() {
     refetchOnWindowFocus: true,
   });
   const rawTxs = txRes?.transactions ?? [];
+  const { data: prevTxRes, isLoading: prevTxLoading } = useQuery({
+    queryKey: ["transactions", "compare-prev", token, prevFromIso, prevToIso],
+    queryFn: () => apiGetTransactions(token!, { from: prevFromIso, to: prevToIso }),
+    enabled: !!token,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  });
+  const prevRawTxs = prevTxRes?.transactions ?? [];
   const txs = useMemo(() => {
     let t = rawTxs;
     if (typeFilter === "recurring") t = t.filter((x) => x.source === "recurring");
@@ -601,6 +644,16 @@ export default function Dashboard() {
     if (catFilter) t = t.filter((x) => (x.categoryName ?? "") === catFilter);
     return t;
   }, [rawTxs, catFilter, typeFilter]);
+  const expenseComparison = useMemo(() => {
+    const matchCat = (list: ApiTransaction[]) =>
+      catFilter ? list.filter((x) => (x.categoryName ?? "") === catFilter) : list;
+    const currentGastos = computeFinancialPeriodSummary(matchCat(rawTxs)).gastos;
+    const previousGastos = computeFinancialPeriodSummary(matchCat(prevRawTxs)).gastos;
+    return computeExpenseComparison(currentGastos, previousGastos);
+  }, [rawTxs, prevRawTxs, catFilter]);
+  const applyComparePeriod = (kind: ComparePeriodKind) => {
+    applyPeriodPreset(kind);
+  };
   const { data: budgetRes } = useQuery({
     queryKey: ["budget", token, currentMonth],
     queryFn: () => apiGetBudget(token!, currentMonth),
@@ -834,6 +887,7 @@ export default function Dashboard() {
               onClick={() => {
                 setCurrentMonth(shiftMonthYm(currentMonth, -1));
                 setRangeOverride(null);
+                setPeriodFilter("mes");
               }}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted"
             >
@@ -845,6 +899,7 @@ export default function Dashboard() {
               onClick={() => {
                 setCurrentMonth(shiftMonthYm(currentMonth, 1));
                 setRangeOverride(null);
+                setPeriodFilter("mes");
               }}
               className="flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted"
             >
@@ -939,6 +994,7 @@ export default function Dashboard() {
                       const to = new Date(pickRange.to);
                       to.setHours(eh, em, 59, 999);
                       setRangeOverride({ from, to });
+                      setPeriodFilter("data");
                       setCalOpen(false);
                     }}
                   >
@@ -1013,11 +1069,14 @@ export default function Dashboard() {
               <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Período</p>
               <div className="flex gap-2 flex-wrap">
                 {[
+                  { l: "Data", v: "data" },
                   { l: "Hoje", v: "hoje" },
-                  { l: "Esta semana", v: "semana" },
-                  { l: "Este mês", v: "mes" },
+                  { l: "Semana", v: "semana" },
+                  { l: "Mês", v: "mes" },
                   { l: "Mês anterior", v: "mes_anterior" },
-                  { l: "Este ano", v: "ano" },
+                  { l: "Trimestre", v: "trimestre" },
+                  { l: "Semestre", v: "semestre" },
+                  { l: "Ano", v: "ano" },
                   { l: "7 dias", v: "7d" },
                   { l: "30 dias", v: "30d" },
                   { l: "90 dias", v: "90d" },
@@ -1076,6 +1135,14 @@ export default function Dashboard() {
           </motion.div>
         )}
       </div>
+      <ExpensePeriodCompare
+        comparison={expenseComparison}
+        kind={compareKind}
+        currentRange={activeRange}
+        previousRange={previousRange}
+        onPeriodChange={applyComparePeriod}
+        loading={txListLoading || prevTxLoading}
+      />
       <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <MetricCard
           label="Ganhos no período"
@@ -1086,8 +1153,15 @@ export default function Dashboard() {
         <MetricCard
           label="Gastos no período"
           value={analytics.gastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-          change={analytics.gastosCount}
-          trend={analytics.gastosCount ? "down" : "neutral"}
+          change={expenseComparison.percent != null ? Math.abs(expenseComparison.percent) : 0}
+          changeLabel={
+            expenseComparison.percent == null
+              ? "sem base no período anterior"
+              : `vs ${COMPARE_PREVIOUS_CAPTION[compareKind]}`
+          }
+          trend={
+            expenseComparison.trend === "up" ? "down" : expenseComparison.trend === "down" ? "up" : "neutral"
+          }
         />
         <MetricCard
           label="Faturamento bruto"
