@@ -1,0 +1,21 @@
+{
+  "_tcc": "Configuração do shadcn/ui — biblioteca de componentes visuais (botões, dialogs, inputs). Diz onde ficam components/, hooks/ e qual tailwind.config.ts/css usar. Comando 'npx shadcn add' lê este arquivo. Só frontend; Railway não usa. Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar.",
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "default",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "tailwind.config.ts",
+    "css": "src/index.css",
+    "baseColor": "slate",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  }
+}

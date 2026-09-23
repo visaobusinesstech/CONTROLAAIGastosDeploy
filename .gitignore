@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build
+frontend/dist/
+backend/dist/
+
+# Env
+.env
+.env.local
+.env.*.local
+backend/VARIAVEIS_RAILWAY_STRIPE.env
+
+# Logs & OS
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.cursor/
+
+# Drizzle
+backend/.drizzle/
+
+# Postgres local (dev)
+backend/.data/
+
+# WhatsApp session (credenciais pareadas)
+backend/.baileys-session/
+.controlaai/
+backend/.controlaai/
+.baileys-session/
+
+# Test / coverage
+coverage/
+*.tsbuildinfo

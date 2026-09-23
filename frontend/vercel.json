@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    { "source": "/auth/forgot", "destination": "/api/auth/forgot" },
+    { "source": "/auth/reset", "destination": "/api/auth/reset" },
+    { "source": "/auth/login", "destination": "/api/auth/login" },
+    { "source": "/auth/me", "destination": "/api/auth/me" },
+    { "source": "/auth/2fa/enable", "destination": "/api/auth-2fa-enable" },
+    { "source": "/auth/2fa/disable", "destination": "/api/auth-2fa-disable" },
+    { "source": "/auth/2fa/verify", "destination": "/api/auth-2fa-verify" },
+    { "source": "/auth/2fa/resend", "destination": "/api/auth-2fa-resend" },
+    { "source": "/auth/:path*", "destination": "/api/backend-proxy/auth/:path*" },
+    { "source": "/relay/send", "destination": "/api/relay/send" },
+    { "source": "/api/settings", "destination": "/api/user-settings" },
+    { "source": "/api/:path*", "destination": "/api/backend-proxy/api/:path*" },
+    { "source": "/health", "destination": "/api/backend-proxy/health" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/register", "destination": "/index.html" },
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}

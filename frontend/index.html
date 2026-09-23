@@ -1,0 +1,38 @@
+<!--
+  INDEX.HTML — Página HTML mínima que abre o Controla.AI no navegador.
+
+  O que é: único arquivo HTML do frontend; o React monta todo o app dentro de <div id="root">.
+
+  Para que serve: carrega main.tsx (Vite), favicon, meta tags SEO/Open Graph e idioma pt-BR.
+  Em produção a Vercel serve este arquivo para rotas /login, /register e SPA (ver vercel.json).
+
+  Conexões: Vite dev (porta 5179) → src/main.tsx → React Router. Deploy: build estático na Vercel;
+  chamadas /api e /auth vão para funções serverless ou proxy Railway (vercel.json rewrites).
+
+  Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
+-->
+<!doctype html>
+<html lang="pt-BR" suppressHydrationWarning>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Controla.AI</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="shortcut icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <meta name="description" content="Controle financeiro pessoal com IA e WhatsApp" />
+    <meta name="author" content="Controla.AI" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Controla.AI" />
+    <meta property="og:description" content="Controle financeiro pessoal com IA e WhatsApp" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Controla.AI" />
+    <meta name="twitter:description" content="Controle financeiro pessoal com IA e WhatsApp" />
+</head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

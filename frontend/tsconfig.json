@@ -1,0 +1,25 @@
+{
+  "_tcc": "TypeScript raiz do FRONTEND — orquestra tsconfig.app.json (código React em src/) e tsconfig.node.json (vite.config.ts). Define alias @/* → src/*. Usado pelo IDE e pelo Vite; não vai para produção diretamente. Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar.",
+  "compilerOptions": {
+    "allowJs": true,
+    "noImplicitAny": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ]
+    },
+    "skipLibCheck": true,
+    "strictNullChecks": false
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
+    }
+  ]
+}
