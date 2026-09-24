@@ -12,7 +12,7 @@
  *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
-import { resolveBackendUrl } from "../backend-url.js";
+import { resolveBackendUrl } from "../../lib/backend-url.js";
 
 export const config = {
   runtime: "edge",

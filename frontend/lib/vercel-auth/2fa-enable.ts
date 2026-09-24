@@ -14,7 +14,7 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createAndSendOtp, isTwoFactorEnabled, loadUser, verifyBearer } from "./auth/otp-shared.js";
+import { createAndSendOtp, isTwoFactorEnabled, loadUser, verifyBearer } from "./otp-shared.js";
 
 export const config = { runtime: "nodejs", maxDuration: 15 };
 

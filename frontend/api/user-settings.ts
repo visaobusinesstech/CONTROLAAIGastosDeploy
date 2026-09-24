@@ -12,7 +12,7 @@
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getDb, loadUser, verifyBearer } from "./auth/otp-shared.js";
+import { getDb, loadUser, verifyBearer } from "../lib/vercel-auth/otp-shared.js";
 
 export const config = { runtime: "nodejs", maxDuration: 12 };
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BACKEND_URL, resolveBackendUrl } from "../../api/backend-url";
+import { DEFAULT_BACKEND_URL, resolveBackendUrl } from "../../lib/backend-url";
 
 describe("resolveBackendUrl", () => {
   it("usa o serviço deste repositório quando a env está vazia", () => {
