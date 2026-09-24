@@ -17,7 +17,7 @@ export const config = {
 };
 
 /** Backend Railway — override via BACKEND_URL no painel Vercel. */
-const DEFAULT_BACKEND_URL = "https://controlaai-backend-production.up.railway.app";
+const DEFAULT_BACKEND_URL = "https://controlaaigastosdeploy-production.up.railway.app";
 
 /** URLs inválidas que não devem ser usadas como destino do proxy. */
 const INVALID_BACKEND =

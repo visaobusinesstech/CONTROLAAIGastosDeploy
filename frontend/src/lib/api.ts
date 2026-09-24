@@ -119,14 +119,16 @@ export async function apiFetch<T>(
   }
   const data = (await parseJson(res)) as Record<string, unknown>;
   if (!res.ok) {
-    const err =
-      typeof data.error === "string"
-        ? data.error
-        : res.status === 404
-          ? "API não encontrada — URL do backend incorreta"
-          : res.statusText;
+    let errMessage = res.statusText;
+    if (typeof data.error === "string") {
+      errMessage = data.error;
+    } else if (res.status === 404) {
+      errMessage = "API não encontrada — URL do backend incorreta";
+    } else if (res.status === 502 || res.status === 503) {
+      errMessage = "Servidor backend (Railway) está offline ou indisponível no momento.";
+    }
     // Lança erro para camada superior tratar
-    throw new ApiError(err, res.status, data.details);
+    throw new ApiError(errMessage, res.status, data.details);
   }
   return data as T;
 }
