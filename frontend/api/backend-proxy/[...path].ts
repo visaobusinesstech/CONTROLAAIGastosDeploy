@@ -8,28 +8,21 @@
  * metas, Stripe etc. — tudo que NÃO é login/2FA/settings locais.
  *
  * Por que roda na Vercel Edge: o site e a API compartilham o mesmo domínio (sem CORS);
- * BACKEND_URL no painel Vercel aponta para controlaai-backend-production.up.railway.app.
+ * BACKEND_URL no painel Vercel aponta para controlaaigastosdeploy-production.up.railway.app.
  *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  */
+import { resolveBackendUrl } from "../backend-url";
+
 export const config = {
   runtime: "edge",
 };
 
-/** Backend Railway — override via BACKEND_URL no painel Vercel. */
-const DEFAULT_BACKEND_URL = "https://controlaaigastosdeploy-production.up.railway.app";
-
-/** URLs inválidas que não devem ser usadas como destino do proxy. */
-const INVALID_BACKEND =
-  /\.vercel\.app|localhost|127\.0\.0\.1/i;
-
 function backendBase(): string {
-  const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
-  if (!raw || INVALID_BACKEND.test(raw)) return DEFAULT_BACKEND_URL;
-  const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
-  return normalized;
+  return resolveBackendUrl({
+    BACKEND_URL: process.env.BACKEND_URL,
+    VITE_API_URL: process.env.VITE_API_URL,
+  });
 }
 
 export default async function handler(request: Request): Promise<Response> {

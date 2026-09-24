@@ -13,17 +13,15 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs"; // Operações de arquivo da sessão
-import { dirname, join, resolve } from "node:path"; // Caminhos absolutos multiplataforma
-import { fileURLToPath } from "node:url"; // Converte import.meta.url em path
+import { join, resolve } from "node:path";
 
-const backendRoot = resolve(dirname(fileURLToPath(import.meta.url)), ".."); // Pasta backend/ (pai de whatsapp/)
-
-/** Resolve pasta da sessão: env > backend/.baileys-session */
+/** Resolve pasta da sessão a partir do cwd (/app no container), não de dist/. */
 function resolveSessionDir(): string {
   const raw = process.env.BAILEYS_SESSION_DIR?.trim(); // Ex: /data/.baileys-session no Railway
-  if (!raw) return join(backendRoot, ".baileys-session"); // Padrão local para TCC/dev
-  if (raw.startsWith("/") || /^[A-Za-z]:[\\/]/.test(raw)) return raw; // Caminho absoluto
-  return resolve(backendRoot, raw); // Caminho relativo ao backend
+  // cwd é /app no container. O arquivo compilado fica em dist/, então o pai do módulo não é a raiz.
+  if (!raw) return join(process.cwd(), ".baileys-session");
+  if (raw.startsWith("/") || /^[A-Za-z]:[\\/]/.test(raw)) return raw;
+  return resolve(process.cwd(), raw);
 }
 
 /** Pasta onde o Baileys guarda credenciais após escanear o QR. */

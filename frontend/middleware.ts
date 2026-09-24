@@ -20,32 +20,20 @@
  *   rotas SPA   → index.html
  *
  * Variável BACKEND_URL no painel Vercel = URL pública Railway
- * (fallback: controlaai-backend-production.up.railway.app).
+ * (fallback: controlaaigastosdeploy-production.up.railway.app).
  *
  * Doc TCC: TCC_DOCUMENTACAO.md — atualizar ao modificar
  * =============================================================================
  */
 
-/** URL oficial do backend Railway se BACKEND_URL estiver vazia ou antiga. */
-const DEFAULT_BACKEND_URL = "https://controlaai-backend-production.up.railway.app";
+import { resolveBackendUrl as resolveBackendFromEnv } from "./api/backend-url";
 
-/** Hosts que NUNCA devem ser usados como API (front Vercel ou Railway morto). */
-const INVALID_BACKEND =
-  /controlaai-frontend\.vercel\.app|controlaai-gastos-deploy\.vercel\.app|controlaaigastosdeploy\.up\.railway\.app|backend-production-c328\.up\.railway\.app|localhost|127\.0\.0\.1/i;
-
-/** Decide a URL do backend: env válida ou fallback oficial. */
+/** Decide a URL do backend: env Railway válida ou o serviço deste repositório. */
 function resolveBackendUrl(): string {
-  const raw = (process.env.BACKEND_URL ?? process.env.VITE_API_URL ?? "")
-    .trim()
-    .replace(/\/+$/, "");
-  // Env antiga/morta ou vazia → sempre o Railway novo (WhatsApp precisa disso)
-  if (!raw || INVALID_BACKEND.test(raw)) return DEFAULT_BACKEND_URL;
-  const normalized = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, "")}`;
-  // Preferir sempre o serviço oficial se a env apontar para outro host
-  if (!normalized.includes("controlaai-backend-production.up.railway.app")) {
-    return DEFAULT_BACKEND_URL;
-  }
-  return normalized;
+  return resolveBackendFromEnv({
+    BACKEND_URL: process.env.BACKEND_URL,
+    VITE_API_URL: process.env.VITE_API_URL,
+  });
 }
 
 /** Quais caminhos da Vercel passam por este proxy (os demais usam funções locais). */

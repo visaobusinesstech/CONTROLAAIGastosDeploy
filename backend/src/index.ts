@@ -23,8 +23,7 @@ import { initRuntimeConfig } from "../api/runtime-config.js"; // Lê modelo Open
 
 import Fastify from "fastify";
 import cors from "@fastify/cors";
-import { sql } from "drizzle-orm";
-import { db, verifyDatabaseConnection } from "./db/index.js";
+import { verifyDatabaseConnection } from "./db/index.js";
 import { maskDatabaseUrl, getDatabaseUrl, isLocalDatabaseUrl, isRailwayRuntime } from "./env.js"; // URL do banco com senha mascarada nos logs
 
 import { registerAuthRoutes } from "./auth.js"; // Rotas /auth/register, /auth/login, /auth/me
@@ -43,8 +42,14 @@ import { initWhatsApp } from "../whatsapp/client.js"; // Inicia socket Baileys +
 import { ensureAdminUser } from "./db/ensure-admin.js"; // Garante admin@admin.com no banco
 
 import { redisHealthCheck } from "./redis.js"; // Ping Redis Railway (opcional)
+import { listenOnRailwayPorts } from "./listen.js";
 
-const port = Number(process.env.PORT) || 3333;
+let dbLive = false;
+let redisSnap: { configured: boolean; ok: boolean; host: string | null } = {
+  configured: false,
+  ok: false,
+  host: null,
+};
 const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5179").replace(/\/+$/, "");
 
 /** Monta e configura a instância Fastify (reutilizada em serverless e Railway). */
@@ -72,23 +77,15 @@ async function createApp() {
     },
     credentials: true,
   });
-  // Liveness: Railway exige HTTP 2xx. Status do banco vem no corpo, não no código HTTP.
+  // Liveness imediata: o healthcheck da Railway não pode esperar banco ou Redis.
   app.get("/health", async () => {
-    let dbOk = false; // Flag indicando se PostgreSQL respondeu
-    try {
-      await db.execute(sql`SELECT 1`); // Ping mínimo no banco
-      dbOk = true; // Conexão OK
-    } catch (err) {
-      app.log.warn({ err }, "health db check failed"); // Loga mas não derruba o health (Railway)
-    }
-    const redis = await redisHealthCheck(); // Não bloqueia liveness se Redis falhar
     return {
-      ok: true, // Servidor Node está vivo
-      status: "live", // Status textual para monitoramento
-      db: dbOk, // true/false — banco acessível
-      redis, // { configured, ok, host }
-      whatsapp: process.env.ENABLE_WHATSAPP !== "false", // WhatsApp habilitado por padrão
-      build: "8.26", // Login Vercel + e-mail reset só botão (URL produção)
+      ok: true,
+      status: "live",
+      db: dbLive,
+      redis: redisSnap,
+      whatsapp: process.env.ENABLE_WHATSAPP !== "false",
+      build: "8.27",
       mail: mailHealthSnapshot(),
     };
   });
@@ -115,6 +112,7 @@ async function main() {
 
   try {
     await verifyDatabaseConnection();
+    dbLive = true;
     console.log("[db] conectado:", maskDatabaseUrl(getDatabaseUrl())); // Escreve mensagem no terminal para diagnóstico
   } catch (err) {
     console.error("[db] falha na conexão:", err); // Escreve mensagem no terminal para diagnóstico
@@ -133,15 +131,22 @@ async function main() {
     console.warn("[db] API sobe mesmo sem banco — /health retorna db:false até corrigir DATABASE_URL."); // Escreve mensagem no terminal para diagnóstico
   }
   const app = await createApp(); // Monta Fastify com todas as rotas
+  void redisHealthCheck()
+    .then((snap) => {
+      redisSnap = snap;
+    })
+    .catch(() => {
+      redisSnap = { ...redisSnap, configured: Boolean(process.env.REDIS_URL), ok: false };
+    });
   try {
-    await app.listen({ port, host: "0.0.0.0" }); // Escuta em todas as interfaces (Docker/Railway)
+    const bound = await listenOnRailwayPorts(app);
     app.log.info({
-      port,
+      ports: bound,
       nodeEnv: process.env.NODE_ENV ?? "development",
       hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
       hasJwtSecret: Boolean(process.env.JWT_SECRET),
       agentPipeline: "4.6-income-once",
-    }, `API listening on 0.0.0.0:${port}`);
+    }, `API listening on ${bound.join(",")}`);
   } catch (err) {
     app.log.error(err); // Porta em uso ou erro de bind
     process.exit(1); // Encerra o processo Node (servidor para de rodar)
