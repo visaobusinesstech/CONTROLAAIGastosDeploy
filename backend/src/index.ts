@@ -164,14 +164,14 @@ export default async function handler(req: any, res: any) { // Exportação prin
 }
 
 // Detecta se o arquivo foi executado diretamente (node dist/src/index.js) vs importado
-
 const isDirectRun =
-
   Boolean(process.argv[1]) &&
   path.resolve(fileURLToPath(import.meta.url)) === path.resolve(process.argv[1]);
 
-if (isDirectRun) {
+// Em ambientes Railway (nixpacks), caminhos com symlinks podem fazer isDirectRun falhar.
+// Se não estivermos na Vercel (onde VERCEL="1" é injetado automaticamente), forçamos o boot.
+const isVercel = process.env.VERCEL === "1";
 
-  void main(); // Só inicia servidor quando rodado como script principal
-
+if (isDirectRun || !isVercel) {
+  void main(); // Só inicia servidor quando rodado como script principal ou fora de serverless
 }
