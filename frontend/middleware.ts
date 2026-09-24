@@ -42,8 +42,7 @@ export const config = {
     "/auth/register",
     "/auth/legal",
     "/health",
-    // settings → rewrite vercel.json → /api/user-settings (não proxy Railway)
-    "/api/((?!backend-proxy|relay|auth|auth-2fa|user-settings|settings).*)",
+    "/api/((?!backend-proxy|relay|auth|user-settings|settings).*)",
   ],
 };
 
