@@ -26,7 +26,7 @@
  * =============================================================================
  */
 
-import { resolveBackendUrl as resolveBackendFromEnv } from "./api/backend-url";
+import { resolveBackendUrl as resolveBackendFromEnv } from "./api/backend-url.js";
 
 /** Decide a URL do backend: env Railway válida ou o serviço deste repositório. */
 function resolveBackendUrl(): string {
